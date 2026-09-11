@@ -38,8 +38,9 @@ typedef struct {
      * Colour index c uses palette entry c+1 (0 = default white). */
 
     /* RAM tile override set; ROM font (font8x8, ASCII-aligned) used
-     * where tile_defined[i] == 0. */
-    uint8_t tiles[256][8][8];
+     * where tile_defined[i] == 0. Each tile is 8 row bytes; bit 0 of a
+     * row byte is the leftmost pixel (same as the ROM font). */
+    uint8_t tiles[256][8];
     uint8_t tile_defined[256];
 
     /* Mode 10 only: 320x240 byte framebuffer, indexes into palette. */

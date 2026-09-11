@@ -12,8 +12,8 @@
  *   keyboard matrix  ->  SDL keyboard / game controllers -> input events
  *   both cores       ->  one thread: scheduler steps + inline RPC service
  *
- * Usage: spicomputer_sim [--sdcard DIR] [--seed-dir DIR] [--ticks N]
- *                        [--headless] [--exit-after-ms N]
+ * Usage: spicomputer_sim [--sdcard DIR] [--seed-dir DIR] [--boot FILE]
+ *                        [--ticks N] [--headless] [--exit-after-ms N]
  */
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -44,6 +44,7 @@
 typedef struct {
     const char *sdcard;
     const char *seed_dir;
+    const char *boot_file;
     const char *dump_frame;
     const char *check_file;
     int ticks_per_frame;
@@ -365,6 +366,7 @@ static void usage(const char *argv0) {
         "usage: %s [options]\n"
         "  --sdcard DIR        virtual SD card folder (default: ./sdcard)\n"
         "  --seed-dir DIR      copy os.lua/editor.lua from DIR when missing\n"
+        "  --boot FILE         program to boot (default: os.lua)\n"
         "  --ticks N           scheduler ticks per frame (default: 64)\n"
         "  --dump-frame FILE   write the final 640x480 frame as a PPM\n"
         "  --check FILE        compile FILE with the OS Lua and exit\n"
@@ -401,6 +403,7 @@ int main(int argc, char **argv) {
     sim_opts_t o = {
         .sdcard = "sdcard",
         .seed_dir = SIM_OS_DIR,
+        .boot_file = "os.lua",
         .ticks_per_frame = 64,
         .exit_after_ms = 0,
         .headless = false,
@@ -410,6 +413,8 @@ int main(int argc, char **argv) {
             o.sdcard = argv[++i];
         } else if (strcmp(argv[i], "--seed-dir") == 0 && i + 1 < argc) {
             o.seed_dir = argv[++i];
+        } else if (strcmp(argv[i], "--boot") == 0 && i + 1 < argc) {
+            o.boot_file = argv[++i];
         } else if (strcmp(argv[i], "--ticks") == 0 && i + 1 < argc) {
             o.ticks_per_frame = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--dump-frame") == 0 && i + 1 < argc) {
@@ -448,11 +453,12 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[sim] cannot mount the virtual SD card\n");
         return 1;
     }
-    if (!program_boot("os.lua", NULL)) {
-        fprintf(stderr, "[sim] boot failed: no os.lua on the card\n");
+    if (!program_boot(o.boot_file, NULL)) {
+        fprintf(stderr, "[sim] boot failed: no %s on the card\n", o.boot_file);
         return 1;
     }
-    printf("[sim] booted os.lua (pid 0), %d ticks/frame\n", o.ticks_per_frame);
+    printf("[sim] booted %s (pid 0), %d ticks/frame\n", o.boot_file,
+           o.ticks_per_frame);
 
     SDL_Window *win = NULL;
     SDL_Renderer *ren = NULL;

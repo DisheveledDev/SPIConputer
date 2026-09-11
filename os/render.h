@@ -18,5 +18,6 @@
 /* Render output line y (0..479) into out (RENDER_LINE_BYTES bytes,
  * RGB888). Tile modes fetch tiles from the ROM font (ASCII-aligned)
  * or the state's override set; attribute bytes carry invert + colour.
+ * Tile rows are bit-packed with bit 0 as the leftmost pixel.
  * Mode 10 streams the framebuffer through the palette. */
 void render_line(const video_state_t *v, int y, uint8_t *out);

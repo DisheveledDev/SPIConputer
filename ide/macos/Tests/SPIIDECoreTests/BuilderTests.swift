@@ -128,11 +128,6 @@ struct BuilderTests {
         #expect(onDisk == product.lua)
     }
 
-    @Test func launcherLuaEscapesQuotes() {
-        let launcher = Template.launcherOsLua(programFileName: "My \"Game\".lua")
-        #expect(launcher.contains("Launch(\"My \\\"Game\\\".lua\")"))
-    }
-
     @Test func runSessionWritesSdCard() throws {
         let project = try makeProject()
         defer { try? FileManager.default.removeItem(at: project.root) }
@@ -141,10 +136,32 @@ struct BuilderTests {
         let session = try Runner.prepare(project: project, build: product)
         let fm = FileManager.default
         #expect(fm.fileExists(atPath: session.programURL.path))
-        #expect(fm.fileExists(atPath: session.sdcardURL.appendingPathComponent("os.lua").path))
-        let osLua = try String(
-            contentsOf: session.sdcardURL.appendingPathComponent("os.lua"), encoding: .utf8)
-        #expect(osLua.contains("Launch(\"Demo.lua\")"))
-        #expect(Runner.simulatorArguments(for: session) == ["--sdcard", session.sdcardURL.path])
+        let onCard = try String(contentsOf: session.programURL, encoding: .utf8)
+        #expect(onCard == product.lua)
+        #expect(Runner.simulatorArguments(for: session) == [
+            "--sdcard", session.sdcardURL.path,
+            "--boot", "Demo.lua",
+        ])
+    }
+
+    @Test func runSessionKeepsProgramNamedOS() throws {
+        // A project named "OS" used to be clobbered by the simulator's
+        // boot file: on a case-insensitive filesystem the generated
+        // os.lua launcher and OS.lua are the same file.
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spiide-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let project = try ProjectStore.createProject(named: "OS", in: parent)
+        let product = try ProjectBuilder.build(project)
+
+        let session = try Runner.prepare(project: project, build: product)
+        #expect(session.programURL.lastPathComponent == "OS.lua")
+        let onCard = try String(contentsOf: session.programURL, encoding: .utf8)
+        #expect(onCard == product.lua)
+        #expect(Runner.simulatorArguments(for: session) == [
+            "--sdcard", session.sdcardURL.path,
+            "--boot", "OS.lua",
+        ])
     }
 }

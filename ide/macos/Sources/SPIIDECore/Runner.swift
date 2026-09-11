@@ -11,8 +11,8 @@ public struct RunSession: Sendable, Equatable {
     }
 }
 
-/// Prepares a run folder: an SD card containing the built program and a
-/// generated `os.lua` launcher, so the simulator boots straight into it.
+/// Prepares a run folder: an SD card containing the built program, which
+/// the simulator boots directly.
 public enum Runner {
     public static func runDirectory(for project: Project) -> URL {
         project.outputDirectoryURL.appendingPathComponent("run")
@@ -25,16 +25,15 @@ public enum Runner {
         let programURL = sdcard.appendingPathComponent(project.programFileName)
         try Data(build.lua.utf8).write(to: programURL, options: .atomic)
 
-        let launcher = Template.launcherOsLua(programFileName: project.programFileName)
-        try launcher.write(
-            to: sdcard.appendingPathComponent("os.lua"), atomically: true, encoding: .utf8)
-
         return RunSession(sdcardURL: sdcard, programURL: programURL)
     }
 
     /// Command-line arguments for the simulator.
     public static func simulatorArguments(for session: RunSession) -> [String] {
-        ["--sdcard", session.sdcardURL.path]
+        [
+            "--sdcard", session.sdcardURL.path,
+            "--boot", session.programURL.lastPathComponent,
+        ]
     }
 
     /// Where the IDE looks for the simulator by default, given the app's

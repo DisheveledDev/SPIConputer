@@ -52,6 +52,7 @@ tree).
 ```
 --sdcard DIR        virtual SD card folder (default: ./sdcard)
 --seed-dir DIR      copy os.lua/editor.lua from DIR when missing
+--boot FILE         program to boot (default: os.lua)
 --ticks N           scheduler ticks per frame (default: 64)
 --dump-frame FILE   write the final 640x480 frame as a PPM
 --headless          no window/audio (smoke tests, CI)
@@ -60,6 +61,8 @@ tree).
 
 `--headless --exit-after-ms 1500` boots the OS, runs the scheduler and
 the RPC, prints a summary and exits 0 — useful as a smoke test.
+`--boot foo.lua` starts a program directly instead of the `os.lua`
+shell (the IDE uses this to run a project straight from its folder).
 `--dump-frame shot.ppm` captures the last rendered frame for inspection
 (convert with `sips -s format png shot.ppm --out shot.png`).
 

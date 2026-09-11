@@ -36,11 +36,11 @@ void render_line(const video_state_t *v, int y, uint8_t *out) {
             uint8_t attr = v->attr_map[row * cols + col];
             uint8_t bits;
             if (v->tile_defined[ch]) {
-                bits = v->tiles[ch][sub][bit];
+                bits = v->tiles[ch][sub];
             } else {
                 bits = (uint8_t)spiterm_font8x8(ch)[sub];
             }
-            int on = (bits >> (7 - bit)) & 1;
+            int on = (bits >> bit) & 1; /* bit 0 is the leftmost pixel */
 
             uint8_t fg, bg;
             if (mode == VIDEO_MODE_TEXT40C || mode == VIDEO_MODE_TEXT80C) {

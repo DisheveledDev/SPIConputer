@@ -41,7 +41,7 @@ static size_t s_tx_pos;
 static uint32_t s_last_version;
 static int s_last_mode;
 static uint64_t s_last_frame_us;
-static uint8_t s_tiles_snapshot[256][8][8];
+static uint8_t s_tiles_snapshot[256][8];
 static uint8_t s_defined_snapshot[256];
 
 static void tx_begin(void) {

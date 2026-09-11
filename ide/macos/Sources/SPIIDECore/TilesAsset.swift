@@ -24,7 +24,8 @@ public struct TilesAsset: Codable, Sendable, Equatable {
     }
 }
 
-/// One 8x8 tile. `rows` holds 8 bit patterns (bit 7 = leftmost pixel).
+/// One 8x8 tile. `rows` holds 8 bit patterns (bit 0 = leftmost pixel,
+/// matching the ROM font and `ScreenDefineTile`).
 public struct TileDef: Codable, Sendable, Equatable {
     public var index: Int
     public var rows: [Int]

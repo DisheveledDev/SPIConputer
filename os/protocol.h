@@ -11,7 +11,8 @@
  *   data=0,0,0,36,38,41,87,0,0,76,98,...
  *
  * One record per line; the `data=` line is one full frame. Values are
- * decimal or 0x hex and are cast to uchar. The parser is incremental:
+ * decimal or 0x hex and are cast to uchar. Tile rows use the ROM font
+ * convention: bit 0 is the leftmost pixel. The parser is incremental:
  * feed arbitrary byte chunks, drain one record per proto_parse() call.
  */
 #ifndef SPITERM_PROTOCOL_H

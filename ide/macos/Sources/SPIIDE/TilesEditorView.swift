@@ -81,7 +81,7 @@ struct TilesEditorView: View {
                             .foregroundStyle(.secondary)
                     }
                     TileGridView(rows: tiles[selectedTile].rows)
-                    Text("Click pixels to toggle. Bit 7 is the leftmost pixel.")
+                    Text("Click pixels to toggle. Bit 0 is the leftmost pixel.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -177,14 +177,14 @@ struct TileGridView: View {
 
     private func isOn(x: Int, y: Int) -> Bool {
         guard rows.indices.contains(y) else { return false }
-        return (rows[y] >> (7 - x)) & 1 == 1
+        return (rows[y] >> x) & 1 == 1
     }
 
     private func toggle(x: Int, y: Int) {
         while rows.count < 8 {
             rows.append(0)
         }
-        rows[y] ^= 1 << (7 - x)
+        rows[y] ^= 1 << x
     }
 }
 

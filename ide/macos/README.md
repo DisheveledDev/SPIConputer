@@ -108,11 +108,11 @@ in `main` are visible to `input` and `tick`.
 
 ## Run in the simulator
 
-**Run** (⌘R) builds, then writes `build/run/sdcard/` containing the
-generated program and a generated `os.lua` launcher that `Launch()`es it,
-and starts `simulator/build/spicomputer_sim --sdcard …`. **Stop**
-terminates it. The Build & Run console shows the build result and the
-simulator's output.
+**Run** (⌘R) builds, then writes the generated program into
+`build/run/sdcard/` and starts
+`simulator/build/spicomputer_sim --sdcard … --boot <program>`, so the
+simulator boots the project directly. **Stop** terminates it. The Build
+& Run console shows the build result and the simulator's output.
 
 ## Not yet
 

@@ -48,12 +48,12 @@ static void test_render_mode0(void) {
     video_state_init(&v);
     /* Char map cleared to spaces; put 'A' at (0,0).
      * font8x8 'A': rows 0x0C,0x1E,0x33,0x33,0x3F,0x33,0x33,0x00.
-     * Line 0: subline 0 = 0x0C = 0b00001100 -> pixels 4,5 on, 2x
-     * scaled -> outputs 8,9,10,11 white, rest black. */
+     * Line 0: subline 0 = 0x0C = 0b00001100 -> pixels 2,3 on (bit 0
+     * is the leftmost pixel), 2x scaled -> outputs 4-7 white. */
     v.char_map[0] = 'A';
     render_line(&v, 0, line);
     for (int x = 0; x < RENDER_OUT_WIDTH; x++) {
-        int on = (x >= 8 && x <= 11);
+        int on = (x >= 4 && x <= 7);
         uint8_t expect = on ? 0xff : 0x00;
         CHECK(line[x * 3] == expect && line[x * 3 + 1] == expect &&
                   line[x * 3 + 2] == expect,
@@ -61,10 +61,10 @@ static void test_render_mode0(void) {
     }
 
     /* Line 4 = logical line 2 -> subline 2 = 0x33 = 0b00110011:
-     * pixels 2,3,6,7 on, 2x scaled -> outputs 4-7 and 12-15. */
+     * pixels 0,1,4,5 on, 2x scaled -> outputs 0-3 and 8-11. */
     render_line(&v, 4, line);
     for (int x = 0; x < RENDER_OUT_WIDTH; x++) {
-        int on = (x >= 4 && x <= 7) || (x >= 12 && x <= 15);
+        int on = x <= 3 || (x >= 8 && x <= 11);
         uint8_t expect = on ? 0xff : 0x00;
         CHECK(line[x * 3] == expect && line[x * 3 + 1] == expect &&
                   line[x * 3 + 2] == expect,
@@ -77,10 +77,9 @@ static void test_render_mode0(void) {
     CHECK(memcmp(line, line5, RENDER_LINE_BYTES) == 0,
           "2x vertical scaling doubles the line");
 
-    /* Line 8 = logical line 4 -> subline 4 = 0x3F: outputs 4..15. */
+    /* Line 8 = logical line 4 -> subline 4 = 0x3F: outputs 0..11. */
     render_line(&v, 8, line);
-    CHECK(line[4 * 3] == 0xff && line[15 * 3] == 0xff &&
-              line[16 * 3] == 0x00 && line[3 * 3] == 0x00,
+    CHECK(line[0] == 0xff && line[11 * 3] == 0xff && line[12 * 3] == 0x00,
           "line 8 subline 4 (0x3F)");
 }
 
@@ -93,26 +92,22 @@ static void test_render_attrs(void) {
     video_state_init(&v);
     video_set_mode(&v, VIDEO_MODE_TEXT40C);
     v.char_map[0] = 'A';
-    /* 'A' subline 4 = 0x09: pixel 3 on. Check colour + invert. */
-    /* 'A' subline 4 = 0x3F: pixel 2 on -> output 4. */
+    /* 'A' subline 4 = 0x3F: pixels 0..5 on -> outputs 0..11. */
     v.attr_map[0] = 0x00; /* colour 0 -> palette[1] = white */
     render_line(&v, 4, line);
-    CHECK(line[4 * 3] == 0xff && line[4 * 3 + 1] == 0xff &&
-              line[4 * 3 + 2] == 0xff,
+    CHECK(line[0] == 0xff && line[1] == 0xff && line[2] == 0xff,
           "colour 0 is default white");
 
     v.attr_map[0] = 0x02; /* colour 2 -> palette[3] = cyan 0xaaffee */
     render_line(&v, 4, line);
-    CHECK(line[4 * 3] == 0xaa && line[4 * 3 + 1] == 0xff &&
-              line[4 * 3 + 2] == 0xee,
+    CHECK(line[0] == 0xaa && line[1] == 0xff && line[2] == 0xee,
           "colour 2 is cyan");
 
     v.attr_map[0] = 0x80; /* invert: on pixels become background (black) */
     render_line(&v, 4, line);
-    CHECK(line[4 * 3] == 0x00 && line[4 * 3 + 1] == 0x00 &&
-              line[4 * 3 + 2] == 0x00,
+    CHECK(line[0] == 0x00 && line[1] == 0x00 && line[2] == 0x00,
           "invert makes on-pixel black");
-    CHECK(line[0] == 0xff, "invert makes off-pixel white");
+    CHECK(line[12 * 3] == 0xff, "invert makes off-pixel white");
 }
 
 /* ---------------- test 3: custom tiles + mode 2 native ---------------- */
@@ -122,34 +117,36 @@ static void test_render_custom_tile_and_mode2(void) {
     uint8_t line[RENDER_LINE_BYTES];
 
     video_state_init(&v);
-    /* Override tile 200 with a solid first row. */
-    for (int c = 0; c < 8; c++) {
-        v.tiles[200][0][c] = 0xff;
-    }
+    /* Override tile 200: row 0 = 0x0C -> pixels 2,3 on (2x -> 4..7),
+     * row 1 = 0x01 -> pixel 0 on (2x -> 0,1), the rest blank. */
+    v.tiles[200][0] = 0x0C;
+    v.tiles[200][1] = 0x01;
     v.tile_defined[200] = 1;
     v.char_map[0] = 200;
 
     render_line(&v, 0, line);
-    /* subline 0, tile col 0: row 0xff -> first 8 pixels on, 2x -> 16. */
-    for (int x = 0; x < 16; x++) {
-        CHECK(line[x * 3] == 0xff, "custom tile pixel on");
+    for (int x = 0; x < RENDER_OUT_WIDTH; x++) {
+        int on = (x >= 4 && x <= 7);
+        CHECK((line[x * 3] != 0) == on, "custom tile row 0 pattern");
     }
-    CHECK(line[16 * 3] == 0x00, "custom tile pixel off after run");
+    render_line(&v, 2, line);
+    CHECK(line[0] == 0xff && line[3] == 0xff && line[6] == 0x00,
+          "custom tile row 1 pattern");
+    CHECK(line[16 * 3] == 0x00, "next tile column blank");
 
     /* Mode 2 (80x60): native 1x scaling. 'A' at (0,0), subline 4 row
-     * 0x3F -> pixels 2..7 on (native outputs 2..7). */
+     * 0x3F -> pixels 0..5 on (native outputs 0..5). */
     video_set_mode(&v, VIDEO_MODE_TEXT80);
     v.char_map[0] = 'A';
     render_line(&v, 4, line);
-    CHECK(line[2 * 3] == 0xff && line[1 * 3] == 0x00,
-          "mode 2 native pixel 2");
-    CHECK(line[7 * 3] == 0xff && line[8 * 3] == 0x00,
-          "mode 2 native pixel 7");
+    CHECK(line[0] == 0xff && line[5 * 3] == 0xff && line[6 * 3] == 0x00,
+          "mode 2 native pixels 0..5");
 
-    /* Column 79, same subline: outputs 79*8+2 .. 79*8+7 = 634..639. */
+    /* Column 79, same subline: outputs 79*8 .. 79*8+5 = 632..637. */
     v.char_map[79] = 'A';
     render_line(&v, 4, line);
-    CHECK(line[(79 * 8 + 2) * 3] == 0xff && line[(79 * 8 + 7) * 3] == 0xff,
+    CHECK(line[(79 * 8) * 3] == 0xff && line[(79 * 8 + 5) * 3] == 0xff &&
+              line[(79 * 8 + 6) * 3] == 0x00,
           "mode 2 column 79 pixels");
 }
 

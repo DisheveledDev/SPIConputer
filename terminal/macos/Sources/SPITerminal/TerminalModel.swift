@@ -94,7 +94,9 @@ final class TerminalModel: ObservableObject {
                     for row in 0..<8 {
                         let bits = glyph[row]
                         for col in 0..<8 {
-                            let on = (bits & (0x80 >> col)) != 0
+                            // Row bytes follow the ROM font: bit 0 is
+                            // the leftmost pixel.
+                            let on = (bits & (1 << col)) != 0
                             let (r, g, b) = on ? (fg.r, fg.g, fg.b)
                                               : (bg.r, bg.g, bg.b)
                             for sy in 0..<scale {

@@ -31,7 +31,7 @@ or new detail is captured.
 | Input | `input.c` + `core0/input_hw.c` — 1 kHz matrix scan + joystick poll + RS232 `input=` parsing into a SPSC event queue (`system_state.h`); core 1 drains it in the scheduler loop |
 | RS232 terminal app | `../terminal/macos` — sibling folder, not part of the OS. SwiftUI app vendoring the OS protocol parser + ROM font via its `sync-protocol.sh` |
 | Desktop simulator | `../simulator/` — sibling folder, not part of the OS. SDL2 app (macOS) running the real OS sources with `sdcard/` as the virtual SD card, an SDL window for video, queued audio, and keyboard/controller input; hardware files replaced by `sim_fs.c`/`sim_main.c` |
-| Desktop IDE | `../ide/macos` — sibling folder, not part of the OS. SwiftUI app managing component projects (manifest + Lua/tile/audio/snippet components) and building them into one `.lua`; new projects start with header/main/input/tick components. Editors show line numbers, syntax highlighting and autocomplete for Lua + SPIComputer APIs; a debounced compile check runs the OS's own Lua via `simulator --check` and maps errors back to component lines. Run writes a launcher `os.lua` + the built program into a run-folder SD card and launches the simulator |
+| Desktop IDE | `../ide/macos` — sibling folder, not part of the OS. SwiftUI app managing component projects (manifest + Lua/tile/audio/snippet components) and building them into one `.lua`; new projects start with header/main/input/tick components. Editors show line numbers, syntax highlighting and autocomplete for Lua + SPIComputer APIs; a debounced compile check runs the OS's own Lua via `simulator --check` and maps errors back to component lines. Run writes the built program into a run-folder SD card and boots it directly with `simulator --boot` |
 | Host tests | `tests/host` — fs bridge + RPC round-trip over mock SD (incl. ejected-card errors), serial-mirror protocol golden vectors, input engine, process model (launch/resume/video restore, tick crash, timers + pause shifting, input deposit, failed launch), audio engine/API, editor |
 
 Build (VS Code Pico extension or CLI):
@@ -99,13 +99,14 @@ map of the same size. Each attribute byte is 8 bits: 1 bit invert +
 3 bits colour (choice of 7 colours), 4 bits spare (TBD). The character map
 holds tile indexes, **ASCII-aligned where possible** (tile index = character
 code, e.g. `screen_data[0][0] = 'Z'`). Tiles are permanently defined as
-`uchar[256][8][8]` (mostly static font definitions, fast indexing).
+`uchar[256][8]` (8 row bytes; bit 0 is the leftmost pixel, matching the
+ROM font), which also keeps them mostly static and fast to index.
 Changing screen mode frees any previous display buffer memory.
 
 **Tile-mode rendering (no pixel framebuffer):** core 0 renders scanlines on
 the fly. For output line y: row = y/8, subline = y%8; for each column x,
-look up the tile from the char map and fetch that tile's row bytes
-(`tiles[tile][subline][0..7]`, or all 8 pixels in one operation), apply
+look up the tile from the char map and fetch that tile's row byte
+(`tiles[tile][subline]`, eight pixels per byte), apply
 invert/colour from the attribute map, and write into the scanline buffer
 for HSTX. Building a whole line at once vs per-pixel is expected to be
 similar workload; implement whichever benchmarks better. Only pixel modes
@@ -172,7 +173,7 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
 - HDMI over HSTX; 640x480@60 pixel clock (25.175 MHz) is well within RP2350
   capability. The SDK itself does not ship scanvideo; `pico_scanvideo_dpi`
   from pico-extras is the likely base (verify its RP2350/HSTX support).
-- Memory budget: RP2350 has 520 KB RAM. 76 KB pixel buffer + ~16 KB per tile
+- Memory budget: RP2350 has 520 KB RAM. 76 KB pixel buffer + 2 KB per tile
   set is fine, but per-program video snapshots need a memory policy
   (see process model below).
 

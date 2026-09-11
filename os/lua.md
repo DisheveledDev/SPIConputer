@@ -174,7 +174,7 @@ board supports modes 0 and 1 only.
 | `ScreenMode(mode)` | `true`, or `nil, err` (invalid mode, unsupported board, out of memory for mode 10) |
 | `ScreenOut(x, y, char [, attr])` | `true`, or `nil, err` (text modes) |
 | `ScreenAttr(x, y, flags)` | `true`, or `nil, err` |
-| `ScreenDefineTile(index, bytes)` | `true` (bytes = table of 8 numbers or 8-byte string) |
+| `ScreenDefineTile(index, bytes)` | `true` (bytes = table of 8 row patterns or 8-byte string; bit 0 of a row is the leftmost pixel) |
 | `ScreenPalette(i, r, g, b)` | `true` |
 | `ScreenPaletteSet(t)` | `true` (t = array of `{r,g,b}` tables or 0xRRGGBB integers, up to 256) |
 | `ScreenClear([char])` | `true` (defaults to space) |
@@ -183,8 +183,9 @@ board supports modes 0 and 1 only.
 Attribute byte: bit 7 = invert (swap fg/bg), bits 0-2 = colour index.
 Colour index `c` uses palette entry `c+1` (so 0 = default white); the
 background is palette entry 0 (black). Tiles not redefined render with
-the ROM font (ASCII-aligned, tile index = character code). A mode
-switch clears the screen; switching to mode 10 allocates its
+the ROM font (ASCII-aligned, tile index = character code). Tile rows
+and ROM font rows share one convention: bit 0 is the leftmost pixel.
+A mode switch clears the screen; switching to mode 10 allocates its
 framebuffer (only one mode 10 program may run; `Launch` from mode 10
 fails).
 
