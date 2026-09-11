@@ -23,7 +23,8 @@ struct SPIIDEApp: App {
             CommandGroup(after: .pasteboard) {
                 Divider()
                 Button("Complete") {
-                    NSApp.sendAction(#selector(NSTextView.complete(_:)), to: nil, from: nil)
+                    NotificationCenter.default.post(
+                        name: .spiCompleteInEditor, object: nil)
                 }
                 .keyboardShortcut(KeyEquivalent(" "), modifiers: .control)
             }

@@ -94,10 +94,18 @@ in `main` are visible to `input` and `tick`.
 - **Run** refuses to start while a compile error is outstanding.
 - **Autocompletion** covers Lua keywords and standard library plus the
   SPIComputer globals (`Screen*`, `Sound*`, `Music*`, `Timer*`, `Input*`,
-  `fs.*`, `TimeNow`, `Launch`, `ApplyAssets`, ...). The popup appears
+  `fs.*`, `TimeNow`, `Launch`, `ApplyAssets`, ...). The list appears
   shortly after you type (two or more characters), or on demand with
-  Ctrl-Esc / **Edit ▸ Complete** (⌃Space); the inline macOS "automatic
-  text completion" is disabled so the list is what appears.
+  Ctrl-Esc / **Edit ▸ Complete** (⌃Space), which also steps through the
+  list once open. Up/Down choose, Tab or Return insert, Esc dismisses.
+  Backspace only dismisses and always deletes, and deleting never
+  reopens the list; the inline macOS "automatic text completion" is
+  disabled so this list is what appears.
+- **Parameter help**: while the caret is inside a call's argument list
+  (`ScreenOut(1, `), a strip under the caret shows the signature with
+  the current parameter emphasised, following the caret until the call
+  is closed. It covers the SPIComputer API, the Lua standard library and
+  the `fs` file methods.
 - **Auto-indent**: Return keeps the current indentation and adds a level
   after block openers (`then`, `do`, `function`, `else`, `repeat`, `{`,
   `(`, function headers); typing `end`, `until`, `else`, `elseif`, `}` or
@@ -118,4 +126,5 @@ simulator boots the project directly. **Stop** terminates it. The Build
 
 - `.luac` output (the firmware loads text chunks only; binary chunks
   would need `luaL_loadbufferx` mode `"b"`).
-- Signature help / hover documentation for the SPIComputer API.
+- Hover documentation (a tooltip on the call under the mouse; parameter
+  help covers the signature already).

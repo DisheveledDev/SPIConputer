@@ -3,6 +3,12 @@ import SwiftUI
 
 import SPIIDECore
 
+extension Notification.Name {
+    /// Posted by Edit ▸ Complete: the focused editor opens its
+    /// completion list, or steps through it when it is already open.
+    static let spiCompleteInEditor = Notification.Name("SPICompleteInEditor")
+}
+
 /// Monospaced code editor backed by NSTextView: line-number gutter,
 /// compile-error line highlight, Lua/SPIComputer autocompletion and
 /// structure-based auto-indent. The gutter is a plain sibling view (not an
@@ -27,6 +33,7 @@ struct CodeEditorView: NSViewRepresentable {
         context.coordinator.textView = editor.textView
         context.coordinator.scrollView = editor.scrollView
         context.coordinator.gutter = editor.gutter
+        context.coordinator.syncTextLength()
 
         editor.scrollView.contentView.postsBoundsChangedNotifications = true
         NotificationCenter.default.addObserver(
@@ -57,11 +64,13 @@ struct CodeEditorView: NSViewRepresentable {
             textView.setSelectedRange(
                 NSRange(location: min(selected.location, length), length: 0))
             context.coordinator.isApplyingModel = false
+            context.coordinator.syncTextLength()
             context.coordinator.highlightSyntax()
             context.coordinator.gutter?.needsDisplay = true
         }
         context.coordinator.refitEditor()
         context.coordinator.applyDiagnostic(line: diagnosticLine)
+        context.coordinator.updateSignatureHelp()
     }
 
     @MainActor
@@ -74,9 +83,41 @@ struct CodeEditorView: NSViewRepresentable {
         private var isHighlighting = false
         private var appliedDiagnosticLine: Int?
         private var lastDedentedLineStart = -1
+        /// Document length at the last change: insertions grow the text,
+        /// deletions shrink it (`textStorage.changeInLength` is not
+        /// reliable outside text-storage callbacks).
+        private var lastKnownLength = -1
+
+        /// Re-syncs the length baseline after the text is replaced
+        /// wholesale (view creation, model updates).
+        func syncTextLength() {
+            guard let textView else { return }
+            lastKnownLength = (textView.string as NSString).length
+        }
 
         init(_ parent: CodeEditorView) {
             self.parent = parent
+            super.init()
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(completeNow(_:)),
+                name: .spiCompleteInEditor, object: nil)
+        }
+
+        /// Edit ▸ Complete (⌃Space): opens the list, or steps through it
+        /// when it is already open.
+        @objc private func completeNow(_ notification: Notification) {
+            guard let textView,
+                  textView.window != nil,
+                  textView.window?.isKeyWindow == true || !requiresKeyWindow
+            else { return }
+            if completionPanel.isVisible {
+                completionPanel.moveSelection(by: 1)
+                return
+            }
+            guard let range = currentWordRange(in: textView) else { return }
+            showCompletion(
+                prefix: (textView.string as NSString).substring(with: range),
+                range: range, in: textView)
         }
 
         /// Re-syncs the document view with the clip view's size.
@@ -88,6 +129,12 @@ struct CodeEditorView: NSViewRepresentable {
 
         @objc func boundsChanged(_ notification: Notification) {
             gutter?.needsDisplay = true
+            if completionPanel.isVisible, let textView,
+               let rect = caretScreenRect(in: textView)
+            {
+                completionPanel.move(near: rect)
+            }
+            updateSignatureHelp()
         }
 
         // MARK: Text changes
@@ -102,12 +149,68 @@ struct CodeEditorView: NSViewRepresentable {
             highlightSyntax()
             appliedDiagnosticLine = nil // highlighting resets backgrounds
             gutter?.needsDisplay = true
-            scheduleCompletion(in: textView)
+            let length = (textView.string as NSString).length
+            let deleted = lastKnownLength >= 0 && length < lastKnownLength
+            lastKnownLength = length
+            if deleted {
+                // Deleting must never open the completion list.
+                hideCompletion()
+            } else if !isApplyingModel {
+                refreshCompletion(in: textView)
+            }
+            updateSignatureHelp()
         }
 
-        /// Return keeps the indentation, opening a level after block
-        /// openers (function/if/for/while/do/else/repeat and `{`/`(`).
+        func textDidEndEditing(_ notification: Notification) {
+            hideCompletion()
+            signatureHelp.hide()
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            if completionPanel.isVisible, let textView,
+               let range = completionPrefixRange,
+               textView.selectedRange()
+                   != NSRange(location: range.location + range.length, length: 0)
+            {
+                hideCompletion()
+            }
+            updateSignatureHelp()
+        }
+
+        // MARK: Key commands
+
+        /// While the completion list is open, Up/Down move the selection
+        /// and Tab/Return accept it. Return otherwise keeps the
+        /// indentation, opening a level after block openers
+        /// (function/if/for/while/do/else/repeat and `{`/`(`). Delete
+        /// only hides the list, then always removes the character.
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if completionPanel.isVisible {
+                if commandSelector == #selector(NSResponder.moveUp(_:)) {
+                    completionPanel.moveSelection(by: -1)
+                    return true
+                }
+                if commandSelector == #selector(NSResponder.moveDown(_:)) {
+                    completionPanel.moveSelection(by: 1)
+                    return true
+                }
+                if commandSelector == #selector(NSResponder.insertTab(_:))
+                    || commandSelector == #selector(NSResponder.insertNewline(_:))
+                {
+                    acceptCompletion()
+                    return true
+                }
+                if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                    hideCompletion()
+                    return true
+                }
+            }
+            if commandSelector == #selector(NSResponder.deleteBackward(_:))
+                || commandSelector == #selector(NSResponder.deleteForward(_:))
+            {
+                hideCompletion()
+                return false // perform the deletion
+            }
             guard commandSelector == #selector(NSResponder.insertNewline(_:)) else {
                 return false
             }
@@ -146,37 +249,104 @@ struct CodeEditorView: NSViewRepresentable {
 
         // MARK: Completion
 
-        func textView(
-            _ textView: NSTextView,
-            completions words: [String],
-            forPartialWordRange charRange: NSRange,
-            indexOfSelectedItem index: UnsafeMutablePointer<Int>?
-        ) -> [String] {
-            guard let range = Range(charRange, in: textView.string) else { return words }
-            let prefix = String(textView.string[range])
-            let matches = LuaCompletion.matches(prefix)
-            return matches.isEmpty ? words : matches
-        }
+        let completionPanel = CompletionPanel()
+        /// Delay before the list appears; tests shorten it.
+        var completionDelay: TimeInterval = 0.15
+        /// Test hook: windows do not become key in the test process, so
+        /// tests relax the checks that keep panels out of background
+        /// windows.
+        var requiresKeyWindow = true
+        private var completionPrefixRange: NSRange?
+        private var pendingCompletionPrefix: String?
 
-        private var completionWork: DispatchWorkItem?
+        /// Follows the word being typed: opens the list, filters it while
+        /// it is open, or hides it. Never called for deletions.
+        private func refreshCompletion(in textView: NSTextView) {
+            guard let range = currentWordRange(in: textView),
+                  textView.selectedRange().location == range.location + range.length
+            else {
+                hideCompletion()
+                return
+            }
+            let prefix = (textView.string as NSString).substring(with: range)
+            let matches = LuaCompletion.matches(prefix).filter { $0 != prefix }
+            guard prefix.count >= 2, !matches.isEmpty else {
+                hideCompletion()
+                return
+            }
+            completionPrefixRange = range
+            guard let rect = caretScreenRect(in: textView) else {
+                hideCompletion()
+                return
+            }
+            if completionPanel.isVisible {
+                completionPanel.update(matches: matches, near: rect)
+            } else {
+                scheduleCompletion(in: textView)
+            }
+        }
 
         private func scheduleCompletion(in textView: NSTextView) {
-            completionWork?.cancel()
-            guard let prefix = currentWord(in: textView), prefix.count >= 2 else { return }
-            let matches = LuaCompletion.matches(prefix)
-            guard !matches.isEmpty, matches.first != prefix else { return }
-            let work = DispatchWorkItem { [weak self, weak textView] in
-                guard let self, let textView,
-                      textView.window?.isKeyWindow == true,
-                      self.currentWord(in: textView) == prefix
-                else { return }
-                textView.complete(nil)
-            }
-            completionWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+            cancelPendingCompletion()
+            guard let range = currentWordRange(in: textView) else { return }
+            let prefix = (textView.string as NSString).substring(with: range)
+            guard prefix.count >= 2 else { return }
+            let matches = LuaCompletion.matches(prefix).filter { $0 != prefix }
+            guard !matches.isEmpty else { return }
+            pendingCompletionPrefix = prefix
+            perform(
+                #selector(showScheduledCompletion(_:)), with: nil,
+                afterDelay: completionDelay)
         }
 
-        private func currentWord(in textView: NSTextView) -> String? {
+        /// Opens the completion list. Runs on the run loop (also under
+        /// the test harness, unlike dispatch).
+        @objc private func showScheduledCompletion(_ object: Any?) {
+            _ = object
+            let prefix = pendingCompletionPrefix
+            pendingCompletionPrefix = nil
+            guard let textView, let prefix,
+                  textView.window != nil,
+                  textView.window?.isKeyWindow == true || !requiresKeyWindow,
+                  let range = currentWordRange(in: textView),
+                  (textView.string as NSString).substring(with: range) == prefix
+            else { return }
+            showCompletion(prefix: prefix, range: range, in: textView)
+        }
+
+        private func showCompletion(
+            prefix: String, range: NSRange, in textView: NSTextView
+        ) {
+            let matches = LuaCompletion.matches(prefix).filter { $0 != prefix }
+            guard !matches.isEmpty, let rect = caretScreenRect(in: textView) else { return }
+            completionPrefixRange = range
+            completionPanel.show(matches: matches, near: rect)
+            signatureHelp.hide() // the list owns the space below
+        }
+
+        /// Inserts the highlighted completion (Tab, Return, or a click).
+        func acceptCompletion() {
+            guard completionPanel.isVisible,
+                  let textView, let range = completionPrefixRange,
+                  let match = completionPanel.selectedMatch
+            else { return }
+            hideCompletion()
+            textView.insertText(match, replacementRange: range)
+        }
+
+        func hideCompletion() {
+            cancelPendingCompletion()
+            completionPrefixRange = nil
+            completionPanel.hide()
+        }
+
+        private func cancelPendingCompletion() {
+            pendingCompletionPrefix = nil
+            NSObject.cancelPreviousPerformRequests(
+                withTarget: self, selector: #selector(showScheduledCompletion(_:)), object: nil)
+        }
+
+        private func currentWordRange(in textView: NSTextView) -> NSRange? {
             let text = textView.string as NSString
             let location = textView.selectedRange().location
             guard location <= text.length else { return nil }
@@ -191,7 +361,41 @@ struct CodeEditorView: NSViewRepresentable {
                 start -= 1
             }
             guard start < location else { return nil }
-            return text.substring(with: NSRange(location: start, length: location - start))
+            return NSRange(location: start, length: location - start)
+        }
+
+        // MARK: Signature help
+
+        let signatureHelp = SignatureHelpPanel()
+
+        /// Shows parameter help for the call the caret sits in, or hides
+        /// it.
+        func updateSignatureHelp() {
+            guard let textView, textView.window != nil,
+                  !completionPanel.isVisible,
+                  textView.window?.isKeyWindow == true || !requiresKeyWindow
+            else {
+                signatureHelp.hide()
+                return
+            }
+            let caret = textView.selectedRange().location
+            guard let context = LuaSignatureHelp.context(at: caret, in: textView.string),
+                  let rect = caretScreenRect(in: textView)
+            else {
+                signatureHelp.hide()
+                return
+            }
+            signatureHelp.show(context: context, near: rect)
+        }
+
+        private func caretScreenRect(in textView: NSTextView) -> NSRect? {
+            let length = (textView.string as NSString).length
+            let location = min(max(textView.selectedRange().location, 0), length)
+            let rect = textView.firstRect(
+                forCharacterRange: NSRange(location: location, length: 0),
+                actualRange: nil)
+            // A caret rect has zero width but a real height.
+            return rect.height > 0 ? rect : nil
         }
 
         // MARK: Diagnostics
