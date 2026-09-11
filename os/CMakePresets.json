@@ -1,0 +1,36 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "dev",
+            "displayName": "RP2040 dev board (RS232 only)",
+            "description": "Raspberry Pi Pico / RP2040 module. Requires the ARM Cortex-M0+ toolchain (install via the Raspberry Pi Pico VS Code extension), exported as PICO_TOOLCHAIN_PATH.",
+            "binaryDir": "${sourceDir}/build-dev",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "PICO_BOARD": "pico",
+                "PICO_PLATFORM": "rp2040",
+                "SPICOMPUTER_SKIP_VSCODE": "ON",
+                "CMAKE_MAKE_PROGRAM": "$env{HOME}/.pico-sdk/ninja/v1.13.2/ninja"
+            }
+        },
+        {
+            "name": "product",
+            "displayName": "RP2354B product board",
+            "description": "RP2354B (48 GPIOs, 2 MB stacked flash), RISC-V toolchain. Custom board header (boards/rp2354b.h).",
+            "binaryDir": "${sourceDir}/build",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "PICO_BOARD": "rp2354b",
+                "PICO_BOARD_HEADER_DIRS": "${sourceDir}/boards",
+                "PICO_FLASH_SIZE_BYTES": "2097152",
+                "CMAKE_MAKE_PROGRAM": "$env{HOME}/.pico-sdk/ninja/v1.13.2/ninja"
+            }
+        }
+    ]
+}
