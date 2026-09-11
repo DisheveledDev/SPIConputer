@@ -355,6 +355,67 @@ static void test_alloc_churn(void) {
     CHECK(program_top() == NULL, "churn program terminated");
 }
 
+/* ---------------- test 7: input callbacks (on_keypress/on_control) ---------------- */
+
+static const char *CB_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "function on_keypress(key, shift, ctrl, cbm, restore)\n"
+    "  log(string.format('K:%d:%d%d%d%d\\n', key, shift and 1 or 0,\n"
+    "    ctrl and 1 or 0, cbm and 1 or 0, restore and 1 or 0))\n"
+    "end\n"
+    "function on_control(index, up, down, left, right, fire)\n"
+    "  log(string.format('C:%d:%d%d%d%d%d\\n', index, up and 1 or 0,\n"
+    "    down and 1 or 0, left and 1 or 0, right and 1 or 0, fire and 1 or 0))\n"
+    "end\n"
+    "function tick()\n"
+    "  while true do\n"
+    "    local ev = InputPoll()\n"
+    "    if not ev then break end\n"
+    "    log('P:' .. ev.type .. '\\n')\n"
+    "  end\n"
+    "end\n";
+
+static void push_key_mods(uint8_t key, uint8_t pressed, uint8_t mods) {
+    input_event_t ev = {0};
+    ev.type = INPUT_EV_KEY;
+    ev.key = key;
+    ev.mods = mods;
+    ev.pressed = pressed;
+    input_queue_push(&g_system_state.input, &ev);
+}
+
+static void test_input_callbacks(void) {
+    mock_set_file("cb.lua", CB_LUA);
+    boot("cb.lua");
+
+    push_key_mods('A', 1, INPUT_MOD_SHIFT | INPUT_MOD_CTRL);
+    push_key_mods('A', 0, 0);          /* release: no callback */
+    push_key_mods(0, 1, INPUT_MOD_CBM); /* modifier key: no callback */
+    push_control(INPUT_DIR_UP, 1);
+    push_control(INPUT_DIR_FIRE, 1);
+    input_event_t c2 = {0};
+    c2.type = INPUT_EV_CONTROL2;
+    c2.ctrl = 2;
+    c2.dirs = INPUT_DIR_RIGHT;
+    c2.pressed = 1;
+    input_queue_push(&g_system_state.input, &c2);
+
+    program_scheduler_step();
+    expect_log("K:65:1100\n"     /* shift+ctrl */
+               "C:0:10000\n"     /* port 0, up */
+               "C:0:10001\n"     /* port 0, up+fire (full state) */
+               "C:1:00010\n"     /* port 1, right */
+               "P:key\n"
+               "P:key\n"
+               "P:key\n"
+               "P:control1\n"
+               "P:control1\n"
+               "P:control2\n");
+
+    program_terminate(program_top());
+    CHECK(program_top() == NULL, "callback program terminated");
+}
+
 int main(void) {
     setbuf(stdout, NULL);
     printf("=== process model tests ===\n");
@@ -372,6 +433,7 @@ int main(void) {
     test_input_deposit();
     test_failed_launch();
     test_alloc_churn();
+    test_input_callbacks();
 
     if (g_failures == 0) {
         printf("all process model tests passed\n");

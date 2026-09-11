@@ -35,5 +35,6 @@ struct ConsoleView: View {
             }
         }
         .frame(height: 140)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }

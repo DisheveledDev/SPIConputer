@@ -31,7 +31,7 @@ or new detail is captured.
 | Input | `input.c` + `core0/input_hw.c` — 1 kHz matrix scan + joystick poll + RS232 `input=` parsing into a SPSC event queue (`system_state.h`); core 1 drains it in the scheduler loop |
 | RS232 terminal app | `../terminal/macos` — sibling folder, not part of the OS. SwiftUI app vendoring the OS protocol parser + ROM font via its `sync-protocol.sh` |
 | Desktop simulator | `../simulator/` — sibling folder, not part of the OS. SDL2 app (macOS) running the real OS sources with `sdcard/` as the virtual SD card, an SDL window for video, queued audio, and keyboard/controller input; hardware files replaced by `sim_fs.c`/`sim_main.c` |
-| Desktop IDE | `../ide/macos` — sibling folder, not part of the OS. SwiftUI app managing component projects (manifest + Lua/tile/audio/snippet components) and building them into one `.lua`; Run writes a launcher `os.lua` + the built program into a run-folder SD card and launches the simulator |
+| Desktop IDE | `../ide/macos` — sibling folder, not part of the OS. SwiftUI app managing component projects (manifest + Lua/tile/audio/snippet components) and building them into one `.lua`; new projects start with header/main/input/tick components. Editors show line numbers, syntax highlighting and autocomplete for Lua + SPIComputer APIs; a debounced compile check runs the OS's own Lua via `simulator --check` and maps errors back to component lines. Run writes a launcher `os.lua` + the built program into a run-folder SD card and launches the simulator |
 | Host tests | `tests/host` — fs bridge + RPC round-trip over mock SD (incl. ejected-card errors), serial-mirror protocol golden vectors, input engine, process model (launch/resume/video restore, tick crash, timers + pause shifting, input deposit, failed launch), audio engine/API, editor |
 
 Build (VS Code Pico extension or CLI):
@@ -227,11 +227,24 @@ Lua entry points (every program must implement):
 - `tick()` — called repeatedly; reads and clears pending input events
 - `finish()` — called when the program exits
 
+Optional input callbacks (implemented, Phase 3/5 extension):
+- `on_keypress(key, shift, ctrl, cbm, restore)` — key-down events only
+- `on_control(index, up, down, left, right, fire)` — every joystick
+  change with the full state; `index` is the port (0 = joystick 1,
+  1 = joystick 2)
+
+The scheduler invokes these from the same drain step that fills the
+program's event ring (before the next `tick()`, under the same pcall
+error handling as tick). Events remain in the ring either way, so
+polling (`InputPoll()`) and callbacks can be mixed; releases and
+modifier-key events are only visible by polling.
+
 Input events are deposited by the OS into the program's event state; `tick()`
-picks them up and clears them (pull model, no callbacks into arbitrary
-points of execution). Key events, joystick state (`input_control1`/
-`input_control2`: up/down/left/right/fire bools) and possibly more event
-types are exposed as values readable inside `tick()`.
+picks them up and clears them (pull model, callbacks run only at the
+scheduler's drain step, never at arbitrary points of execution). Key
+events, joystick state (`InputControl(1/2)`: up/down/left/right/fire
+bools) and possibly more event types are exposed as values readable
+inside `tick()`.
 
 More entry points may be added later. An **RS232 terminal application**
 (macOS app, see PLAN.md Phase 2) renders the serial frame stream on a

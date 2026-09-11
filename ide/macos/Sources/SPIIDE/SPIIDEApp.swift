@@ -20,11 +20,22 @@ struct SPIIDEApp: App {
                 Button("Open Project…") { model.showingOpenPanel = true }
                     .keyboardShortcut("o")
             }
+            CommandGroup(after: .pasteboard) {
+                Divider()
+                Button("Complete") {
+                    NSApp.sendAction(#selector(NSTextView.complete(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut(KeyEquivalent(" "), modifiers: .control)
+            }
             CommandMenu("Project") {
                 Button("Build") { model.build() }
                     .keyboardShortcut("b")
                 Button(model.isRunning ? "Stop" : "Run in Simulator") {
-                    model.isRunning ? model.stop() : model.run()
+                    if model.isRunning {
+                        model.stop()
+                    } else {
+                        Task { await model.run() }
+                    }
                 }
                 .keyboardShortcut("r")
             }

@@ -16,5 +16,9 @@ let package = Package(
             name: "SPIIDECoreTests",
             dependencies: ["SPIIDECore"]
         ),
+        .testTarget(
+            name: "SPIIDETests",
+            dependencies: ["SPIIDE"]
+        ),
     ]
 )

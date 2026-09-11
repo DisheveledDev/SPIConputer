@@ -70,21 +70,27 @@ public enum ProjectStore {
         return project
     }
 
-    /// Writes the "full" starter template (header + main) and returns the
-    /// manifest refs for it.
+    /// Writes the "full" starter template (header + main + input + tick)
+    /// and returns the manifest refs for it.
     private static func writeTemplate(to root: URL, manifest: inout ProjectManifest) throws {
         let componentsDir = root.appendingPathComponent("components")
         try FileManager.default.createDirectory(at: componentsDir, withIntermediateDirectories: true)
 
         let header = Template.headerComponent(projectName: manifest.name)
         let main = Template.mainComponent(projectName: manifest.name)
+        let input = Template.inputComponent(projectName: manifest.name)
+        let tick = Template.tickComponent(projectName: manifest.name)
 
         try writeText(header, to: componentsDir.appendingPathComponent("00-header.lua"))
         try writeText(main, to: componentsDir.appendingPathComponent("main.lua"))
+        try writeText(input, to: componentsDir.appendingPathComponent("input.lua"))
+        try writeText(tick, to: componentsDir.appendingPathComponent("tick.lua"))
 
         manifest.components = [
             ComponentRef(name: "header", kind: .snippet, file: "components/00-header.lua"),
             ComponentRef(name: "main", kind: .lua, file: "components/main.lua"),
+            ComponentRef(name: "input", kind: .lua, file: "components/input.lua"),
+            ComponentRef(name: "tick", kind: .lua, file: "components/tick.lua"),
         ]
     }
 

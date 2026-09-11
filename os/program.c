@@ -153,6 +153,7 @@ static program_t *program_create(const char *path, const char *arg,
         return NULL;
     }
     p->setup_ref = p->tick_ref = p->finish_ref = LUA_NOREF;
+    p->on_keypress_ref = p->on_control_ref = LUA_NOREF;
     p->chunk_ref = LUA_NOREF;
 
     fs_lua_openlibs(p->L);
@@ -210,6 +211,12 @@ static program_t *program_create(const char *path, const char *arg,
     else lua_pop(p->L, 1);
     lua_getglobal(p->L, "finish");
     if (lua_isfunction(p->L, -1)) p->finish_ref = luaL_ref(p->L, LUA_REGISTRYINDEX);
+    else lua_pop(p->L, 1);
+    lua_getglobal(p->L, "on_keypress");
+    if (lua_isfunction(p->L, -1)) p->on_keypress_ref = luaL_ref(p->L, LUA_REGISTRYINDEX);
+    else lua_pop(p->L, 1);
+    lua_getglobal(p->L, "on_control");
+    if (lua_isfunction(p->L, -1)) p->on_control_ref = luaL_ref(p->L, LUA_REGISTRYINDEX);
     else lua_pop(p->L, 1);
 
     p->pid = s_next_pid++;
@@ -412,6 +419,75 @@ static bool run_timer(program_t *p, program_timer_t *t) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Optional input callbacks (on_keypress / on_control)                 */
+/* ------------------------------------------------------------------ */
+
+static bool callback_failed(program_t *p, const char *what) {
+    fprintf(stderr, "program %u: %s error: %s\n", p->pid, what,
+            lua_tostring(p->L, -1));
+    program_terminate(p);
+    return false;
+}
+
+/* on_keypress(key, shift, ctrl, cbm, restore) on key-down events. */
+static bool call_on_keypress(program_t *p, const input_event_t *ev) {
+    lua_State *L = p->L;
+    lua_settop(L, 0);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, p->on_keypress_ref);
+    lua_pushinteger(L, ev->key);
+    lua_pushboolean(L, (ev->mods & INPUT_MOD_SHIFT) != 0);
+    lua_pushboolean(L, (ev->mods & INPUT_MOD_CTRL) != 0);
+    lua_pushboolean(L, (ev->mods & INPUT_MOD_CBM) != 0);
+    lua_pushboolean(L, (ev->mods & INPUT_MOD_RESTORE) != 0);
+    if (lua_pcall(L, 5, 0, 0) != LUA_OK) {
+        return callback_failed(p, "on_keypress");
+    }
+    return true;
+}
+
+/* on_control(index, up, down, left, right, fire) with the full state
+ * after the event; index is the port (0 = joystick 1, 1 = joystick 2). */
+static bool call_on_control(program_t *p, int index, uint8_t dirs) {
+    lua_State *L = p->L;
+    lua_settop(L, 0);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, p->on_control_ref);
+    lua_pushinteger(L, index);
+    lua_pushboolean(L, (dirs & INPUT_DIR_UP) != 0);
+    lua_pushboolean(L, (dirs & INPUT_DIR_DOWN) != 0);
+    lua_pushboolean(L, (dirs & INPUT_DIR_LEFT) != 0);
+    lua_pushboolean(L, (dirs & INPUT_DIR_RIGHT) != 0);
+    lua_pushboolean(L, (dirs & INPUT_DIR_FIRE) != 0);
+    if (lua_pcall(L, 6, 0, 0) != LUA_OK) {
+        return callback_failed(p, "on_control");
+    }
+    return true;
+}
+
+/* Returns false when a callback error terminated the program. Events
+ * also stay in the program's ring, so InputPoll() still sees them. */
+static bool dispatch_input_callbacks(program_t *p, const input_event_t *ev) {
+    if (ev->type == INPUT_EV_KEY) {
+        if (p->on_keypress_ref == LUA_NOREF) {
+            return true;
+        }
+        /* Presses only: releases and modifier-key events (key 0) are
+         * available through InputPoll(). */
+        if (ev->pressed == 0 || ev->key == 0) {
+            return true;
+        }
+        return call_on_keypress(p, ev);
+    }
+    if (ev->type == INPUT_EV_CONTROL1 || ev->type == INPUT_EV_CONTROL2) {
+        if (p->on_control_ref == LUA_NOREF) {
+            return true;
+        }
+        int index = ev->type == INPUT_EV_CONTROL1 ? 0 : 1;
+        return call_on_control(p, index, p->joy[index]);
+    }
+    return true;
+}
+
+/* ------------------------------------------------------------------ */
 /* Scheduler                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -421,10 +497,15 @@ void program_scheduler_step(void) {
         return;
     }
 
-    /* 1. Drain core 0's input queue into the top program's ring. */
+    /* 1. Drain core 0's input queue into the top program's ring, then run
+     *    the optional input callbacks; events stay available to
+     *    InputPoll() either way. */
     input_event_t ev;
     while (input_queue_pop(&g_system_state.input, &ev)) {
         program_event_push(p, &ev);
+        if (!dispatch_input_callbacks(p, &ev)) {
+            return; /* program terminated by a callback error */
+        }
     }
 
     uint64_t now = os_time_us();

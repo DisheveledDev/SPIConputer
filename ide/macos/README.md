@@ -55,10 +55,51 @@ assets are applied while the program's video/audio state is current.
 
 ### New project template
 
-`New Project…` creates the commented "full" skeleton: a header snippet
-and a `main.lua` with `setup()` (screen setup, asset application, a
-blink timer), `tick()` (input drain with keyboard echo, joystick state,
-allocation-light status line) and `finish()`.
+`New Project…` always creates four components:
+
+- **header** (snippet) — build-only documentation/constants.
+- **main** (Lua) — shared locals, helpers, `main()` (one-time setup)
+  and `setup()`/`finish()`.
+- **input** (Lua) — the OS input callbacks: `on_keypress(key, shift,
+  ctrl, cbm, restore)` and `on_control(index, up, down, left, right,
+  fire)` (index 0/1 for joystick 1/2). Both are optional; delete the one
+  you don't need, or poll `InputPoll()` instead.
+- **tick** (Lua) — the `tick()` loop that updates the status line.
+
+Components build top-to-bottom into one Lua chunk, so the locals declared
+in `main` are visible to `input` and `tick`.
+
+## Compile checking and editing
+
+- The editor shows **line numbers** in a gutter per component file.
+- After a short debounce, the IDE builds the project in memory and
+  compiles it with the OS's own Lua build (`spicomputer_sim --check`), so
+  what you see is exactly what the OS will load.
+- Compile errors are mapped back through the build's line map: Lua's
+  "line 41" in the generated file is shown as e.g. `main:13`, the error
+  line is highlighted in the editor and its number turns red in the
+  gutter, and the message appears in a banner and in the Build & Run log.
+  When Lua only reports `<eof>` (a missing `end`), the IDE uses Lua's
+  "at line N" context or its own block-structure check to point at the
+  unclosed function/if/for/while/repeat instead.
+- If the simulator binary cannot be found (checks run through its `--check`
+  mode), an orange banner says so; the IDE looks next to itself, in the
+  current directory, and along the compiled-in source path (so Xcode
+  builds work too), and Settings can override it.
+- **Run** refuses to start while a compile error is outstanding.
+- **Autocompletion** covers Lua keywords and standard library plus the
+  SPIComputer globals (`Screen*`, `Sound*`, `Music*`, `Timer*`, `Input*`,
+  `fs.*`, `TimeNow`, `Launch`, `ApplyAssets`, ...). The popup appears
+  shortly after you type (two or more characters), or on demand with
+  Ctrl-Esc / **Edit ▸ Complete** (⌃Space); the inline macOS "automatic
+  text completion" is disabled so the list is what appears.
+- **Auto-indent**: Return keeps the current indentation and adds a level
+  after block openers (`then`, `do`, `function`, `else`, `repeat`, `{`,
+  `(`, function headers); typing `end`, `until`, `else`, `elseif`, `}` or
+  `)` at the start of a line removes one level.
+- **Syntax highlighting** colours comments, strings, numbers, keywords
+  and known functions (temporary attributes, so undo and the text buffer
+  are untouched).
 
 ## Run in the simulator
 
@@ -72,5 +113,4 @@ simulator's output.
 
 - `.luac` output (the firmware loads text chunks only; binary chunks
   would need `luaL_loadbufferx` mode `"b"`).
-- Syntax highlighting in the Lua editor (plain monospaced TextEditor).
-- Undo grouping/per-component history beyond TextEditor's built-in undo.
+- Signature help / hover documentation for the SPIComputer API.

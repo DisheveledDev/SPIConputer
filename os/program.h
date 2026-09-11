@@ -41,6 +41,9 @@ typedef struct program_s {
     int setup_ref;     /* LUA_NOREF when absent */
     int tick_ref;
     int finish_ref;
+    /* Optional input callbacks (globals "on_keypress"/"on_control"). */
+    int on_keypress_ref;
+    int on_control_ref;
     bool exit_requested;
 
     /* -- heap budget -- */

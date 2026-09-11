@@ -126,6 +126,29 @@ Key codes:
 - Joystick direction bits (`dirs`): UP = 1, DOWN = 2, LEFT = 4,
   RIGHT = 8, FIRE = 16. One event per direction edge.
 
+### Optional input callbacks
+
+Instead of (or as well as) polling, a program may define these globals:
+the scheduler invokes them as events arrive, before the next `tick()`,
+with the same error handling as `tick()` (a throwing callback terminates
+the program):
+
+```lua
+function on_keypress(key, shift, ctrl, cbm, restore)
+    -- key-down events only (key ~= 0); releases still arrive via InputPoll
+end
+
+function on_control(index, up, down, left, right, fire)
+    -- every joystick change, with the full stick state after the event;
+    -- index is the port: 0 = joystick 1, 1 = joystick 2
+    -- (note InputControl(n) uses 1/2)
+end
+```
+
+Events are placed in the program's ring either way, so a program using
+callbacks can still poll `InputPoll()` when it needs key releases, raw
+edges, or modifier-key events.
+
 ## Display (Screen API)
 
 Available as globals; they operate on the program's own video state

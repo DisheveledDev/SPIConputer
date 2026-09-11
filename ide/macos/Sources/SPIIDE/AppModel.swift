@@ -27,6 +27,13 @@ final class AppModel {
     var lastBuildURL: URL?
     var isRunning = false
 
+    // Compile checking
+    var compileDiagnostic: CompileDiagnostic?
+    /// Non-nil when checks cannot run (shown in the editor banner).
+    var compileCheckUnavailableReason: String?
+    private var checkTask: Task<Void, Never>?
+    private var lastReportedDiagnostic: CompileDiagnostic?
+
     // Simulator
     var simulatorURL: URL?
     var simulatorPathPreference: String = UserDefaults.standard.string(
@@ -61,13 +68,21 @@ final class AppModel {
         return project.manifest.components.first { $0.id == selectedComponentID }
     }
 
+    /// The component whose content is currently loaded in the editors.
+    /// Saves always target this component, never the newly selected one.
+    private var editingComponent: ComponentRef?
+
     func componentSelectionChanged() {
         saveNow()
         loadSelectedComponent()
     }
 
     private func loadSelectedComponent() {
-        guard let project, let component = selectedComponent else { return }
+        guard let project, let component = selectedComponent else {
+            editingComponent = nil
+            return
+        }
+        editingComponent = component
         do {
             switch component.kind {
             case .lua, .snippet:
@@ -84,22 +99,23 @@ final class AppModel {
 
     // MARK: Editing / saving
 
-    /// Debounced save of the selected component's editor buffer.
+    /// Debounced save of the component currently loaded in the editors.
     func scheduleSave() {
-        guard let component = selectedComponent, let project else { return }
+        guard let component = editingComponent, let project else { return }
         saveTask?.cancel()
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled, let self,
-                  self.selectedComponentID == component.id
+                  self.editingComponent?.id == component.id
             else { return }
             self.save(component: component, in: project)
         }
+        scheduleCheck()
     }
 
     func saveNow() {
         saveTask?.cancel()
-        guard let component = selectedComponent, let project else { return }
+        guard let component = editingComponent, let project else { return }
         save(component: component, in: project)
     }
 
@@ -140,10 +156,15 @@ final class AppModel {
     }
 
     private func open(_ project: Project) {
+        saveTask?.cancel()
+        checkTask?.cancel()
+        editingComponent = nil // never save the previous project's buffer here
         self.project = project
         selectedComponentID = project.manifest.components.first?.id
         loadSelectedComponent()
         lastBuildURL = project.buildProductURL
+        compileDiagnostic = nil
+        scheduleCheck()
     }
 
     func addComponent(kind: ComponentKind) {
@@ -169,6 +190,10 @@ final class AppModel {
         try? ProjectStore.save(project)
         self.project = project
         if selectedComponentID == id {
+            // Drop the buffer first so the selection change does not save
+            // the removed file back to disk.
+            saveTask?.cancel()
+            editingComponent = nil
             selectedComponentID = project.manifest.components.first?.id
             loadSelectedComponent()
         }
@@ -209,7 +234,104 @@ final class AppModel {
         return candidate
     }
 
-    // MARK: Build and run
+    // MARK: Compile checking
+
+    /// Debounced compile check of the freshly built project (saves first).
+    func scheduleCheck() {
+        checkTask?.cancel()
+        checkTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled, let self else { return }
+            await self.performCompileCheck()
+        }
+    }
+
+    /// Builds in memory, compiles with the OS's own Lua (via the
+    /// simulator's --check mode) and maps any error back to a component.
+    func performCompileCheck() async {
+        saveNow()
+        guard let project else {
+            compileDiagnostic = nil
+            return
+        }
+        let rendered: (lua: String, lineMap: LineMap)
+        do {
+            rendered = try ProjectBuilder.renderProduct(project)
+        } catch {
+            compileDiagnostic = nil
+            return
+        }
+        refreshSimulator()
+        guard let simulator = simulatorURL else {
+            compileDiagnostic = nil
+            let reason = "simulator not found — set its path in Settings"
+            if compileCheckUnavailableReason != reason {
+                compileCheckUnavailableReason = reason
+                appendConsole("Compile checks unavailable: \(reason)\n")
+            }
+            return
+        }
+        compileCheckUnavailableReason = nil
+        let source = rendered.lua
+        let outcome = await Task.detached(priority: .utility) {
+            LuaChecker.check(source: source, simulator: simulator)
+        }.value
+
+        if let reason = outcome.unavailableReason {
+            compileDiagnostic = nil
+            compileCheckUnavailableReason = reason
+            appendConsole("Compile check unavailable: \(reason)\n")
+            return
+        }
+        guard let error = outcome.error else {
+            if compileDiagnostic != nil {
+                appendConsole("Compile ok\n")
+            }
+            compileDiagnostic = nil
+            lastReportedDiagnostic = nil
+            return
+        }
+
+        // Attribute the error: Lua's own line first, then the "at line N"
+        // context it adds for unclosed constructs, then a block-structure
+        // hint (missing `end` usually points at the opener, not at <eof>).
+        var line = error.line
+        var location = line.flatMap { rendered.lineMap.source(forGeneratedLine: $0) }
+        var message = error.message
+        if location == nil, let context = error.contextLine {
+            location = rendered.lineMap.source(forGeneratedLine: context)
+            if location != nil {
+                line = context
+            }
+        }
+        if location == nil, let issue = LuaStructureChecker.check(rendered.lua) {
+            location = rendered.lineMap.source(forGeneratedLine: issue.line)
+            if location != nil {
+                line = issue.line
+                message = "\(issue.message) — Lua: \(error.message)"
+            }
+        }
+        let diagnostic = CompileDiagnostic(
+            message: message, generatedLine: error.line, location: location)
+        compileDiagnostic = diagnostic
+        if diagnostic != lastReportedDiagnostic {
+            lastReportedDiagnostic = diagnostic
+            appendConsole("Compile error: \(describe(diagnostic, in: project))\n")
+        }
+    }
+
+    private func describe(_ diagnostic: CompileDiagnostic, in project: Project) -> String {
+        var where_ = "generated code"
+        if let location = diagnostic.location,
+           let component = project.manifest.components.first(where: { $0.id == location.componentID }) {
+            where_ = "\(component.name):\(location.line)"
+        }
+        var text = "\(where_): \(diagnostic.message)"
+        if let generated = diagnostic.generatedLine {
+            text += " (generated line \(generated))"
+        }
+        return text
+    }
 
     @discardableResult
     func build() -> BuildProduct? {
@@ -221,6 +343,7 @@ final class AppModel {
             lastBuildURL = product.outputURL
             let ms = Int(Date().timeIntervalSince(start) * 1000)
             appendConsole("Built \(product.componentCount) component(s) -> \(product.outputURL.path) (\(ms) ms)\n")
+            Task { await performCompileCheck() }
             return product
         } catch {
             appendConsole("Build failed: \(error.localizedDescription)\n")
@@ -229,9 +352,16 @@ final class AppModel {
         }
     }
 
-    func run() {
+    func run() async {
         stop()
         guard let project, let product = build() else { return }
+        await performCompileCheck()
+        if let diagnostic = compileDiagnostic {
+            let message = "Not running: \(describe(diagnostic, in: project))"
+            appendConsole(message + "\n")
+            errorMessage = message
+            return
+        }
         refreshSimulator()
         guard let simulator = simulatorURL else {
             errorMessage = """
@@ -295,9 +425,12 @@ final class AppModel {
     // MARK: Simulator
 
     func refreshSimulator() {
-        let starts = Runner.defaultSimulatorSearchStarts(
+        var starts = Runner.defaultSimulatorSearchStarts(
             executable: Bundle.main.executableURL,
             cwd: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
+        // Works when built from Xcode (DerivedData lives outside the
+        // workspace): the source path is baked in at compile time.
+        starts.append(URL(fileURLWithPath: #filePath))
         simulatorURL = SimulatorLocator.locate(
             startingAt: starts,
             explicitPath: simulatorPathPreference.isEmpty ? nil : simulatorPathPreference)

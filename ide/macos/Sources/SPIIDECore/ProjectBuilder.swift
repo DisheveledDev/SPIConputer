@@ -1,10 +1,59 @@
 import Foundation
 
+/// A location in a component source file (1-based line).
+public struct SourceLocation: Sendable, Equatable, Hashable {
+    public let componentID: ComponentRef.ID
+    public let line: Int
+
+    public init(componentID: ComponentRef.ID, line: Int) {
+        self.componentID = componentID
+        self.line = line
+    }
+}
+
+/// Maps generated program lines back to their source component.
+public struct LineMap: Sendable, Equatable {
+    /// One emitted block: `count` generated lines starting at `start`.
+    /// `component` is the component line of the block's first line, or nil
+    /// for generated code (headers, asset wrappers).
+    public struct Span: Sendable, Equatable {
+        public let start: Int
+        public let count: Int
+        public let component: SourceLocation?
+
+        public init(start: Int, count: Int, component: SourceLocation?) {
+            self.start = start
+            self.count = count
+            self.component = component
+        }
+    }
+
+    public let spans: [Span]
+
+    public init(spans: [Span]) {
+        self.spans = spans
+    }
+
+    /// Source location for a 1-based generated line, or nil for generated
+    /// code. A component location points at the matching line of that
+    /// component's file.
+    public func source(forGeneratedLine line: Int) -> SourceLocation? {
+        for span in spans where line >= span.start && line < span.start + span.count {
+            guard let component = span.component else { return nil }
+            return SourceLocation(
+                componentID: component.componentID,
+                line: component.line + (line - span.start))
+        }
+        return nil
+    }
+}
+
 /// The result of building a project.
 public struct BuildProduct: Sendable {
     public let lua: String
     public let outputURL: URL
     public let componentCount: Int
+    public let lineMap: LineMap
 }
 
 public enum BuildError: Error, LocalizedError, Equatable {
@@ -35,16 +84,26 @@ public enum BuildError: Error, LocalizedError, Equatable {
 ///   setup() where the program's video/audio state is current.
 public enum ProjectBuilder {
     public static func render(_ project: Project, timestamp: Date = Date()) throws -> String {
+        try renderProduct(project, timestamp: timestamp).lua
+    }
+
+    /// Render plus the generated-to-component line map used for
+    /// compile-error attribution.
+    public static func renderProduct(
+        _ project: Project, timestamp: Date = Date()
+    ) throws -> (lua: String, lineMap: LineMap) {
         guard !project.manifest.components.isEmpty else {
             throw BuildError.noComponents
         }
 
-        var out = ""
-        out += header(project: project, timestamp: timestamp)
+        var emitter = Emitter()
+        emitter.append(header(project: project, timestamp: timestamp), component: nil)
 
         var assetNames: [String] = []
         for component in project.manifest.components {
-            out += "\n-- ==== component: \(component.name) (\(component.kind.rawValue)) ====\n\n"
+            emitter.append(
+                "\n-- ==== component: \(component.name) (\(component.kind.rawValue)) ====\n\n",
+                component: nil)
             let url = project.fileURL(for: component)
             guard FileManager.default.fileExists(atPath: url.path) else {
                 throw BuildError.missingComponentFile(component.file)
@@ -56,39 +115,43 @@ public enum ProjectBuilder {
             }
             switch component.kind {
             case .lua, .snippet:
-                out += text
-                if !text.hasSuffix("\n") {
-                    out += "\n"
+                var body = text
+                if !body.hasSuffix("\n") {
+                    body += "\n"
                 }
+                emitter.append(
+                    body, component: SourceLocation(componentID: component.id, line: 1))
             case .tiles:
                 guard let asset = try? JSONCoding.decode(TilesAsset.self, from: data) else {
                     throw BuildError.unreadableComponent(component.file)
                 }
                 let name = uniqueAssetName(from: component.name, used: &assetNames)
-                out += emit(tiles: asset, functionName: name)
+                emitter.append(emit(tiles: asset, functionName: name), component: nil)
             case .audio:
                 guard let asset = try? JSONCoding.decode(AudioAsset.self, from: data) else {
                     throw BuildError.unreadableComponent(component.file)
                 }
                 let name = uniqueAssetName(from: component.name, used: &assetNames)
-                out += emit(audio: asset, functionName: name)
+                emitter.append(emit(audio: asset, functionName: name), component: nil)
             }
         }
 
-        out += "\n-- ==== generated: asset helper ====\n\n"
-        out += """
-        -- Runs every asset component (tiles, palettes, sounds, scores).
-        -- Called from setup(); safe to call more than once.
-        function ApplyAssets()
-            if __spi_assets then
-                for _, apply in ipairs(__spi_assets) do
-                    apply()
+        emitter.append("\n-- ==== generated: asset helper ====\n\n", component: nil)
+        emitter.append(
+            """
+            -- Runs every asset component (tiles, palettes, sounds, scores).
+            -- Called from setup(); safe to call more than once.
+            function ApplyAssets()
+                if __spi_assets then
+                    for _, apply in ipairs(__spi_assets) do
+                        apply()
+                    end
                 end
             end
-        end
 
-        """
-        return out
+            """,
+            component: nil)
+        return (emitter.text, LineMap(spans: emitter.spans))
     }
 
     @discardableResult
@@ -97,17 +160,35 @@ public enum ProjectBuilder {
         timestamp: Date = Date(),
         writeToDisk: Bool = true
     ) throws -> BuildProduct {
-        let lua = try render(project, timestamp: timestamp)
+        let product = try renderProduct(project, timestamp: timestamp)
         let outputURL = project.buildProductURL
         if writeToDisk {
             try FileManager.default.createDirectory(
                 at: project.outputDirectoryURL, withIntermediateDirectories: true)
-            try Data(lua.utf8).write(to: outputURL, options: .atomic)
+            try Data(product.lua.utf8).write(to: outputURL, options: .atomic)
         }
         return BuildProduct(
-            lua: lua,
+            lua: product.lua,
             outputURL: outputURL,
-            componentCount: project.manifest.components.count)
+            componentCount: project.manifest.components.count,
+            lineMap: product.lineMap)
+    }
+
+    /// Accumulates emitted text while tracking generated line numbers.
+    private struct Emitter {
+        var text = ""
+        var spans: [LineMap.Span] = []
+        private var nextLine = 1
+
+        mutating func append(_ body: String, component: SourceLocation?) {
+            guard !body.isEmpty else { return }
+            let start = nextLine
+            text += body
+            let newlines = body.reduce(0) { $0 + ($1 == "\n" ? 1 : 0) }
+            let lines = newlines + (body.hasSuffix("\n") ? 0 : 1)
+            spans.append(LineMap.Span(start: start, count: lines, component: component))
+            nextLine += lines
+        }
     }
 
     // MARK: Emission

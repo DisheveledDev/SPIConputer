@@ -24,6 +24,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "lua.h"
+#include "lauxlib.h"
+
 #include "audio.h"
 #include "fs_core0.h"
 #include "input.h"
@@ -42,6 +45,7 @@ typedef struct {
     const char *sdcard;
     const char *seed_dir;
     const char *dump_frame;
+    const char *check_file;
     int ticks_per_frame;
     int exit_after_ms;
     bool headless;
@@ -50,6 +54,45 @@ typedef struct {
 static volatile bool s_running = true;
 static bool s_restore_held;
 static SDL_GameController *s_pads[2];
+
+/* ------------------------------------------------------------------ */
+/* Compile check (used by the IDE)                                     */
+/* ------------------------------------------------------------------ */
+
+static int check_lua_file(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "cannot open %s\n", path);
+        return 2;
+    }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *buf = (char *)malloc((size_t)size + 1);
+    if (!buf) {
+        fclose(f);
+        return 2;
+    }
+    size_t got = fread(buf, 1, (size_t)size, f);
+    fclose(f);
+
+    lua_State *L = luaL_newstate();
+    if (!L) {
+        free(buf);
+        return 2;
+    }
+    int rc = 0;
+    if (luaL_loadbufferx(L, buf, got, path, "t") != LUA_OK) {
+        const char *message = lua_tostring(L, -1);
+        fprintf(stderr, "%s\n", message ? message : "compile failed");
+        rc = 1;
+    } else {
+        printf("ok\n");
+    }
+    lua_close(L);
+    free(buf);
+    return rc;
+}
 
 /* ------------------------------------------------------------------ */
 /* Input: SDL -> input_event_t                                         */
@@ -183,6 +226,11 @@ static int key_for(SDL_KeyboardEvent *e) {
 }
 
 static void on_key(SDL_KeyboardEvent *e, bool down) {
+    /* The hardware matrix emits edges only, so drop macOS key repeats:
+     * keep simulation behaviour identical to the board. */
+    if (e->repeat) {
+        return;
+    }
     /* Numpad joystick emulation. */
     uint8_t dirs = numpad_dir(e->keysym.sym);
     if (dirs) {
@@ -319,6 +367,7 @@ static void usage(const char *argv0) {
         "  --seed-dir DIR      copy os.lua/editor.lua from DIR when missing\n"
         "  --ticks N           scheduler ticks per frame (default: 64)\n"
         "  --dump-frame FILE   write the final 640x480 frame as a PPM\n"
+        "  --check FILE        compile FILE with the OS Lua and exit\n"
         "  --headless          no window/audio (smoke tests)\n"
         "  --exit-after-ms N   quit automatically after N ms\n",
         argv0);
@@ -365,6 +414,8 @@ int main(int argc, char **argv) {
             o.ticks_per_frame = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--dump-frame") == 0 && i + 1 < argc) {
             o.dump_frame = argv[++i];
+        } else if (strcmp(argv[i], "--check") == 0 && i + 1 < argc) {
+            o.check_file = argv[++i];
         } else if (strcmp(argv[i], "--exit-after-ms") == 0 && i + 1 < argc) {
             o.exit_after_ms = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--headless") == 0) {
@@ -376,6 +427,9 @@ int main(int argc, char **argv) {
             usage(argv[0]);
             return 1;
         }
+    }
+    if (o.check_file) {
+        return check_lua_file(o.check_file);
     }
     if (o.headless && o.exit_after_ms == 0) {
         o.exit_after_ms = 1500;

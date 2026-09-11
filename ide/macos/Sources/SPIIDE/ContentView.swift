@@ -71,8 +71,10 @@ struct ContentView: View {
                 if model.isRunning {
                     Button("Stop", systemImage: "stop.fill") { model.stop() }
                 } else {
-                    Button("Run", systemImage: "play.fill") { model.run() }
-                        .help("Build and run in the simulator")
+                    Button("Run", systemImage: "play.fill") {
+                        Task { await model.run() }
+                    }
+                    .help("Build and run in the simulator")
                 }
                 Button("Reveal Build Output", systemImage: "folder") {
                     model.revealBuildOutput()

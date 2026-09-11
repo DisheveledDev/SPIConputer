@@ -47,22 +47,37 @@ struct ManifestAndStoreTests {
         let project = try ProjectStore.createProject(named: "My Game", in: parent)
 
         let mainURL = project.root.appendingPathComponent("components/main.lua")
+        let inputURL = project.root.appendingPathComponent("components/input.lua")
+        let tickURL = project.root.appendingPathComponent("components/tick.lua")
         let headerURL = project.root.appendingPathComponent("components/00-header.lua")
         #expect(FileManager.default.fileExists(atPath: mainURL.path))
+        #expect(FileManager.default.fileExists(atPath: inputURL.path))
+        #expect(FileManager.default.fileExists(atPath: tickURL.path))
         #expect(FileManager.default.fileExists(atPath: headerURL.path))
         #expect(FileManager.default.fileExists(atPath: project.manifestURL.path))
-        #expect(project.manifest.components.count == 2)
+        #expect(project.manifest.components.count == 4)
         #expect(project.manifest.components[0].kind == .snippet)
         #expect(project.manifest.components[1].kind == .lua)
+        #expect(project.manifest.components[2].kind == .lua)
+        #expect(project.manifest.components[3].kind == .lua)
+        #expect(project.manifest.components.map(\.name) == ["header", "main", "input", "tick"])
         #expect(project.programFileName == "My-Game.lua")
 
         let main = try String(contentsOf: mainURL, encoding: .utf8)
+        #expect(main.contains("function main()"))
         #expect(main.contains("function setup()"))
-        #expect(main.contains("function tick()"))
         #expect(main.contains("function finish()"))
-        #expect(main.contains("InputPoll()"))
         #expect(main.contains("ApplyAssets"))
-        #expect(main.contains("ExitProgram()"))
+
+        let input = try String(contentsOf: inputURL, encoding: .utf8)
+        #expect(input.contains("function on_keypress(key, shift, ctrl, cbm, restore)"))
+        #expect(input.contains("function on_control(index, up, down, left, right, fire)"))
+        #expect(input.contains("ExitProgram()"))
+
+        let tick = try String(contentsOf: tickURL, encoding: .utf8)
+        #expect(tick.contains("function tick()"))
+        #expect(tick.contains("InputControl(1)"))
+        #expect(!tick.contains("InputPoll("))
 
         let reloaded = try ProjectStore.load(from: project.root)
         #expect(reloaded == project)
@@ -84,7 +99,7 @@ struct ManifestAndStoreTests {
         #expect(try ProjectStore.readTiles(first, in: project).tiles.count == 1)
 
         ProjectStore.removeComponent(first, from: &project)
-        #expect(project.manifest.components.count == 3)
+        #expect(project.manifest.components.count == 5)
         #expect(!FileManager.default.fileExists(atPath: project.fileURL(for: first).path))
     }
 }

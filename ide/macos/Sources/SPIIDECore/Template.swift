@@ -14,28 +14,30 @@ public enum Template {
         -- documentation here.
         --
         -- Program contract (see lua.md in the OS repo):
-        --   setup()   runs once when the program starts
-        --   tick()    runs repeatedly; poll input here with InputPoll()
-        --   finish()  runs when the program exits
+        --   setup()      runs once when the program starts
+        --   tick()       runs repeatedly
+        --   finish()     runs when the program exits
+        --   on_keypress(key, shift, ctrl, cbm, restore)  optional
+        --   on_control(index, up, down, left, right, fire) optional
         --
+        -- Components build top-to-bottom into one Lua chunk, so locals
+        -- declared in an earlier component are visible to later ones.
 
         """
     }
 
     public static func mainComponent(projectName: String) -> String {
         """
-        -- main.lua — program entry points.
+        -- main.lua — one-time setup and shared state.
         --
-        -- The OS calls setup() once, then tick() as fast as possible, then
-        -- finish() on exit. There is no separate input callback: drain the
-        -- event queue with InputPoll() at the top of tick().
+        -- setup() runs once when the program starts. The per-tick loop
+        -- lives in the tick component, which can use the locals below
+        -- (all components end up in a single Lua chunk).
 
-        local blink = false
-        local last_key = ""
         local ticks = 0
-        local shown_fire = false
-        local spin = 0
-        local SPINNER = { 45, 47, 124, 92 }      -- - / | \
+        local last_key = ""
+        local last_mods = ""
+        local blink = false
 
         local function put(x, y, char, attr)
             ScreenOut(x, y, char, attr or 0)
@@ -47,10 +49,9 @@ public enum Template {
             end
         end
 
-        function setup()
-            -- Apply tiles/palettes/sounds from asset components. This is a
-            -- no-op when the project has none; delete it if you define your
-            -- assets directly in code.
+        function main()
+            -- Apply tiles/palettes/sounds from asset components. No-op when
+            -- the project has none; delete it if you define assets in code.
             if ApplyAssets then ApplyAssets() end
 
             ScreenMode(1)                -- 40x30 tiles, per-cell colour
@@ -66,49 +67,101 @@ public enum Template {
             end, 500)
         end
 
+        function setup()
+            main()
+        end
+
+        function finish()
+            -- Video, audio and timers are cleaned up automatically.
+            print("\(projectName): finished after " .. ticks .. " ticks")
+        end
+
+        """
+    }
+
+    public static func tickComponent(projectName: String) -> String {
+        """
+        -- tick.lua — the per-tick loop.
+        --
+        -- tick() runs as fast as possible; keep it short. Input arrives
+        -- through the on_keypress/on_control callbacks in input.lua (the
+        -- OS runs them before each tick); nothing to drain here.
+
+        local shown_key = nil
+        local shown_mods = nil
+        local shown_fire = nil
+        local spin = 0
+        local SPINNER = { 45, 47, 124, 92 }        -- - / | \\
+
         function tick()
             ticks = ticks + 1
 
-            -- 1. Input: drain pending key and joystick events.
-            local changed = false
-            while true do
-                local ev = InputPoll()
-                if not ev then break end
-                if ev.type == "key" and ev.pressed == 1 then
-                    if ev.key == 17 then                    -- Ctrl+Q
-                        ExitProgram()
-                        return
-                    elseif ev.key >= 32 and ev.key < 128 then
-                        last_key = string.char(ev.key)
-                        changed = true
-                    end
-                end
-            end
-
-            -- 2. Joystick state (up/down/left/right/fire booleans).
+            -- 1. Live joystick state (up/down/left/right/fire booleans).
             local joy = InputControl(1)
             local firing = joy and joy.fire or false
 
-            -- 3. Status line. Redraw only when something changed: formatting
+            -- 2. Status line. Redraw only when something changed: formatting
             --    a string every tick would churn the program's 64 KB heap.
-            if changed or firing ~= shown_fire then
+            if last_key ~= shown_key or last_mods ~= shown_mods
+                    or firing ~= shown_fire then
+                shown_key = last_key
+                shown_mods = last_mods
                 shown_fire = firing
-                local status = string.format("key %-3s  fire %-3s  ticks %d",
+                local status = string.format("key %-5s  mods %-4s  fire %-3s",
                     last_key == "" and "-" or last_key,
-                    firing and "yes" or "no", ticks)
+                    last_mods == "" and "-" or last_mods,
+                    firing and "yes" or "no")
                 put_string(2, 4, status, 0x05)
             end
 
-            -- 4. A tiny spinner proves ticks are running (no allocation).
+            -- 3. A tiny spinner proves ticks are running (no allocation).
             if ticks % 30 == 0 then
                 spin = spin % 4 + 1
                 put(0, 3, SPINNER[spin])
             end
         end
 
-        function finish()
-            -- Video, audio and timers are cleaned up automatically.
-            print("\(projectName): finished after " .. ticks .. " ticks")
+        """
+    }
+
+    /// Input handling: the two OS input callbacks.
+    public static func inputComponent(projectName: String) -> String {
+        """
+        -- input.lua — the input callbacks.
+        --
+        -- The OS calls on_keypress() for key-down events and on_control()
+        -- for every joystick change, before each tick. Both are optional;
+        -- delete the ones you do not need. Raw events (including key
+        -- releases) remain available through InputPoll().
+
+        local function mods_label(shift, ctrl, cbm, restore)
+            local m = ""
+            if shift then m = m .. "S" end
+            if ctrl then m = m .. "C" end
+            if cbm then m = m .. "A" end           -- Commodore key
+            if restore then m = m .. "R" end
+            return m
+        end
+
+        function on_keypress(key, shift, ctrl, cbm, restore)
+            if key == 17 then                       -- Ctrl+Q quits
+                ExitProgram()
+            elseif key == 8 then                    -- Backspace
+                last_key = "<del>"
+            elseif key >= 32 and key < 128 then     -- printable ASCII
+                last_key = string.char(key)
+            else
+                last_key = "[" .. key .. "]"        -- extended C64 key code
+            end
+            last_mods = mods_label(shift, ctrl, cbm, restore)
+        end
+
+        function on_control(index, up, down, left, right, fire)
+            -- index is the port: 0 = joystick 1, 1 = joystick 2.
+            last_key = string.format("port%d", index + 1)
+            last_mods = string.format("%d%d%d%d%d", up and 1 or 0,
+                down and 1 or 0, left and 1 or 0, right and 1 or 0,
+                fire and 1 or 0)
         end
 
         """
@@ -129,7 +182,8 @@ public enum Template {
             -- \(name).lua — runtime Lua.
             -- Concatenated into the generated program in build order; the
             -- program body runs once and should define setup()/tick()/finish()
-            -- (or helper functions used by them).
+            -- (or helper functions used by them). Components share one Lua
+            -- chunk, so earlier locals are visible here.
 
             """
         }
