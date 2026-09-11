@@ -10,13 +10,35 @@ struct CodeEditorFactoryTests {
         let editor = CodeEditorFactory.make(
             text: "line1\nline2\nline3\n", delegate: nil)
 
-        editor.scrollView.frame = NSRect(x: 0, y: 0, width: 640, height: 400)
-        editor.scrollView.tile()
+        editor.container.frame = NSRect(x: 0, y: 0, width: 640, height: 400)
+        editor.container.layoutSubtreeIfNeeded()
 
         #expect(editor.textView.string == "line1\nline2\nline3\n")
         #expect(editor.textView.frame.width > 0)
         #expect(editor.textView.frame.height > 0)
-        #expect(editor.scrollView.verticalRulerView === editor.ruler)
+        #expect(editor.gutter != nil)
+        // The gutter sits beside the scroll view, not over it.
+        #expect(editor.scrollView.frame.minX == EditorContainerView.gutterWidth)
+        #expect(editor.scrollView.frame.width == 640 - EditorContainerView.gutterWidth)
+    }
+
+    @Test func gutterCanBeDisabled() {
+        let editor = CodeEditorFactory.make(
+            text: "x", delegate: nil, showGutter: false)
+        editor.container.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+        editor.container.layoutSubtreeIfNeeded()
+        #expect(editor.gutter == nil)
+        #expect(editor.scrollView.frame.minX == 0)
+        #expect(editor.scrollView.frame.width == 400)
+    }
+
+    @Test func refitSyncsDocumentViewToClipView() {
+        let text = String(repeating: "print(1)\n", count: 50)
+        let editor = CodeEditorFactory.make(text: text, delegate: nil)
+        editor.scrollView.frame = NSRect(x: 0, y: 0, width: 800, height: 300)
+        CodeEditorFactory.refit(editor.textView, in: editor.scrollView)
+        #expect(editor.textView.frame.width == editor.scrollView.contentSize.width)
+        #expect(editor.textView.frame.height > 300) // 50 lines exceed the viewport
     }
 
     @Test func newlineIndentAfterOpeners() {

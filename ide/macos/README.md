@@ -19,6 +19,10 @@ The IDE finds the simulator automatically by walking up from its own
 binary to the workspace folder (`simulator/build/spicomputer_sim`).
 Override the path in **Settings** if needed.
 
+The Dock icon is set at launch from `Sources/SPIIDE/Resources/AppIcon.png`
+(`swift run` produces a bare executable, so there is no app bundle to
+carry an icon).
+
 ## Projects
 
 A project is a folder with a manifest and component files:
@@ -58,13 +62,14 @@ assets are applied while the program's video/audio state is current.
 `New Project…` always creates four components:
 
 - **header** (snippet) — build-only documentation/constants.
-- **main** (Lua) — shared locals, helpers, `main()` (one-time setup)
-  and `setup()`/`finish()`.
-- **input** (Lua) — the OS input callbacks: `on_keypress(key, shift,
-  ctrl, cbm, restore)` and `on_control(index, up, down, left, right,
-  fire)` (index 0/1 for joystick 1/2). Both are optional; delete the one
-  you don't need, or poll `InputPoll()` instead.
-- **tick** (Lua) — the `tick()` loop that updates the status line.
+- **main** (Lua) — empty `setup()`/`finish()` with comments above them
+  listing the screen modes and text output (`ScreenOut`/`ScreenClear`).
+- **input** (Lua) — empty `on_keypress(key, shift, ctrl, cbm, restore)`
+  and `on_control(index, up, down, left, right, fire)` with comments
+  describing what each parameter receives (index 0/1 for joystick 1/2).
+  Both are optional; delete the one you don't need, or poll `InputPoll()`.
+- **tick** (Lua) — the empty `tick()` loop with comments on where it sits
+  in the lifecycle.
 
 Components build top-to-bottom into one Lua chunk, so the locals declared
 in `main` are visible to `input` and `tick`.

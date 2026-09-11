@@ -64,20 +64,24 @@ struct ManifestAndStoreTests {
         #expect(project.programFileName == "My-Game.lua")
 
         let main = try String(contentsOf: mainURL, encoding: .utf8)
-        #expect(main.contains("function main()"))
         #expect(main.contains("function setup()"))
         #expect(main.contains("function finish()"))
         #expect(main.contains("ApplyAssets"))
+        #expect(main.contains("ScreenMode("))
+        #expect(main.contains("ScreenOut("))
 
         let input = try String(contentsOf: inputURL, encoding: .utf8)
         #expect(input.contains("function on_keypress(key, shift, ctrl, cbm, restore)"))
         #expect(input.contains("function on_control(index, up, down, left, right, fire)"))
-        #expect(input.contains("ExitProgram()"))
+        #expect(input.contains("0 = joystick 1, 1 = joystick 2"))
 
         let tick = try String(contentsOf: tickURL, encoding: .utf8)
         #expect(tick.contains("function tick()"))
         #expect(tick.contains("InputControl(1)"))
-        #expect(!tick.contains("InputPoll("))
+
+        for source in [main, input, tick] {
+            #expect(LuaStructureChecker.check(source) == nil)
+        }
 
         let reloaded = try ProjectStore.load(from: project.root)
         #expect(reloaded == project)

@@ -7,6 +7,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        applyAppIcon()
         activate()
         // The window may not exist on the first attempt; retry shortly.
         Task { @MainActor [weak self] in
@@ -22,5 +23,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func activate() {
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first?.makeKeyAndOrderFront(nil)
+    }
+
+    /// `swift run` produces a bare executable with no bundle icon, so the
+    /// Dock icon is set at launch from the packaged resource instead.
+    private func applyAppIcon() {
+        guard let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+              let icon = NSImage(contentsOf: url)
+        else { return }
+        NSApp.applicationIconImage = icon
     }
 }

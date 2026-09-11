@@ -58,4 +58,19 @@ struct SwiftUIHostDrawingTests {
         let pixels = nonBackgroundPixels(rep, startX: 60)
         #expect(pixels > 100, "hosted Lua editor non-background pixels: \(pixels)")
     }
+
+    @Test func hostedAdvancedEditorWithGutterDrawsText() {
+        let view = CodeEditorView(
+            text: .constant("local x = 1\nprint(x)\n"),
+            diagnosticLine: nil,
+            syntaxHighlighting: true,
+            gutter: true)
+            .frame(width: 700, height: 400)
+        guard let rep = hostCache(view, size: NSSize(width: 700, height: 400)) else {
+            Issue.record("could not render advanced editor")
+            return
+        }
+        let pixels = nonBackgroundPixels(rep, startX: 60)
+        #expect(pixels > 100, "hosted advanced editor non-background pixels: \(pixels)")
+    }
 }

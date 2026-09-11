@@ -13,7 +13,7 @@ struct CodeEditorDrawingTests {
         width: CGFloat = 600,
         height: CGFloat = 300
     ) -> Int {
-        let view = editor.scrollView
+        let view = editor.container
         view.frame = NSRect(x: 0, y: 0, width: width, height: height)
         view.layoutSubtreeIfNeeded()
         guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
@@ -26,7 +26,7 @@ struct CodeEditorDrawingTests {
         }
         var count = 0
         // Skip the ruler/gutter region: only look at the text area.
-        let startX = 50
+        let startX = editor.gutter == nil ? 4 : 50
         for y in 0..<min(120, rep.pixelsHigh) {
             for x in startX..<min(Int(width), rep.pixelsWide) {
                 guard let color = rep.colorAt(x: x, y: y) else { continue }
@@ -68,5 +68,34 @@ struct CodeEditorDrawingTests {
             .foregroundColor, value: NSColor.labelColor, forCharacterRange: full)
         let pixels = nonBackgroundPixels(editor)
         #expect(pixels > 100, "labelColor temporary attribute pixels: \(pixels)")
+    }
+
+    @Test func editorWithGutterDrawsTextInTextArea() {
+        let editor = CodeEditorFactory.make(
+            text: "local x = 1\nprint(x)\n", delegate: nil, showGutter: true)
+        editor.container.frame = NSRect(x: 0, y: 0, width: 600, height: 300)
+        editor.container.layoutSubtreeIfNeeded()
+        guard let rep = editor.container.bitmapImageRepForCachingDisplay(in: editor.container.bounds) else {
+            Issue.record("could not render editor container")
+            return
+        }
+        editor.container.cacheDisplay(in: editor.container.bounds, to: rep)
+        guard let background = rep.colorAt(x: rep.pixelsWide - 4, y: rep.pixelsHigh - 4) else {
+            Issue.record("could not sample editor background")
+            return
+        }
+        var pixels = 0
+        for y in 0..<min(120, rep.pixelsHigh) {
+            for x in 50..<rep.pixelsWide {
+                guard let color = rep.colorAt(x: x, y: y) else { continue }
+                let distance = abs(color.redComponent - background.redComponent)
+                    + abs(color.greenComponent - background.greenComponent)
+                    + abs(color.blueComponent - background.blueComponent)
+                if distance > 0.3 {
+                    pixels += 1
+                }
+            }
+        }
+        #expect(pixels > 100, "gutter editor text-area pixels: \(pixels)")
     }
 }

@@ -5,20 +5,28 @@ import SPIIDECore
 
 /// Monospaced code editor backed by NSTextView: line-number gutter,
 /// compile-error line highlight, Lua/SPIComputer autocompletion and
-/// structure-based auto-indent.
+/// structure-based auto-indent. The gutter is a plain sibling view (not an
+/// NSRulerView, which broke scroll-view tiling in this hosting setup).
 struct CodeEditorView: NSViewRepresentable {
     @Binding var text: String
     /// 1-based line in this component to highlight as an error.
     var diagnosticLine: Int?
+    /// When off, no foreground attributes are written at all.
+    var syntaxHighlighting = true
+    /// When off, the line-number gutter is not shown at all.
+    var gutter = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let editor = CodeEditorFactory.make(text: text, delegate: context.coordinator)
+    func makeNSView(context: Context) -> EditorContainerView {
+        let editor = CodeEditorFactory.make(
+            text: text, delegate: context.coordinator,
+            highlight: syntaxHighlighting, showGutter: gutter)
         context.coordinator.textView = editor.textView
-        context.coordinator.ruler = editor.ruler
+        context.coordinator.scrollView = editor.scrollView
+        context.coordinator.gutter = editor.gutter
 
         editor.scrollView.contentView.postsBoundsChangedNotifications = true
         NotificationCenter.default.addObserver(
@@ -27,11 +35,18 @@ struct CodeEditorView: NSViewRepresentable {
             name: NSView.boundsDidChangeNotification,
             object: editor.scrollView.contentView)
 
-        return editor.scrollView
+        // The first layout happens after makeNSView returns; refit once the
+        // window has settled (without this the document view can keep its
+        // initial size and draw nothing).
+        DispatchQueue.main.async { [weak coordinator = context.coordinator] in
+            coordinator?.refitEditor()
+        }
+
+        return editor.container
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? NSTextView else { return }
+    func updateNSView(_ container: EditorContainerView, context: Context) {
+        let textView = container.textView
         context.coordinator.parent = self
 
         if textView.string != text {
@@ -43,8 +58,9 @@ struct CodeEditorView: NSViewRepresentable {
                 NSRange(location: min(selected.location, length), length: 0))
             context.coordinator.isApplyingModel = false
             context.coordinator.highlightSyntax()
-            context.coordinator.ruler?.needsDisplay = true
+            context.coordinator.gutter?.needsDisplay = true
         }
+        context.coordinator.refitEditor()
         context.coordinator.applyDiagnostic(line: diagnosticLine)
     }
 
@@ -52,7 +68,8 @@ struct CodeEditorView: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CodeEditorView
         weak var textView: NSTextView?
-        weak var ruler: LineNumberRulerView?
+        weak var scrollView: NSScrollView?
+        weak var gutter: LineNumberGutterView?
         var isApplyingModel = false
         private var isHighlighting = false
         private var appliedDiagnosticLine: Int?
@@ -62,8 +79,15 @@ struct CodeEditorView: NSViewRepresentable {
             self.parent = parent
         }
 
+        /// Re-syncs the document view with the clip view's size.
+        func refitEditor() {
+            guard let textView, let scrollView else { return }
+            CodeEditorFactory.refit(textView, in: scrollView)
+            gutter?.needsDisplay = true
+        }
+
         @objc func boundsChanged(_ notification: Notification) {
-            ruler?.needsDisplay = true
+            gutter?.needsDisplay = true
         }
 
         // MARK: Text changes
@@ -77,7 +101,7 @@ struct CodeEditorView: NSViewRepresentable {
             dedentIfNeeded(in: textView)
             highlightSyntax()
             appliedDiagnosticLine = nil // highlighting resets backgrounds
-            ruler?.needsDisplay = true
+            gutter?.needsDisplay = true
             scheduleCompletion(in: textView)
         }
 
@@ -114,7 +138,7 @@ struct CodeEditorView: NSViewRepresentable {
         // MARK: Syntax highlighting
 
         func highlightSyntax() {
-            guard let textView else { return }
+            guard let textView, parent.syntaxHighlighting else { return }
             isHighlighting = true
             CodeEditorFactory.highlightSyntax(textView)
             isHighlighting = false
@@ -176,7 +200,7 @@ struct CodeEditorView: NSViewRepresentable {
             guard let textView else { return }
             guard appliedDiagnosticLine != line else { return }
             appliedDiagnosticLine = line
-            ruler?.errorLine = line
+            gutter?.errorLine = line
             isHighlighting = true
             CodeEditorFactory.applyDiagnostic(line: line, to: textView)
             isHighlighting = false

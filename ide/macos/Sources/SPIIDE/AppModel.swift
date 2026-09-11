@@ -418,6 +418,133 @@ final class AppModel {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
+    // MARK: Editor diagnostics
+
+    /// Reports the live editor view hierarchy and its rendered pixels to
+    /// the console, for debugging "text is invisible" on a real GUI.
+    func dumpEditorDiagnostics() {
+        guard let window = NSApp.keyWindow
+            ?? NSApp.windows.first(where: { $0.isVisible }) else {
+            appendConsole("editor dump: no window\n")
+            return
+        }
+        guard let scrollView = Self.findEditorScrollView(in: window.contentView),
+              let textView = scrollView.documentView as? NSTextView else {
+            appendConsole("editor dump: no NSTextView in the window\n")
+            return
+        }
+        var lines = ["editor dump:"]
+        lines.append("  window: \(window.frame.size) key=\(window.isKeyWindow)")
+        lines.append("  scroll: frame=\(scrollView.frame) hidden=\(scrollView.isHidden) alpha=\(scrollView.alphaValue)")
+        lines.append("  clip:   bounds=\(scrollView.contentView.bounds)")
+        lines.append("  frame:  clipFrame=\(scrollView.contentView.frame) rulerFrame=\(scrollView.verticalRulerView?.frame ?? .zero)")
+        lines.append("  text:   frame=\(textView.frame) len=\((textView.string as NSString).length) hidden=\(textView.isHidden) alpha=\(textView.alphaValue)")
+        lines.append("  text:   drawsBackground=\(textView.drawsBackground) textColor=\(textView.textColor?.description ?? "nil")")
+        lines.append("  text:   backgroundColor=\(textView.backgroundColor.description) font=\(textView.font?.description ?? "nil")")
+        lines.append("  appearance: \(textView.effectiveAppearance.name.rawValue)")
+        lines.append("  layer: wants=\(textView.wantsLayer) has=\(textView.layer != nil)")
+
+        if let layoutManager = textView.layoutManager,
+           let container = textView.textContainer {
+            layoutManager.ensureLayout(for: container)
+            lines.append("  layout: glyphs=\(layoutManager.numberOfGlyphs) used=\(layoutManager.usedRect(for: container)) container=\(container.containerSize)")
+        }
+        if let storage = textView.textStorage, storage.length > 0 {
+            let attrs = storage.attributes(at: 0, effectiveRange: nil)
+            lines.append("  storage: attrs@0 font=\(attrs[.font] ?? "nil") color=\(attrs[.foregroundColor] ?? "nil")")
+        }
+
+        // 1. Normal render of the whole scroll view.
+        if let rep = scrollView.bitmapImageRepForCachingDisplay(in: scrollView.bounds) {
+            scrollView.cacheDisplay(in: scrollView.bounds, to: rep)
+            let stats = Self.nonBackgroundStats(rep)
+            lines.append("  pixels(scroll): \(stats.count) bbox=\(stats.bounds)")
+            let path = "/tmp/spiide-editor-dump.png"
+            if let png = rep.representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: path))
+                lines.append("  png: \(path)")
+            }
+        }
+
+        // 2. Render the text view alone.
+        if let rep = textView.bitmapImageRepForCachingDisplay(in: textView.bounds) {
+            textView.cacheDisplay(in: textView.bounds, to: rep)
+            let stats = Self.nonBackgroundStats(rep)
+            lines.append("  pixels(textView): \(stats.count) bbox=\(stats.bounds)")
+        }
+
+        // 3. Force a concrete (non-dynamic) colour and re-render: if the
+        //    text appears, dynamic colours are resolving invisibly here.
+        if let storage = textView.textStorage, storage.length > 0 {
+            let full = NSRange(location: 0, length: storage.length)
+            storage.addAttribute(.foregroundColor, value: NSColor.red, range: full)
+            if let rep = scrollView.bitmapImageRepForCachingDisplay(in: scrollView.bounds) {
+                scrollView.cacheDisplay(in: scrollView.bounds, to: rep)
+                let stats = Self.nonBackgroundStats(rep)
+                lines.append("  pixels(red text): \(stats.count) bbox=\(stats.bounds)")
+            }
+            storage.removeAttribute(.foregroundColor, range: full)
+            textView.needsDisplay = true
+        }
+
+        // 4. Screen capture of the window (ground truth, subject to the
+        //    screen-recording permission).
+        if let image = CGWindowListCreateImage(
+            .null, .optionIncludingWindow, CGWindowID(window.windowNumber),
+            [.boundsIgnoreFraming]) {
+            let rep = NSBitmapImageRep(cgImage: image)
+            let stats = Self.nonBackgroundStats(rep)
+            lines.append("  pixels(screen): \(stats.count) bbox=\(stats.bounds)")
+            if let png = rep.representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: "/tmp/spiide-window.png"))
+                lines.append("  screen png: /tmp/spiide-window.png")
+            }
+        } else {
+            lines.append("  pixels(screen): unavailable")
+        }
+
+        appendConsole(lines.joined(separator: "\n") + "\n")
+    }
+
+    private static func findEditorScrollView(in view: NSView?) -> NSScrollView? {
+        guard let view else { return nil }
+        if let scrollView = view as? NSScrollView,
+           scrollView.documentView is NSTextView {
+            return scrollView
+        }
+        for subview in view.subviews {
+            if let found = findEditorScrollView(in: subview) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    private static func nonBackgroundStats(_ rep: NSBitmapImageRep) -> (count: Int, bounds: String) {
+        guard let background = rep.colorAt(x: rep.pixelsWide - 4, y: 4) else {
+            return (-1, "none")
+        }
+        var count = 0
+        var minX = rep.pixelsWide, minY = rep.pixelsHigh, maxX = -1, maxY = -1
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<rep.pixelsWide {
+                guard let color = rep.colorAt(x: x, y: y) else { continue }
+                let distance = abs(color.redComponent - background.redComponent)
+                    + abs(color.greenComponent - background.greenComponent)
+                    + abs(color.blueComponent - background.blueComponent)
+                if distance > 0.3 {
+                    count += 1
+                    minX = min(minX, x)
+                    minY = min(minY, y)
+                    maxX = max(maxX, x)
+                    maxY = max(maxY, y)
+                }
+            }
+        }
+        guard count > 0 else { return (0, "none") }
+        return (count, "(\(minX),\(minY))-(\(maxX),\(maxY)) of \(rep.pixelsWide)x\(rep.pixelsHigh)")
+    }
+
     func clearConsole() {
         console = ""
     }

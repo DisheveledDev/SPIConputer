@@ -10,7 +10,8 @@ let package = Package(
         .target(name: "SPIIDECore"),
         .executableTarget(
             name: "SPIIDE",
-            dependencies: ["SPIIDECore"]
+            dependencies: ["SPIIDECore"],
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "SPIIDECoreTests",

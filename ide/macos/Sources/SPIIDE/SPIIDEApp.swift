@@ -39,6 +39,11 @@ struct SPIIDEApp: App {
                 }
                 .keyboardShortcut("r")
             }
+            CommandMenu("Developer") {
+                Button("Dump Editor Diagnostics") {
+                    model.dumpEditorDiagnostics()
+                }
+            }
         }
 
         Settings {

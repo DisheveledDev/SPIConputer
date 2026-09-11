@@ -2,25 +2,27 @@ import AppKit
 
 import SPIIDECore
 
-/// Builds the code editor's AppKit views. Uses AppKit's own
-/// `NSTextView.scrollableTextView()` setup (known-good sizing), with the
-/// line-number ruler, syntax highlighting and error highlighting layered on
-/// top. Extracted from the SwiftUI representable so it can be regression
-/// tested headlessly.
+/// Builds the code editor's AppKit views: a gutter (optional) beside a
+/// scrolling text view, wrapped in a plain container. Uses AppKit's own
+/// `NSTextView.scrollableTextView()` setup (known-good sizing). Extracted
+/// from the SwiftUI representable so it can be regression tested
+/// headlessly.
 @MainActor
 enum CodeEditorFactory {
     struct Editor {
+        let container: EditorContainerView
         let scrollView: NSScrollView
         let textView: NSTextView
-        let ruler: LineNumberRulerView
+        let gutter: LineNumberGutterView?
     }
 
     static let indentUnit = "    "
 
-    static func make(
+static func make(
         text: String,
         delegate: NSTextViewDelegate?,
-        highlight: Bool = true
+        highlight: Bool = true,
+        showGutter: Bool = true
     ) -> Editor {
         let scrollView = NSTextView.scrollableTextView()
         guard let textView = scrollView.documentView as? NSTextView else {
@@ -37,18 +39,60 @@ enum CodeEditorFactory {
         textView.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
         textView.textColor = .labelColor
         textView.drawsBackground = true
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
         textView.textContainerInset = NSSize(width: 4, height: 4)
+        textView.textContainer?.widthTracksTextView = true
         textView.string = text
         if highlight {
             highlightSyntax(textView)
         }
 
-        let ruler = LineNumberRulerView(textView: textView)
-        scrollView.verticalRulerView = ruler
-        scrollView.hasVerticalRuler = true
-        scrollView.rulersVisible = true
+        let gutter: LineNumberGutterView?
+        if showGutter {
+            let view = LineNumberGutterView()
+            view.textView = textView
+            gutter = view
+        } else {
+            gutter = nil
+        }
 
-        return Editor(scrollView: scrollView, textView: textView, ruler: ruler)
+        let container = EditorContainerView(
+            scrollView: scrollView, textView: textView, gutter: gutter)
+        return Editor(
+            container: container, scrollView: scrollView,
+            textView: textView, gutter: gutter)
+    }
+
+    // MARK: Sizing
+
+    /// Keeps the document view's size in sync with the clip view. The
+    /// first construction happens before SwiftUI has laid the scroll view
+    /// out, so without this the text view can stay at its initial size and
+    /// draw nothing.
+    static func refit(_ textView: NSTextView, in scrollView: NSScrollView) {
+        guard let layoutManager = textView.layoutManager,
+              let container = textView.textContainer
+        else { return }
+        let size = scrollView.contentSize
+        let width = max(size.width, 1)
+        container.widthTracksTextView = true
+        if textView.frame.width != width {
+            textView.setFrameSize(NSSize(width: width, height: textView.frame.height))
+        }
+        layoutManager.ensureLayout(for: container)
+        let used = layoutManager.usedRect(for: container).height
+            + textView.textContainerInset.height * 2
+        let height = max(used, size.height, 1)
+        if textView.frame.height != height {
+            textView.setFrameSize(NSSize(width: width, height: height))
+        }
+        textView.needsDisplay = true
     }
 
     // MARK: Highlighting

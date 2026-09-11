@@ -28,52 +28,41 @@ public enum Template {
 
     public static func mainComponent(projectName: String) -> String {
         """
-        -- main.lua — one-time setup and shared state.
+        -- main.lua — startup and shutdown.
         --
-        -- setup() runs once when the program starts. The per-tick loop
-        -- lives in the tick component, which can use the locals below
-        -- (all components end up in a single Lua chunk).
+        -- setup() runs once when the program starts, before the first
+        -- tick(); finish() runs once when the program exits. The loop
+        -- lives in tick.lua and the input callbacks in input.lua. Every
+        -- component ends up in one Lua chunk, so locals declared here are
+        -- visible to the rest of the program.
 
-        local ticks = 0
-        local last_key = ""
-        local last_mods = ""
-        local blink = false
-
-        local function put(x, y, char, attr)
-            ScreenOut(x, y, char, attr or 0)
-        end
-
-        local function put_string(x, y, text, attr)
-            for i = 1, #text do
-                put(x + i - 1, y, text:byte(i), attr)
-            end
-        end
-
-        function main()
-            -- Apply tiles/palettes/sounds from asset components. No-op when
-            -- the project has none; delete it if you define assets in code.
-            if ApplyAssets then ApplyAssets() end
-
-            ScreenMode(1)                -- 40x30 tiles, per-cell colour
-            ScreenClear(32)              -- space (ScreenClear takes a tile code)
-            put_string(0, 0, "\(projectName)", 0x02)
-            put_string(0, 2, "Ctrl+Q quits", 0x07)
-
-            -- A 500 ms timer blinks the marker at the top-left corner.
-            -- Timers pause with the program and die with it.
-            TimerCreate(function()
-                blink = not blink
-                put(0, 0, blink and 42 or 32)      -- '*' / ' '
-            end, 500)
-        end
+        -- Choose a screen mode in setup() (switching clears the screen):
+        --   ScreenMode(0)   -- 40x30 tiles, B&W
+        --   ScreenMode(1)   -- 40x30 tiles, per-cell invert + 7 colours
+        --   ScreenMode(2)   -- 80x60 tiles, B&W
+        --   ScreenMode(3)   -- 80x60 tiles, per-cell invert + 7 colours
+        --   ScreenMode(10)  -- 320x240 direct pixels, 256-entry palette
+        --
+        -- Write text with ScreenOut(x, y, char [, attr]) in tile modes.
+        -- x and y are 0-based; char is an ASCII-aligned tile index:
+        --   ScreenOut(0, 0, 65)          -- 'A' at the top-left corner
+        --   ScreenOut(1, 0, 66, 0x07)    -- 'B' in colour 7
+        --   ScreenClear(32)              -- fill the screen with spaces
+        -- Attribute byte: bit 7 inverts, bits 0-2 select colour c, which
+        -- uses palette entry c + 1. Mode 10 has no text: draw with
+        -- ScreenPlot(x, y, colour). print() writes to the console only.
 
         function setup()
-            main()
+            -- Applies tiles/palettes/sounds from asset components. No-op
+            -- when the project has none; delete it if you define assets
+            -- in code.
+            if ApplyAssets then ApplyAssets() end
         end
 
+        -- finish() runs when the program exits, whether by ExitProgram()
+        -- or an error. Video, audio and timers are cleaned up for you.
+
         function finish()
-            -- Video, audio and timers are cleaned up automatically.
-            print("\(projectName): finished after " .. ticks .. " ticks")
         end
 
         """
@@ -81,44 +70,19 @@ public enum Template {
 
     public static func tickComponent(projectName: String) -> String {
         """
-        -- tick.lua — the per-tick loop.
+        -- tick.lua — the main loop.
         --
-        -- tick() runs as fast as possible; keep it short. Input arrives
-        -- through the on_keypress/on_control callbacks in input.lua (the
-        -- OS runs them before each tick); nothing to drain here.
+        -- tick() is called repeatedly, as fast as possible, from after
+        -- setup() returns until the program exits. It takes no arguments
+        -- and no delta time; use TimeNow() for elapsed milliseconds. Keep
+        -- it short so the program stays responsive.
 
-        local shown_key = nil
-        local shown_mods = nil
-        local shown_fire = nil
-        local spin = 0
-        local SPINNER = { 45, 47, 124, 92 }        -- - / | \\
+        -- Input callbacks (input.lua) run just before each tick, so the
+        -- latest state is always available here. InputControl(1) returns
+        -- the live joystick state as a table with boolean fields up,
+        -- down, left, right and fire.
 
         function tick()
-            ticks = ticks + 1
-
-            -- 1. Live joystick state (up/down/left/right/fire booleans).
-            local joy = InputControl(1)
-            local firing = joy and joy.fire or false
-
-            -- 2. Status line. Redraw only when something changed: formatting
-            --    a string every tick would churn the program's 64 KB heap.
-            if last_key ~= shown_key or last_mods ~= shown_mods
-                    or firing ~= shown_fire then
-                shown_key = last_key
-                shown_mods = last_mods
-                shown_fire = firing
-                local status = string.format("key %-5s  mods %-4s  fire %-3s",
-                    last_key == "" and "-" or last_key,
-                    last_mods == "" and "-" or last_mods,
-                    firing and "yes" or "no")
-                put_string(2, 4, status, 0x05)
-            end
-
-            -- 3. A tiny spinner proves ticks are running (no allocation).
-            if ticks % 30 == 0 then
-                spin = spin % 4 + 1
-                put(0, 3, SPINNER[spin])
-            end
         end
 
         """
@@ -127,41 +91,32 @@ public enum Template {
     /// Input handling: the two OS input callbacks.
     public static func inputComponent(projectName: String) -> String {
         """
-        -- input.lua — the input callbacks.
+        -- input.lua — input callbacks. Both are optional; delete either
+        -- one. The OS calls them as events arrive, before the next tick,
+        -- never during setup() or finish().
         --
-        -- The OS calls on_keypress() for key-down events and on_control()
-        -- for every joystick change, before each tick. Both are optional;
-        -- delete the ones you do not need. Raw events (including key
-        -- releases) remain available through InputPoll().
+        -- Events stay queued either way, so InputPoll() in tick() can
+        -- still read key releases, raw edges and modifier-key events.
 
-        local function mods_label(shift, ctrl, cbm, restore)
-            local m = ""
-            if shift then m = m .. "S" end
-            if ctrl then m = m .. "C" end
-            if cbm then m = m .. "A" end           -- Commodore key
-            if restore then m = m .. "R" end
-            return m
-        end
-
+        -- on_keypress runs for key-down events.
+        --   key     printable keys carry their ASCII code (Shift already
+        --           applied); 13 Return, 8 Backspace, 27 Escape, 1-26
+        --           Ctrl+letter; keys without an ASCII code use 128-131
+        --           for the cursor keys, 132-138 for F1-F7, 139 Home and
+        --           140 Run/Stop.
+        --   shift   true while Shift is held
+        --   ctrl    true while Ctrl is held
+        --   cbm     true while the Commodore key is held
+        --   restore true while Restore is held
         function on_keypress(key, shift, ctrl, cbm, restore)
-            if key == 17 then                       -- Ctrl+Q quits
-                ExitProgram()
-            elseif key == 8 then                    -- Backspace
-                last_key = "<del>"
-            elseif key >= 32 and key < 128 then     -- printable ASCII
-                last_key = string.char(key)
-            else
-                last_key = "[" .. key .. "]"        -- extended C64 key code
-            end
-            last_mods = mods_label(shift, ctrl, cbm, restore)
         end
 
+        -- on_control runs for every joystick change, with the full stick
+        -- state after the event.
+        --   index   the port: 0 = joystick 1, 1 = joystick 2
+        --           (InputControl(n) instead takes 1 or 2)
+        --   up, down, left, right, fire   booleans for the new state
         function on_control(index, up, down, left, right, fire)
-            -- index is the port: 0 = joystick 1, 1 = joystick 2.
-            last_key = string.format("port%d", index + 1)
-            last_mods = string.format("%d%d%d%d%d", up and 1 or 0,
-                down and 1 or 0, left and 1 or 0, right and 1 or 0,
-                fire and 1 or 0)
         end
 
         """
