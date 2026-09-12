@@ -1,9 +1,7 @@
 import Foundation
 
-/// Finds the simulator binary. Searches, in order: an explicit path, the
-/// `SPICOMPUTER_SIMULATOR` environment variable, then walks up from the
-/// given start URLs looking for a workspace folder that contains both
-/// `simulator/build/spicomputer_sim` and the `os` repo.
+/// Finds the simulator binary. Searches an explicit path, the environment,
+/// the bundled app resource, and workspace folders containing the simulator.
 public enum SimulatorLocator {
     public static let relativePath = "simulator/build/spicomputer_sim"
     public static let environmentKey = "SPICOMPUTER_SIMULATOR"
@@ -19,6 +17,9 @@ public enum SimulatorLocator {
         }
         if let fromEnvironment = environment[environmentKey], !fromEnvironment.isEmpty {
             candidates.append(expanded(fromEnvironment))
+        }
+        if let resourceURL = Bundle.main.resourceURL {
+            candidates.append(resourceURL.appendingPathComponent("simulator/spicomputer_sim"))
         }
         for start in starts {
             candidates.append(contentsOf: search(from: start))

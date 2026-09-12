@@ -1,0 +1,10 @@
+-- boot.lua — the first program the OS runs.
+--
+-- Shows a short animated startup screen, then starts the shell in the
+-- foreground. If neither compiled nor source OS image can be loaded,
+-- the failure is displayed on screen.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/boot` from the workspace root. The generated files are written
+-- to software/core/.

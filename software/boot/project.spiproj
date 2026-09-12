@@ -1,0 +1,19 @@
+{
+  "components" : [
+    {
+      "file" : "components/00-header.lua",
+      "id" : "89A52468-5A31-4E26-BFCF-8A0497FD9704",
+      "kind" : "snippet",
+      "name" : "header"
+    },
+    {
+      "file" : "components/10-main.lua",
+      "id" : "FE1E4C01-42F7-4283-9D10-441F6F8EA1B1",
+      "kind" : "lua",
+      "name" : "main"
+    }
+  ],
+  "format_version" : 1,
+  "name" : "boot",
+  "output_directory" : "../core"
+}

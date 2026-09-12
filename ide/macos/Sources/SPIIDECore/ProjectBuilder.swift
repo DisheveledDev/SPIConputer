@@ -98,6 +98,9 @@ public enum ProjectBuilder {
 
         var emitter = Emitter()
         emitter.append(header(project: project, timestamp: timestamp), component: nil)
+        if !project.manifest.interactive {
+            emitter.append("__spi_interactive = false\n\n", component: nil)
+        }
 
         var assetNames: [String] = []
         for component in project.manifest.components {

@@ -5,12 +5,12 @@ import Testing
 
 @Suite("Simulator locator")
 struct SimulatorLocatorTests {
-    /// Builds a fake workspace: <root>/os, <root>/simulator/build/spicomputer_sim.
+    /// Builds a fake workspace: <root>/system, <root>/simulator/build/spicomputer_sim.
     private func makeWorkspace(withSimulator: Bool) throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("spiide-ws-\(UUID().uuidString)")
         let fm = FileManager.default
-        try fm.createDirectory(at: root.appendingPathComponent("os"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: root.appendingPathComponent("system"), withIntermediateDirectories: true)
         let sim = root.appendingPathComponent(SimulatorLocator.relativePath)
         try fm.createDirectory(at: sim.deletingLastPathComponent(), withIntermediateDirectories: true)
         if withSimulator {

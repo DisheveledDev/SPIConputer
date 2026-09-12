@@ -1,0 +1,49 @@
+{
+  "components" : [
+    {
+      "file" : "components/00-header.lua",
+      "id" : "8E9E7C20-68A4-472A-B624-5C595503CEF1",
+      "kind" : "snippet",
+      "name" : "header"
+    },
+    {
+      "file" : "components/10-document.lua",
+      "id" : "B9A18F8D-3E65-4167-9CCF-81DB8E03BF53",
+      "kind" : "lua",
+      "name" : "document"
+    },
+    {
+      "file" : "components/20-screen.lua",
+      "id" : "BD364354-4987-49DA-8E7A-BF378611F38C",
+      "kind" : "lua",
+      "name" : "screen"
+    },
+    {
+      "file" : "components/30-edits.lua",
+      "id" : "8CF2D1C8-9361-49FF-A077-DDDE91FE1393",
+      "kind" : "lua",
+      "name" : "edits"
+    },
+    {
+      "file" : "components/40-commands.lua",
+      "id" : "D147B141-BFB4-4032-9D2E-5763F3F601B6",
+      "kind" : "lua",
+      "name" : "commands"
+    },
+    {
+      "file" : "components/50-input.lua",
+      "id" : "3471B2AC-B03D-4446-B07C-8A6CA122D769",
+      "kind" : "lua",
+      "name" : "input"
+    },
+    {
+      "file" : "components/60-main.lua",
+      "id" : "11514410-20B6-45D7-9FBF-CAC8E1491170",
+      "kind" : "lua",
+      "name" : "main"
+    }
+  ],
+  "format_version" : 1,
+  "name" : "editor",
+  "output_directory" : "../apps"
+}

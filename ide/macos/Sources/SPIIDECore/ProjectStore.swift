@@ -20,13 +20,20 @@ public struct Project: Sendable, Equatable {
         root.appendingPathComponent(component.file)
     }
 
-    /// File name of the built program (safe for FAT/SD card paths).
-    public var programFileName: String {
+    /// File name stem of the built program (safe for FAT/SD card paths).
+    public var programFileStem: String {
         let sanitized = manifest.name
             .map { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" ? $0 : "-" }
         let joined = String(sanitized).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        let stem = joined.isEmpty ? "program" : joined
-        return "\(stem).lua"
+        return joined.isEmpty ? "program" : joined
+    }
+
+    public var programFileName: String {
+        "\(programFileStem).lua"
+    }
+
+    public var prgFileName: String {
+        "\(programFileStem).prg"
     }
 
     public var outputDirectoryURL: URL {
@@ -35,6 +42,10 @@ public struct Project: Sendable, Equatable {
 
     public var buildProductURL: URL {
         outputDirectoryURL.appendingPathComponent(programFileName)
+    }
+
+    public var prgProductURL: URL {
+        outputDirectoryURL.appendingPathComponent(prgFileName)
     }
 }
 
@@ -58,12 +69,12 @@ public enum ProjectStore {
 
     /// Creates a new project folder with the full starter template.
     @discardableResult
-    public static func createProject(named name: String, in parent: URL) throws -> Project {
+    public static func createProject(named name: String, in parent: URL, interactive: Bool = true) throws -> Project {
         let root = parent.appendingPathComponent(name)
         let fm = FileManager.default
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
 
-        var manifest = ProjectManifest(name: name)
+        var manifest = ProjectManifest(name: name, interactive: interactive)
         try writeTemplate(to: root, manifest: &manifest)
         let project = Project(root: root, manifest: manifest)
         try save(project)
@@ -77,7 +88,8 @@ public enum ProjectStore {
         try FileManager.default.createDirectory(at: componentsDir, withIntermediateDirectories: true)
 
         let header = Template.headerComponent(projectName: manifest.name)
-        let main = Template.mainComponent(projectName: manifest.name)
+        let main = Template.mainComponent(
+            projectName: manifest.name, interactive: manifest.interactive)
         let input = Template.inputComponent(projectName: manifest.name)
         let tick = Template.tickComponent(projectName: manifest.name)
 

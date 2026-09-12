@@ -26,8 +26,23 @@ public enum Template {
         """
     }
 
-    public static func mainComponent(projectName: String) -> String {
-        """
+    public static func mainComponent(projectName: String, interactive: Bool = true) -> String {
+        if !interactive {
+            return """
+            -- main.lua — utility entry point.
+            -- UtilityResult(true, "message") completes the utility and sends
+            -- its result back to the shell.
+
+            function setup()
+                UtilityResult(true, "utility completed")
+            end
+
+            function finish()
+            end
+
+            """
+        }
+        return """
         -- main.lua — startup and shutdown.
         --
         -- setup() runs once when the program starts, before the first

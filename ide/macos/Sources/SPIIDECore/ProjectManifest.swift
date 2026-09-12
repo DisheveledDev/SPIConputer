@@ -9,17 +9,20 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
     public var name: String
     /// Folder (relative to the project) the built program is written to.
     public var outputDirectory: String
+    public var interactive: Bool
     public var components: [ComponentRef]
 
     public init(
         formatVersion: Int = ProjectManifest.currentFormatVersion,
         name: String,
         outputDirectory: String = "build",
+        interactive: Bool = true,
         components: [ComponentRef] = []
     ) {
         self.formatVersion = formatVersion
         self.name = name
         self.outputDirectory = outputDirectory
+        self.interactive = interactive
         self.components = components
     }
 
@@ -27,6 +30,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         case formatVersion = "format_version"
         case name
         case outputDirectory = "output_directory"
+        case interactive
         case components
     }
 
@@ -37,6 +41,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Untitled"
         outputDirectory = try c.decodeIfPresent(String.self, forKey: .outputDirectory)
             ?? "build"
+        interactive = try c.decodeIfPresent(Bool.self, forKey: .interactive) ?? true
         components = try c.decodeIfPresent([ComponentRef].self, forKey: .components) ?? []
     }
 }

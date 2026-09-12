@@ -117,6 +117,15 @@ struct BuilderTests {
         }
     }
 
+    @Test func utilityProjectMarksGeneratedProgramNoninteractive() throws {
+        var project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        project.manifest.interactive = false
+
+        let lua = try ProjectBuilder.render(project)
+        #expect(lua.contains("__spi_interactive = false"))
+    }
+
     @Test func buildWritesOutputFile() throws {
         let project = try makeProject()
         defer { try? FileManager.default.removeItem(at: project.root) }
@@ -126,6 +135,19 @@ struct BuilderTests {
         #expect(product.outputURL.lastPathComponent == "Demo.lua")
         let onDisk = try String(contentsOf: product.outputURL, encoding: .utf8)
         #expect(onDisk == product.lua)
+    }
+
+    @Test func runSessionUsesCompiledProductWhenAvailable() throws {
+        let project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        let product = try ProjectBuilder.build(project)
+        let bytecode = Data([0x1b, 0x4c, 0x75, 0x61])
+        try bytecode.write(to: project.prgProductURL)
+
+        let session = try Runner.prepare(project: project, build: product)
+        #expect(session.programURL.lastPathComponent == "Demo.prg")
+        #expect(try Data(contentsOf: session.programURL) == bytecode)
+        #expect(FileManager.default.fileExists(atPath: project.prgProductURL.path))
     }
 
     @Test func runSessionWritesSdCard() throws {

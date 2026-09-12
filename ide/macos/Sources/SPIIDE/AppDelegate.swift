@@ -25,8 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.windows.first?.makeKeyAndOrderFront(nil)
     }
 
-    /// `swift run` produces a bare executable with no bundle icon, so the
-    /// Dock icon is set at launch from the packaged resource instead.
+    /// Development launches use the packaged resource directly; the release
+    /// app bundle also copies the same image into Contents/Resources.
     private func applyAppIcon() {
         guard let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
               let icon = NSImage(contentsOf: url)

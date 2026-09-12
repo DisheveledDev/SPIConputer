@@ -1,0 +1,43 @@
+{
+  "components" : [
+    {
+      "file" : "components/00-header.lua",
+      "id" : "8C30CB89-37A6-4C3B-B4CD-E322ACF74A31",
+      "kind" : "snippet",
+      "name" : "header"
+    },
+    {
+      "file" : "components/10-screen.lua",
+      "id" : "3F2FFF38-B911-4FE8-BEDD-3D559BA72667",
+      "kind" : "lua",
+      "name" : "screen"
+    },
+    {
+      "file" : "components/20-line-editor.lua",
+      "id" : "0044A381-992E-4F8F-8808-53CDCC990E14",
+      "kind" : "lua",
+      "name" : "line-editor"
+    },
+    {
+      "file" : "components/30-commands.lua",
+      "id" : "63EA2B10-46E7-4894-95BD-A31F12C7B5C2",
+      "kind" : "lua",
+      "name" : "commands"
+    },
+    {
+      "file" : "components/40-main.lua",
+      "id" : "4475DD5B-A076-4A6F-AB21-630EB828A9B2",
+      "kind" : "lua",
+      "name" : "main"
+    },
+    {
+      "file" : "components/50-tick.lua",
+      "id" : "1A736127-C3F2-40B7-8041-F030B76EEF5C",
+      "kind" : "lua",
+      "name" : "tick"
+    }
+  ],
+  "format_version" : 1,
+  "name" : "os",
+  "output_directory" : "../core"
+}

@@ -8,6 +8,7 @@ struct NewProjectSheet: View {
 
     @State private var name = "My Program"
     @State private var parent: URL?
+    @State private var interactive = true
     @State private var choosingLocation = false
     @FocusState private var nameFocused: Bool
 
@@ -25,6 +26,9 @@ struct NewProjectSheet: View {
                     .focused($nameFocused)
                     .onSubmit(create)
             }
+
+            Toggle("Interactive application with its own screen", isOn: $interactive)
+                .toggleStyle(.switch)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Location")
@@ -81,7 +85,7 @@ struct NewProjectSheet: View {
 
     private func create() {
         guard canCreate, let parent else { return }
-        model.createProject(named: name, in: parent)
+        model.createProject(named: name, in: parent, interactive: interactive)
         dismiss()
     }
 }

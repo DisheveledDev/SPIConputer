@@ -7,6 +7,7 @@
  * Mac's disk where they can be edited with normal tools.
  */
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,68 +44,68 @@ bool sd_init_driver(void) {
 /* Root setup                                                          */
 /* ------------------------------------------------------------------ */
 
-static void mkdir_p(const char *path) {
+static bool mkdir_p(const char *path) {
     char tmp[1200];
     snprintf(tmp, sizeof(tmp), "%s", path);
     for (char *p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = '\0';
-            mkdir(tmp, 0755);
+            if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
+                *p = '/';
+                return false;
+            }
             *p = '/';
         }
     }
-    mkdir(tmp, 0755);
-}
-
-static bool copy_file(const char *src, const char *dst) {
-    FILE *in = fopen(src, "rb");
-    if (!in) {
+    if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
         return false;
     }
-    FILE *out = fopen(dst, "wb");
-    if (!out) {
-        fclose(in);
-        return false;
-    }
-    char buf[4096];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
-        if (fwrite(buf, 1, n, out) != n) {
-            fclose(in);
-            fclose(out);
-            return false;
-        }
-    }
-    fclose(in);
-    fclose(out);
     return true;
 }
 
-bool sim_fs_init(const char *root, const char *seed_dir) {
+/* The configured root as an absolute path (for messages). Relative
+ * paths are resolved against the current working directory, so a
+ * failure names the exact folder that could not be used. */
+const char *sim_fs_root_abs(void) {
+    static char absolute[PATH_MAX];
+    if (realpath(s_root, absolute)) {
+        return absolute;
+    }
+    if (s_root[0] == '/') {
+        return s_root;
+    }
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd))) {
+        snprintf(absolute, sizeof(absolute), "%s%s%s", cwd,
+                 cwd[0] == '/' && cwd[1] == '\0' ? "" : "/", s_root);
+        return absolute;
+    }
+    return s_root;
+}
+
+/* Point the filesystem at `root`, creating the folder when it does not
+ * exist (never touching an existing one). The card starts empty: copy
+ * the programs you want to run (boot.lua, os.lua, ...) into it. */
+bool sim_fs_init(const char *root) {
     snprintf(s_root, sizeof(s_root), "%s", root);
-    mkdir_p(s_root);
     struct stat st;
+    if (stat(s_root, &st) != 0) {
+        if (!mkdir_p(s_root)) {
+            return false;
+        }
+        printf("[sim] created SD card folder %s (copy your programs into it)\n",
+               sim_fs_root_abs());
+    }
     if (stat(s_root, &st) != 0 || !S_ISDIR(st.st_mode)) {
         return false;
     }
-    if (seed_dir) {
-        static const char *seeds[] = {"os.lua", "editor.lua"};
-        for (size_t i = 0; i < sizeof(seeds) / sizeof(seeds[0]); i++) {
-            char dst[1200];
-            snprintf(dst, sizeof(dst), "%s/%s", s_root, seeds[i]);
-            if (stat(dst, &st) == 0) {
-                continue; /* keep what the user has */
-            }
-            char src[1200];
-            snprintf(src, sizeof(src), "%s/%s", seed_dir, seeds[i]);
-            if (copy_file(src, dst)) {
-                printf("[sim] seeded %s\n", seeds[i]);
-            } else {
-                printf("[sim] warning: cannot seed %s (looking in %s)\n",
-                       seeds[i], seed_dir);
-            }
-        }
-    }
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/core", s_root);
+    if (!mkdir_p(path)) return false;
+    snprintf(path, sizeof(path), "%s/apps", s_root);
+    if (!mkdir_p(path)) return false;
+    snprintf(path, sizeof(path), "%s/data", s_root);
+    if (!mkdir_p(path)) return false;
     return true;
 }
 
@@ -112,7 +113,8 @@ bool sim_fs_init(const char *root, const char *seed_dir) {
 /* Path translation                                                    */
 /* ------------------------------------------------------------------ */
 
-/* "0:/foo/bar.lua" -> "<root>/foo/bar.lua". Rejects ".." escapes. */
+/* "0:/foo/bar.lua" -> "<root>/foo/bar.lua"; "" and "/" map to the root
+ * itself (so f_opendir("/") lists the card). Rejects ".." escapes. */
 static bool sim_path(const char *path, char *out, size_t cap) {
     if (!path) {
         return false;
@@ -126,7 +128,7 @@ static bool sim_path(const char *path, char *out, size_t cap) {
     if (strstr(path, "..")) {
         return false;
     }
-    if (path[0] == '\0' || strlen(path) + strlen(s_root) + 2 > cap) {
+    if (strlen(path) + strlen(s_root) + 2 > cap) {
         return false;
     }
     snprintf(out, cap, "%s/%s", s_root, path);

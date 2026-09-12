@@ -49,6 +49,8 @@ final class AppModel {
     private let consoleContinuation: AsyncStream<String>.Continuation
     private var process: Process?
     private var saveTask: Task<Void, Never>?
+    private var fileWatchTask: Task<Void, Never>?
+    private var observedLuaData: Data?
 
     init() {
         (consoleStream, consoleContinuation) = AsyncStream<String>.makeStream()
@@ -78,6 +80,8 @@ final class AppModel {
     }
 
     private func loadSelectedComponent() {
+        fileWatchTask?.cancel()
+        observedLuaData = nil
         guard let project, let component = selectedComponent else {
             editingComponent = nil
             return
@@ -86,12 +90,15 @@ final class AppModel {
         do {
             switch component.kind {
             case .lua, .snippet:
-                luaText = try ProjectStore.readText(component, in: project)
+                let data = try Data(contentsOf: project.fileURL(for: component))
+                luaText = String(data: data, encoding: .utf8) ?? ""
+                observedLuaData = data
             case .tiles:
                 tilesAsset = try ProjectStore.readTiles(component, in: project)
             case .audio:
                 audioAsset = try ProjectStore.readAudio(component, in: project)
             }
+            restartFileWatch()
         } catch {
             errorMessage = "Cannot read \(component.file): \(error.localizedDescription)"
         }
@@ -124,6 +131,7 @@ final class AppModel {
             switch component.kind {
             case .lua, .snippet:
                 try ProjectStore.writeText(luaText, to: project.fileURL(for: component))
+                observedLuaData = Data(luaText.utf8)
             case .tiles:
                 try ProjectStore.writeTiles(tilesAsset, for: component, in: project)
             case .audio:
@@ -134,11 +142,50 @@ final class AppModel {
         }
     }
 
+    private func restartFileWatch() {
+        fileWatchTask?.cancel()
+        guard let component = editingComponent,
+              component.kind == .lua || component.kind == .snippet
+        else { return }
+        fileWatchTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .milliseconds(500))
+                } catch {
+                    return
+                }
+                guard let self, !Task.isCancelled else { return }
+                self.checkForExternalLuaChange()
+            }
+        }
+    }
+
+    private func checkForExternalLuaChange() {
+        guard let project, let component = editingComponent,
+              component.kind == .lua || component.kind == .snippet,
+              let data = try? Data(contentsOf: project.fileURL(for: component)),
+              data != observedLuaData
+        else { return }
+
+        let previousData = observedLuaData
+        observedLuaData = data
+        guard let text = String(data: data, encoding: .utf8) else { return }
+        if Data(luaText.utf8) == previousData {
+            luaText = text
+            appendConsole("Reloaded \(component.file) after an external change\n")
+            scheduleCheck()
+        } else {
+            errorMessage = "\(component.file) changed outside the IDE while it has unsaved edits"
+            appendConsole("External change detected in \(component.file); keeping editor text\n")
+        }
+    }
+
     // MARK: Project management
 
-    func createProject(named name: String, in parent: URL) {
+    func createProject(named name: String, in parent: URL, interactive: Bool = true) {
         do {
-            let created = try ProjectStore.createProject(named: name, in: parent)
+            let created = try ProjectStore.createProject(
+                named: name, in: parent, interactive: interactive)
             open(created)
             appendConsole("Created \(created.root.path)\n")
         } catch {
@@ -157,6 +204,7 @@ final class AppModel {
 
     private func open(_ project: Project) {
         saveTask?.cancel()
+        fileWatchTask?.cancel()
         checkTask?.cancel()
         editingComponent = nil // never save the previous project's buffer here
         self.project = project
@@ -341,8 +389,27 @@ final class AppModel {
             let start = Date()
             let product = try ProjectBuilder.build(project)
             lastBuildURL = product.outputURL
+            refreshSimulator()
+            let fileManager = FileManager.default
+            try? fileManager.removeItem(at: project.prgProductURL)
+            var compiledMessage = ""
+            if let simulator = simulatorURL {
+                let outcome = PrgCompiler.compile(
+                    source: product.outputURL,
+                    output: project.prgProductURL,
+                    simulator: simulator)
+                if outcome.outputURL != nil {
+                    compiledMessage = " + \(project.prgProductURL.path)"
+                } else if let error = outcome.error {
+                    appendConsole(".prg compilation failed: \(error)\n")
+                } else if let reason = outcome.unavailableReason {
+                    appendConsole(".prg compilation unavailable: \(reason)\n")
+                }
+            } else {
+                appendConsole(".prg compilation unavailable: simulator not found\n")
+            }
             let ms = Int(Date().timeIntervalSince(start) * 1000)
-            appendConsole("Built \(product.componentCount) component(s) -> \(product.outputURL.path) (\(ms) ms)\n")
+            appendConsole("Built \(product.componentCount) component(s) -> \(product.outputURL.path)\(compiledMessage) (\(ms) ms)\n")
             Task { await performCompileCheck() }
             return product
         } catch {

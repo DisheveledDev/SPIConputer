@@ -13,6 +13,10 @@ let package = Package(
             dependencies: ["SPIIDECore"],
             resources: [.process("Resources")]
         ),
+        .executableTarget(
+            name: "spibuild",
+            dependencies: ["SPIIDECore"]
+        ),
         .testTarget(
             name: "SPIIDECoreTests",
             dependencies: ["SPIIDECore"]

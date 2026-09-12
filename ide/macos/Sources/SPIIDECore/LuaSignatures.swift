@@ -52,6 +52,10 @@ public enum LuaSignatures {
         add("Pid")
         add("ExitProgram")
         add("Launch", "path", "[arg]")
+        add("Execute", "path", "...")
+        add("ExecuteString", "source", "...")
+        add("UtilityResult", "ok", "[message]")
+        add("UtilityPoll")
         add("TimerCreate", "fn", "interval_ms", "[oneshot]")
         add("TimerStop", "id")
         add("InputPoll")
@@ -59,6 +63,7 @@ public enum LuaSignatures {
 
         // Display
         add("ScreenMode", "mode")
+        add("ScreenZOrder", "layer")
         add("ScreenOut", "x", "y", "char", "[attr]")
         add("ScreenAttr", "x", "y", "flags")
         add("ScreenDefineTile", "index", "bytes")

@@ -20,10 +20,25 @@ public enum Runner {
 
     public static func prepare(project: Project, build: BuildProduct) throws -> RunSession {
         let sdcard = runDirectory(for: project).appendingPathComponent("sdcard")
-        try FileManager.default.createDirectory(at: sdcard, withIntermediateDirectories: true)
+        let core = sdcard.appendingPathComponent("core")
+        let apps = sdcard.appendingPathComponent("apps")
+        let data = sdcard.appendingPathComponent("data")
+        try FileManager.default.createDirectory(at: core, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
 
-        let programURL = sdcard.appendingPathComponent(project.programFileName)
-        try Data(build.lua.utf8).write(to: programURL, options: .atomic)
+        let sourceURL = apps.appendingPathComponent(project.programFileName)
+        try Data(build.lua.utf8).write(to: sourceURL, options: .atomic)
+
+        let compiledURL = apps.appendingPathComponent(project.prgFileName)
+        try? FileManager.default.removeItem(at: compiledURL)
+        let programURL: URL
+        if FileManager.default.fileExists(atPath: project.prgProductURL.path) {
+            try FileManager.default.copyItem(at: project.prgProductURL, to: compiledURL)
+            programURL = compiledURL
+        } else {
+            programURL = sourceURL
+        }
 
         return RunSession(sdcardURL: sdcard, programURL: programURL)
     }

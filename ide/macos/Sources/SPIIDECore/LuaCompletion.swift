@@ -32,11 +32,12 @@ public enum LuaCompletion {
 
     public static let spiComputer: [String] = [
         // System
-        "TimeNow", "Pid", "ExitProgram", "Launch", "pid",
+        "TimeNow", "Pid", "ExitProgram", "Launch", "Execute", "ExecuteString",
+        "UtilityResult", "UtilityPoll", "pid",
         "TimerCreate", "TimerStop",
         "InputPoll", "InputControl",
         // Display
-        "ScreenMode", "ScreenOut", "ScreenAttr", "ScreenDefineTile",
+        "ScreenMode", "ScreenZOrder", "ScreenOut", "ScreenAttr", "ScreenDefineTile",
         "ScreenPalette", "ScreenPaletteSet", "ScreenClear", "ScreenPlot",
         // Sound
         "SoundDefine", "SoundLoad", "SoundPlay", "SoundStop", "SoundStopAll",

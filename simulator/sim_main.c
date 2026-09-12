@@ -12,14 +12,15 @@
  *   keyboard matrix  ->  SDL keyboard / game controllers -> input events
  *   both cores       ->  one thread: scheduler steps + inline RPC service
  *
- * Usage: spicomputer_sim [--sdcard DIR] [--seed-dir DIR] [--boot FILE]
- *                        [--ticks N] [--headless] [--exit-after-ms N]
+ * Usage: spicomputer_sim [--sdcard DIR] [--boot FILE] [--ticks N]
+ *                        [--headless] [--exit-after-ms N]
  */
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,10 +44,11 @@
 
 typedef struct {
     const char *sdcard;
-    const char *seed_dir;
     const char *boot_file;
     const char *dump_frame;
     const char *check_file;
+    const char *compile_in;
+    const char *compile_out;
     int ticks_per_frame;
     int exit_after_ms;
     bool headless;
@@ -89,6 +91,74 @@ static int check_lua_file(const char *path) {
         rc = 1;
     } else {
         printf("ok\n");
+    }
+    lua_close(L);
+    free(buf);
+    return rc;
+}
+
+/* ------------------------------------------------------------------ */
+/* Bytecode compile (used by the IDE to produce .prg files)            */
+/* ------------------------------------------------------------------ */
+
+static int dump_writer(lua_State *L, const void *p, size_t size, void *ud) {
+    (void)L;
+    FILE *f = (FILE *)ud;
+    return fwrite(p, 1, size, f) == size ? 0 : 1;
+}
+
+/* Compile a Lua source file into a binary chunk (`luac` format) with
+ * the OS's own Lua build, so the result loads on the device and in the
+ * simulator. The chunk name is the source's base name, so runtime
+ * errors read like on-card ones ("program.lua:12: ..."). */
+static int compile_lua_file(const char *in_path, const char *out_path) {
+    FILE *in = fopen(in_path, "rb");
+    if (!in) {
+        fprintf(stderr, "cannot open %s\n", in_path);
+        return 2;
+    }
+    fseek(in, 0, SEEK_END);
+    long size = ftell(in);
+    fseek(in, 0, SEEK_SET);
+    char *buf = (char *)malloc(size > 0 ? (size_t)size : 1);
+    size_t got = buf ? fread(buf, 1, (size_t)size, in) : 0;
+    fclose(in);
+    if (!buf || got != (size_t)size) {
+        fprintf(stderr, "cannot read %s\n", in_path);
+        free(buf);
+        return 2;
+    }
+
+    const char *base = strrchr(in_path, '/');
+    base = base ? base + 1 : in_path;
+    char chunk_name[PATH_MAX];
+    snprintf(chunk_name, sizeof(chunk_name), "@%s", base);
+
+    lua_State *L = luaL_newstate();
+    if (!L) {
+        free(buf);
+        return 2;
+    }
+    int rc = 0;
+    if (luaL_loadbufferx(L, buf, got, chunk_name, "t") != LUA_OK) {
+        const char *message = lua_tostring(L, -1);
+        fprintf(stderr, "%s\n", message ? message : "compile failed");
+        rc = 1;
+    } else {
+        FILE *out = fopen(out_path, "wb");
+        if (!out) {
+            fprintf(stderr, "cannot write %s\n", out_path);
+            rc = 2;
+        } else {
+            if (lua_dump(L, dump_writer, out, 0) != 0) {
+                fprintf(stderr, "bytecode dump failed\n");
+                rc = 1;
+            }
+            fclose(out);
+            if (rc != 0) {
+                remove(out_path);
+            }
+        }
     }
     lua_close(L);
     free(buf);
@@ -330,8 +400,20 @@ static void sim_render(SDL_Renderer *ren, SDL_Texture *tex, uint8_t *frame) {
         memset(frame, 0, SIM_W * SIM_H * 3);
     }
     SDL_UpdateTexture(tex, NULL, frame, SIM_W * 3);
+
+    int output_w, output_h;
+    SDL_GetRendererOutputSize(ren, &output_w, &output_h);
+    SDL_Rect destination = {0, 0, output_w, output_h};
+    if (output_w * 3 > output_h * 4) {
+        destination.w = output_h * 4 / 3;
+        destination.x = (output_w - destination.w) / 2;
+    } else {
+        destination.h = output_w * 3 / 4;
+        destination.y = (output_h - destination.h) / 2;
+    }
+    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
     SDL_RenderClear(ren);
-    SDL_RenderCopy(ren, tex, NULL, NULL);
+    SDL_RenderCopy(ren, tex, NULL, &destination);
     SDL_RenderPresent(ren);
 }
 
@@ -364,12 +446,12 @@ static void sim_pump_audio(SDL_AudioDeviceID dev) {
 static void usage(const char *argv0) {
     printf(
         "usage: %s [options]\n"
-        "  --sdcard DIR        virtual SD card folder (default: ./sdcard)\n"
-        "  --seed-dir DIR      copy os.lua/editor.lua from DIR when missing\n"
-        "  --boot FILE         program to boot (default: os.lua)\n"
+        "  --sdcard DIR        virtual SD card folder (default: <simulator dir>/sdcard)\n"
+        "  --boot FILE         program to boot (default: core/boot.lua; a .prg is fine)\n"
         "  --ticks N           scheduler ticks per frame (default: 64)\n"
         "  --dump-frame FILE   write the final 640x480 frame as a PPM\n"
         "  --check FILE        compile FILE with the OS Lua and exit\n"
+        "  --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit\n"
         "  --headless          no window/audio (smoke tests)\n"
         "  --exit-after-ms N   quit automatically after N ms\n",
         argv0);
@@ -399,11 +481,31 @@ static void rpc_wait_sim(void) {
     (void)fs_core0_service();
 }
 
+/* The default card folder sits next to the simulator binary
+ * (<exe dir>/sdcard), so it is the same folder however the simulator is
+ * launched — from a terminal, Finder or a task runner. Relative
+ * "sdcard" is the fallback when the executable path cannot be
+ * resolved. */
+static const char *default_card_folder(const char *argv0) {
+    static char folder[PATH_MAX];
+    char exe[PATH_MAX];
+    if (!argv0 || strchr(argv0, '/') == NULL || realpath(argv0, exe) == NULL) {
+        return "sdcard";
+    }
+    char *slash = strrchr(exe, '/');
+    if (!slash) {
+        return "sdcard";
+    }
+    *slash = '\0';
+    snprintf(folder, sizeof(folder), "%s/sdcard", exe);
+    return folder;
+}
+
 int main(int argc, char **argv) {
+    setvbuf(stdout, NULL, _IOLBF, 0); /* keep log lines in order */
     sim_opts_t o = {
-        .sdcard = "sdcard",
-        .seed_dir = SIM_OS_DIR,
-        .boot_file = "os.lua",
+        .sdcard = NULL,
+        .boot_file = "core/boot.lua",
         .ticks_per_frame = 64,
         .exit_after_ms = 0,
         .headless = false,
@@ -411,8 +513,6 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--sdcard") == 0 && i + 1 < argc) {
             o.sdcard = argv[++i];
-        } else if (strcmp(argv[i], "--seed-dir") == 0 && i + 1 < argc) {
-            o.seed_dir = argv[++i];
         } else if (strcmp(argv[i], "--boot") == 0 && i + 1 < argc) {
             o.boot_file = argv[++i];
         } else if (strcmp(argv[i], "--ticks") == 0 && i + 1 < argc) {
@@ -421,6 +521,9 @@ int main(int argc, char **argv) {
             o.dump_frame = argv[++i];
         } else if (strcmp(argv[i], "--check") == 0 && i + 1 < argc) {
             o.check_file = argv[++i];
+        } else if (strcmp(argv[i], "--compile") == 0 && i + 2 < argc) {
+            o.compile_in = argv[++i];
+            o.compile_out = argv[++i];
         } else if (strcmp(argv[i], "--exit-after-ms") == 0 && i + 1 < argc) {
             o.exit_after_ms = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--headless") == 0) {
@@ -436,16 +539,23 @@ int main(int argc, char **argv) {
     if (o.check_file) {
         return check_lua_file(o.check_file);
     }
+    if (o.compile_in && o.compile_out) {
+        return compile_lua_file(o.compile_in, o.compile_out);
+    }
+    if (!o.sdcard) {
+        o.sdcard = default_card_folder(argc > 0 ? argv[0] : NULL);
+    }
     if (o.headless && o.exit_after_ms == 0) {
         o.exit_after_ms = 1500;
     }
 
     printf("[sim] SPIComputer OS simulator\n");
-    if (!sim_fs_init(o.sdcard, o.seed_dir)) {
-        fprintf(stderr, "[sim] cannot create SD card folder '%s'\n", o.sdcard);
+    if (!sim_fs_init(o.sdcard)) {
+        fprintf(stderr, "[sim] cannot create SD card folder '%s'\n",
+                sim_fs_root_abs());
         return 1;
     }
-    printf("[sim] SD card folder: %s\n", sim_fs_root());
+    printf("[sim] SD card folder: %s\n", sim_fs_root_abs());
 
     rpc_bind_wait(rpc_wait_sim);
     rpc_bind_signal(NULL);
@@ -454,7 +564,9 @@ int main(int argc, char **argv) {
         return 1;
     }
     if (!program_boot(o.boot_file, NULL)) {
-        fprintf(stderr, "[sim] boot failed: no %s on the card\n", o.boot_file);
+        fprintf(stderr,
+                "[sim] boot failed: no %s in %s (copy your programs in)\n",
+                o.boot_file, sim_fs_root_abs());
         return 1;
     }
     printf("[sim] booted %s (pid 0), %d ticks/frame\n", o.boot_file,
@@ -474,7 +586,8 @@ int main(int argc, char **argv) {
             return 1;
         }
         win = SDL_CreateWindow("SPIComputer OS", SDL_WINDOWPOS_CENTERED,
-                               SDL_WINDOWPOS_CENTERED, SIM_W, SIM_H, 0);
+                               SDL_WINDOWPOS_CENTERED, SIM_W, SIM_H,
+                               SDL_WINDOW_RESIZABLE);
         if (!win) {
             fprintf(stderr, "[sim] window: %s\n", SDL_GetError());
             return 1;
@@ -597,8 +710,8 @@ int main(int argc, char **argv) {
             n = 40 * 30;
         }
         for (int i = 0; i < n; i++) {
-            if (g_current_video->char_map[i] != ' ' &&
-                g_current_video->char_map[i] != 0) {
+            if (g_current_video->char_map[0][i] != ' ' &&
+                g_current_video->char_map[0][i] != 0) {
                 painted++;
             }
         }
