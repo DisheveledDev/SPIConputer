@@ -78,6 +78,34 @@ static int rpc_fs(rpc_op_t op, int32_t a, int32_t b, int32_t whence,
     return rpc_call(&req, resp);
 }
 
+const char *fs_lua_resolve_path(lua_State *L, const char *path,
+                                char out[FS_LUA_PATH_MAX]) {
+    if (path[0] == '/') {
+        snprintf(out, FS_LUA_PATH_MAX, "%s", path);
+        return out;
+    }
+    if (strncmp(path, "resources/", 10) == 0) {
+        lua_getfield(L, LUA_REGISTRYINDEX, "_spi_app_root");
+        const char *root = lua_tostring(L, -1);
+        if (root && root[0]) {
+            snprintf(out, FS_LUA_PATH_MAX, "%s/%s", root, path);
+            lua_pop(L, 1);
+            return out;
+        }
+        lua_pop(L, 1);
+    }
+    lua_getfield(L, LUA_REGISTRYINDEX, "_spi_cwd");
+    const char *cwd = lua_tostring(L, -1);
+    if (!cwd || !cwd[0]) cwd = "/";
+    if (strcmp(cwd, "/") == 0) {
+        snprintf(out, FS_LUA_PATH_MAX, "%s", path);
+    } else {
+        snprintf(out, FS_LUA_PATH_MAX, "%s/%s", cwd, path);
+    }
+    lua_pop(L, 1);
+    return out;
+}
+
 /* Whole-file read into a malloc'd buffer (NULL on failure). */
 FRESULT fs_lua_readall(const char *path, char **out, size_t *out_len) {
     rpc_response_t resp;
@@ -214,7 +242,8 @@ static int file_gc(lua_State *L) {
 }
 
 static int fs_open(lua_State *L) {
-    const char *path = luaL_checkstring(L, 1);
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_checkstring(L, 1), resolved);
     const char *mode = luaL_optstring(L, 2, "r");
     BYTE flags = 0;
     for (const char *m = mode; *m; m++) {
@@ -391,7 +420,8 @@ static int file_close(lua_State *L) {
 /* ------------------------------------------------------------------ */
 
 static int fs_ls(lua_State *L) {
-    const char *path = luaL_optstring(L, 1, "/");
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_optstring(L, 1, "."), resolved);
     rpc_response_t resp;
     rpc_fs(RPC_FS_LS, 0, 0, 0, path, NULL, &resp);
     if (resp.result != FR_OK) {
@@ -428,7 +458,8 @@ static int fs_ls(lua_State *L) {
  * real entry name ("EDITOR.LUA" -> "editor.lua"), or nil. */
 static int fs_find(lua_State *L) {
     const char *name = luaL_checkstring(L, 1);
-    const char *path = luaL_optstring(L, 2, "/");
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_optstring(L, 2, "."), resolved);
     rpc_response_t resp;
     rpc_fs(RPC_FS_FIND, 0, 0, 0, path, name, &resp);
     if (resp.result != FR_OK || resp.value <= 0) {
@@ -440,7 +471,8 @@ static int fs_find(lua_State *L) {
 }
 
 static int fs_stat(lua_State *L) {
-    const char *path = luaL_checkstring(L, 1);
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_checkstring(L, 1), resolved);
     rpc_response_t resp;
     rpc_fs(RPC_FS_STAT, 0, 0, 0, path, NULL, &resp);
     if (resp.result != FR_OK) {
@@ -457,15 +489,19 @@ static int fs_stat(lua_State *L) {
 }
 
 static int fs_exists(lua_State *L) {
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_checkstring(L, 1), resolved);
     rpc_response_t resp;
-    rpc_fs(RPC_FS_EXISTS, 0, 0, 0, luaL_checkstring(L, 1), NULL, &resp);
+    rpc_fs(RPC_FS_EXISTS, 0, 0, 0, path, NULL, &resp);
     lua_pushboolean(L, resp.value != 0);
     return 1;
 }
 
 static int fs_mkdir(lua_State *L) {
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_checkstring(L, 1), resolved);
     rpc_response_t resp;
-    rpc_fs(RPC_FS_MKDIR, 0, 0, 0, luaL_checkstring(L, 1), NULL, &resp);
+    rpc_fs(RPC_FS_MKDIR, 0, 0, 0, path, NULL, &resp);
     if (resp.result != FR_OK) {
         lua_pushnil(L);
         lua_pushfstring(L, "mkdir failed: %s",
@@ -477,8 +513,10 @@ static int fs_mkdir(lua_State *L) {
 }
 
 static int fs_remove(lua_State *L) {
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_checkstring(L, 1), resolved);
     rpc_response_t resp;
-    rpc_fs(RPC_FS_REMOVE, 0, 0, 0, luaL_checkstring(L, 1), NULL, &resp);
+    rpc_fs(RPC_FS_REMOVE, 0, 0, 0, path, NULL, &resp);
     if (resp.result != FR_OK) {
         lua_pushnil(L);
         lua_pushfstring(L, "remove failed: %s",
@@ -490,8 +528,9 @@ static int fs_remove(lua_State *L) {
 }
 
 static int fs_rename(lua_State *L) {
-    const char *oldp = luaL_checkstring(L, 1);
-    const char *newp = luaL_checkstring(L, 2);
+    char old_resolved[FS_LUA_PATH_MAX], new_resolved[FS_LUA_PATH_MAX];
+    const char *oldp = fs_lua_resolve_path(L, luaL_checkstring(L, 1), old_resolved);
+    const char *newp = fs_lua_resolve_path(L, luaL_checkstring(L, 2), new_resolved);
     rpc_response_t resp;
     rpc_fs(RPC_FS_RENAME, 0, 0, 0, oldp, newp, &resp);
     if (resp.result != FR_OK) {
@@ -533,7 +572,8 @@ static int fs_mount(lua_State *L) {
 }
 
 static int fs_readall(lua_State *L) {
-    const char *path = luaL_checkstring(L, 1);
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_checkstring(L, 1), resolved);
     size_t len = 0;
     char *buf = NULL;
     FRESULT err = fs_lua_readall(path, &buf, &len);
@@ -548,7 +588,8 @@ static int fs_readall(lua_State *L) {
 }
 
 static int fs_writeall(lua_State *L) {
-    const char *path = luaL_checkstring(L, 1);
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_checkstring(L, 1), resolved);
     size_t len;
     const char *data = luaL_checklstring(L, 2, &len);
 
@@ -642,6 +683,8 @@ int luaopen_fs(lua_State *L) {
  * Accepts text chunks and compiled `.prg` bytecode ("bt"), and prefers
  * a compiled `*.prg` sibling of a `*.lua` path when one exists. */
 static int loadfile_from_sd(lua_State *L, const char *path) {
+    char requested[FS_LUA_PATH_MAX];
+    path = fs_lua_resolve_path(L, path, requested);
     size_t len = 0;
     char *buf = NULL;
     char resolved[FS_LUA_PATH_MAX] = "";
@@ -696,8 +739,10 @@ static int searcher_from_sd(lua_State *L) {
     for (size_t k = 0; k < sizeof(fmts) / sizeof(fmts[0]); k++) {
         char path[260];
         snprintf(path, sizeof(path), fmts[k], mod);
+        char existing[FS_LUA_PATH_MAX];
+        const char *actual = fs_lua_resolve_path(L, path, existing);
         rpc_response_t resp;
-        rpc_fs(RPC_FS_EXISTS, 0, 0, 0, path, NULL, &resp);
+        rpc_fs(RPC_FS_EXISTS, 0, 0, 0, actual, NULL, &resp);
         if (resp.value != 0) {
             int n = loadfile_from_sd(L, path);
             if (lua_isfunction(L, -1)) return 1;

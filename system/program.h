@@ -47,12 +47,15 @@ typedef struct program_s {
     int on_control_ref;
     bool exit_requested;
     bool interactive;
+    bool requires_video;
+    bool requires_audio;
     bool utility_result_set;
     bool utility_ok;
     char utility_output[256];
     bool child_result_pending;
     bool child_result_ok;
     char child_result_output[256];
+    char cwd[260];
 
     /* -- heap budget -- */
     size_t heap_used;

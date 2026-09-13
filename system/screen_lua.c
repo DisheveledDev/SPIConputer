@@ -31,7 +31,7 @@ static video_state_t *current(lua_State *L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "_spi_program");
     program_t *p = (program_t *)lua_touserdata(L, -1);
     lua_pop(L, 1);
-    if (!p || !p->interactive || !g_current_video) {
+    if (!p || !p->requires_video || !g_current_video) {
         luaL_error(L, "Screen API called outside a program");
     }
     return g_current_video;

@@ -1,5 +1,17 @@
 import Foundation
 
+public enum ProjectOutputKind: String, Codable, CaseIterable, Sendable {
+    case app
+    case prg
+
+    public var displayName: String {
+        switch self {
+        case .app: "Application bundle (.app)"
+        case .prg: "System program (.prg)"
+        }
+    }
+}
+
 /// The project manifest (`project.spiproj`): an ordered list of
 /// components that build into one Lua program file.
 public struct ProjectManifest: Codable, Sendable, Equatable {
@@ -10,6 +22,11 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
     /// Folder (relative to the project) the built program is written to.
     public var outputDirectory: String
     public var interactive: Bool
+    public var outputKind: ProjectOutputKind
+    public var requiresVideo: Bool
+    public var requiresAudio: Bool
+    public var version: String
+    public var iconFile: String?
     public var components: [ComponentRef]
 
     public init(
@@ -17,12 +34,22 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         name: String,
         outputDirectory: String = "build",
         interactive: Bool = true,
+        outputKind: ProjectOutputKind = .app,
+        requiresVideo: Bool = true,
+        requiresAudio: Bool = true,
+        version: String = "1.0",
+        iconFile: String? = nil,
         components: [ComponentRef] = []
     ) {
         self.formatVersion = formatVersion
         self.name = name
         self.outputDirectory = outputDirectory
         self.interactive = interactive
+        self.outputKind = outputKind
+        self.requiresVideo = requiresVideo
+        self.requiresAudio = requiresAudio
+        self.version = version
+        self.iconFile = iconFile
         self.components = components
     }
 
@@ -31,6 +58,11 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         case name
         case outputDirectory = "output_directory"
         case interactive
+        case outputKind = "output_kind"
+        case requiresVideo = "requires_video"
+        case requiresAudio = "requires_audio"
+        case version
+        case iconFile = "icon_file"
         case components
     }
 
@@ -42,6 +74,11 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         outputDirectory = try c.decodeIfPresent(String.self, forKey: .outputDirectory)
             ?? "build"
         interactive = try c.decodeIfPresent(Bool.self, forKey: .interactive) ?? true
+        outputKind = try c.decodeIfPresent(ProjectOutputKind.self, forKey: .outputKind) ?? .app
+        requiresVideo = try c.decodeIfPresent(Bool.self, forKey: .requiresVideo) ?? interactive
+        requiresAudio = try c.decodeIfPresent(Bool.self, forKey: .requiresAudio) ?? interactive
+        version = try c.decodeIfPresent(String.self, forKey: .version) ?? "1.0"
+        iconFile = try c.decodeIfPresent(String.self, forKey: .iconFile)
         components = try c.decodeIfPresent([ComponentRef].self, forKey: .components) ?? []
     }
 }

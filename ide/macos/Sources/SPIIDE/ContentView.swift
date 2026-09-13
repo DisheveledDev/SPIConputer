@@ -16,6 +16,8 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 if model.project == nil {
                     WelcomeView()
+                } else if model.showingProjectSettings {
+                    ProjectSettingsView()
                 } else {
                     ComponentEditorView()
                 }

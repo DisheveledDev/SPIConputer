@@ -24,7 +24,11 @@ struct ComponentEditorView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 Divider()
-                if let diagnostic = diagnostic(for: component) {
+                if let diagnostic = model.runtimeDiagnostic,
+                   diagnostic.location?.componentID == component.id {
+                    RuntimeErrorBanner(diagnostic: diagnostic)
+                    Divider()
+                } else if let diagnostic = diagnostic(for: component) {
                     CompileErrorBanner(diagnostic: diagnostic)
                     Divider()
                 } else if let reason = model.compileCheckUnavailableReason {

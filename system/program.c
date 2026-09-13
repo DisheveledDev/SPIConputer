@@ -110,7 +110,7 @@ static void program_pause(program_t *p) {
     p->paused = true;
     p->pause_start_us = os_time_us();
     /* Silence the program without losing its score position. */
-    if (p->audio) audio_pause(p->audio);
+    if (p->requires_audio && p->audio) audio_pause(p->audio);
 }
 
 static void program_resume(program_t *p) {
@@ -142,6 +142,25 @@ int program_read_file(const char *path, char **out, size_t *out_len,
 /* Create a program from a file (`source == NULL`) or a source string.
  * The global `args` table is set up before the chunk body runs, and
  * argv[0] (if any) is passed as the chunk's first vararg. */
+static void parent_directory(const char *path, char *out, size_t size) {
+    snprintf(out, size, "%s", path);
+    char *slash = strrchr(out, '/');
+    if (!slash || slash == out) {
+        snprintf(out, size, "/");
+    } else {
+        *slash = '\0';
+    }
+}
+
+static void resolve_program_path(const char *path, const char *base,
+                                 char *out, size_t size) {
+    if (path[0] == '/' || !base || !base[0] || strcmp(base, "/") == 0) {
+        snprintf(out, size, "%s", path);
+    } else {
+        snprintf(out, size, "%s/%s", base, path);
+    }
+}
+
 static program_t *program_create(const char *name, const char *source,
                               size_t source_len, const char *const *argv,
                               int argc, const char **err) {
@@ -170,6 +189,9 @@ static program_t *program_create(const char *name, const char *source,
     /* Back-reference so sys functions can find their program. */
     lua_pushlightuserdata(p->L, p);
     lua_setfield(p->L, LUA_REGISTRYINDEX, "_spi_program");
+    parent_directory(name, p->cwd, sizeof(p->cwd));
+    lua_pushstring(p->L, p->cwd);
+    lua_setfield(p->L, LUA_REGISTRYINDEX, "_spi_cwd");
 
     /* Load the program: a file from the SD card (a source chunk or a
      * compiled `.prg`), or a source string. */
@@ -207,6 +229,31 @@ static program_t *program_create(const char *name, const char *source,
     }
     lua_setglobal(p->L, "args");
 
+    char app_root[FS_LUA_PATH_MAX];
+    snprintf(app_root, sizeof(app_root), "%s", chunk_name);
+    char *slash = strrchr(app_root, '/');
+    if (slash) {
+        *slash = '\0';
+    } else {
+        snprintf(app_root, sizeof(app_root), ".");
+    }
+    lua_pushstring(p->L, app_root);
+    lua_setfield(p->L, LUA_REGISTRYINDEX, "_spi_app_root");
+    lua_newtable(p->L);
+    lua_pushstring(p->L, chunk_name);
+    lua_setfield(p->L, -2, "program");
+    lua_pushstring(p->L, app_root);
+    lua_setfield(p->L, -2, "root");
+    char resource_root[FS_LUA_PATH_MAX];
+    snprintf(resource_root, sizeof(resource_root), "%s/resources", app_root);
+    lua_pushstring(p->L, resource_root);
+    lua_setfield(p->L, -2, "resources");
+    char metadata_path[FS_LUA_PATH_MAX];
+    snprintf(metadata_path, sizeof(metadata_path), "%s/app.json", app_root);
+    lua_pushstring(p->L, metadata_path);
+    lua_setfield(p->L, -2, "metadata");
+    lua_setglobal(p->L, "app");
+
     /* Keep the chunk alive in the registry and run its body once:
      * the body defines setup()/tick()/finish(). The first launch
      * argument (if any) arrives as the chunk's first vararg. */
@@ -227,6 +274,14 @@ static program_t *program_create(const char *name, const char *source,
 
     lua_getglobal(p->L, "__spi_interactive");
     p->interactive = !lua_isboolean(p->L, -1) || lua_toboolean(p->L, -1);
+    lua_pop(p->L, 1);
+    lua_getglobal(p->L, "__spi_requires_video");
+    p->requires_video = p->interactive &&
+                        (!lua_isboolean(p->L, -1) || lua_toboolean(p->L, -1));
+    lua_pop(p->L, 1);
+    lua_getglobal(p->L, "__spi_requires_audio");
+    p->requires_audio = p->interactive &&
+                        (!lua_isboolean(p->L, -1) || lua_toboolean(p->L, -1));
     lua_pop(p->L, 1);
 
     /* Collect the entry points (each optional except tick). */
@@ -250,7 +305,7 @@ static program_t *program_create(const char *name, const char *source,
     lua_pushinteger(p->L, (lua_Integer)p->pid);
     lua_setglobal(p->L, "pid");
 
-    if (p->interactive) {
+    if (p->requires_video) {
         p->video = (video_state_t *)malloc(sizeof(video_state_t));
         if (!p->video) {
             lua_close(p->L);
@@ -259,10 +314,14 @@ static program_t *program_create(const char *name, const char *source,
             return NULL;
         }
         video_state_init(p->video);
+    }
+    if (p->requires_audio) {
         p->audio = (audio_state_t *)malloc(sizeof(audio_state_t));
         if (!p->audio) {
-            video_state_free(p->video);
-            free(p->video);
+            if (p->video) {
+                video_state_free(p->video);
+                free(p->video);
+            }
             lua_close(p->L);
             pool_free(p);
             *err = "out of memory";
@@ -285,8 +344,8 @@ static void program_pop(program_t *p) {
     if (s_top) {
         program_resume(s_top);
     }
-    g_current_video = (s_top && s_top->interactive) ? s_top->video : NULL;
-    g_current_audio = (s_top && s_top->interactive) ? s_top->audio : NULL;
+    g_current_video = (s_top && s_top->requires_video) ? s_top->video : NULL;
+    g_current_audio = (s_top && s_top->requires_audio) ? s_top->audio : NULL;
 }
 
 void program_terminate(program_t *p) {
@@ -339,7 +398,7 @@ static int launch_common(const char *name, const char *source, size_t len,
         *err = "too many arguments";
         return -1;
     }
-    if (s_top && s_top->interactive && s_top->video->mode == VIDEO_MODE_PIXEL) {
+    if (s_top && s_top->requires_video && s_top->video->mode == VIDEO_MODE_PIXEL) {
         /* Memory policy: mode 10 is single-program (see AGENTS.md). */
         *err = "cannot launch from mode 10";
         return -1;
@@ -347,13 +406,26 @@ static int launch_common(const char *name, const char *source, size_t len,
     if (s_top) {
         program_pause(s_top);
     }
-    program_t *p = program_create(name, source, len, argv, argc, err);
+    char resolved_name[FS_LUA_PATH_MAX];
+    const char *base = s_top ? s_top->cwd : "/";
+    resolve_program_path(name, base, resolved_name, sizeof(resolved_name));
+    program_t *p = program_create(source ? name : resolved_name, source, len,
+                                  argv, argc, err);
     if (!p) {
         if (s_top) {
             program_resume(s_top);
         }
         return -1;
     }
+    snprintf(p->cwd, sizeof(p->cwd), "%s", base && base[0] ? base : "/");
+    lua_pushstring(p->L, p->cwd);
+    lua_setfield(p->L, LUA_REGISTRYINDEX, "_spi_cwd");
+    lua_getglobal(p->L, "app");
+    if (lua_istable(p->L, -1)) {
+        lua_pushstring(p->L, p->cwd);
+        lua_setfield(p->L, -2, "cwd");
+    }
+    lua_pop(p->L, 1);
     p->next = s_top;
     s_top = p;
     if (p->interactive) {

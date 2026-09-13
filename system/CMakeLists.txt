@@ -29,6 +29,16 @@ if (NOT SPICOMPUTER_SKIP_VSCODE AND EXISTS ${picoVscode})
 endif()
 # ====================================================================================
 set(PICO_BOARD pico2 CACHE STRING "Board type")
+set(SPICOMPUTER_BOARD_PROFILE "pico2" CACHE STRING "SPIComputer hardware profile")
+set_property(CACHE SPICOMPUTER_BOARD_PROFILE PROPERTY STRINGS pico2 rp2354b)
+
+if(SPICOMPUTER_BOARD_PROFILE STREQUAL "pico2")
+    add_compile_definitions(SPICOMPUTER_PROFILE_PICO2=1)
+elseif(SPICOMPUTER_BOARD_PROFILE STREQUAL "rp2354b")
+    add_compile_definitions(SPICOMPUTER_PROFILE_RP2354B=1)
+else()
+    message(FATAL_ERROR "Unknown SPIComputer board profile: ${SPICOMPUTER_BOARD_PROFILE}")
+endif()
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)

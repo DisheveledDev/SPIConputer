@@ -19,6 +19,13 @@ struct DiagnosticsTests {
         #expect(parsed.message == "'end' expected")
     }
 
+    @Test func parsesRuntimeErrorFromSimulatorOutput() {
+        let parsed = LuaRuntimeErrorParser.parse(
+            "program 1: tick error: [string \"program.lua\"]:27: attempt to index a nil value")
+        #expect(parsed?.line == 27)
+        #expect(parsed?.message == "attempt to index a nil value")
+    }
+
     @Test func parsesMessageWithoutLine() {
         let parsed = LuaErrorParser.parse("compile failed")
         #expect(parsed.line == nil)

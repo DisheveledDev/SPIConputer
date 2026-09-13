@@ -21,6 +21,10 @@ extern "C" {
  * an SD-card searcher for require(). */
 void fs_lua_openlibs(lua_State *L);
 
+/* Resolve a program-relative path against the current program directory. */
+const char *fs_lua_resolve_path(lua_State *L, const char *path,
+                                char out[FS_LUA_PATH_MAX]);
+
 /* Load and run a Lua script from the SD card. Returns 0 on success,
  * non-zero on failure (error printed to stderr). */
 int fs_lua_run_file(lua_State *L, const char *path);

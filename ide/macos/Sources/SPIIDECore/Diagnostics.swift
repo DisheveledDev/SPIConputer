@@ -17,6 +17,14 @@ public struct CompileDiagnostic: Sendable, Equatable {
     }
 }
 
+public enum LuaRuntimeErrorParser {
+    public static func parse(_ raw: String) -> LuaErrorParser.Parsed? {
+        let parsed = LuaErrorParser.parse(raw)
+        guard parsed.line != nil else { return nil }
+        return parsed
+    }
+}
+
 /// Parses Lua loader errors of the form
 /// `[string "name"]:12: message` (or `name:12: message`). Also extracts
 /// the `at line N` context Lua adds for unclosed constructs, e.g.

@@ -38,6 +38,11 @@
     }
   ],
   "format_version" : 1,
+  "interactive" : true,
   "name" : "os",
-  "output_directory" : "../core"
+  "output_directory" : "../core",
+  "output_kind" : "prg",
+  "requires_audio" : true,
+  "requires_video" : true,
+  "version" : "1.0"
 }

@@ -27,13 +27,20 @@ public enum Runner {
         try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
 
-        let sourceURL = apps.appendingPathComponent(project.programFileName)
+        let installDirectory = project.manifest.outputKind == .prg ? core : apps
+        let sourceURL = installDirectory.appendingPathComponent(project.programFileName)
         try Data(build.lua.utf8).write(to: sourceURL, options: .atomic)
 
-        let compiledURL = apps.appendingPathComponent(project.prgFileName)
-        try? FileManager.default.removeItem(at: compiledURL)
         let programURL: URL
-        if FileManager.default.fileExists(atPath: project.prgProductURL.path) {
+        if project.manifest.outputKind == .app,
+           FileManager.default.fileExists(atPath: project.appBundleURL.path) {
+            let appURL = apps.appendingPathComponent(project.appBundleURL.lastPathComponent)
+            try? FileManager.default.removeItem(at: appURL)
+            try FileManager.default.copyItem(at: project.appBundleURL, to: appURL)
+            programURL = appURL.appendingPathComponent("app.prg")
+        } else if FileManager.default.fileExists(atPath: project.prgProductURL.path) {
+            let compiledURL = installDirectory.appendingPathComponent(project.prgFileName)
+            try? FileManager.default.removeItem(at: compiledURL)
             try FileManager.default.copyItem(at: project.prgProductURL, to: compiledURL)
             programURL = compiledURL
         } else {
@@ -45,9 +52,13 @@ public enum Runner {
 
     /// Command-line arguments for the simulator.
     public static func simulatorArguments(for session: RunSession) -> [String] {
-        [
+        let root = session.sdcardURL.standardizedFileURL.path
+        let program = session.programURL.standardizedFileURL.path
+        let prefix = root.hasSuffix("/") ? root : root + "/"
+        let boot = program.hasPrefix(prefix) ? String(program.dropFirst(prefix.count)) : session.programURL.lastPathComponent
+        return [
             "--sdcard", session.sdcardURL.path,
-            "--boot", session.programURL.lastPathComponent,
+            "--boot", boot,
         ]
     }
 

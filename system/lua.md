@@ -97,6 +97,10 @@ video/audio state. They should call `UtilityResult(true, message)` or
 `UtilityResult(false, message)` once; the launching shell receives it through
 `UtilityPoll()` after the utility exits.
 
+Every program also receives an `app` table with `app.root`, `app.program`,
+`app.metadata`, and `app.resources` paths when launched from an `.app`
+directory.
+
 ### Timers
 
 | Function | Returns |
@@ -357,6 +361,11 @@ serviced them (they are RPCs); a missing or ejected SD card produces
 The standard Lua 5.5 libraries are available: base, coroutine, table,
 string, math, utf8, package.
 
+Relative filesystem paths are resolved against the program's inherited current
+working directory. Programs receive that directory as `app.cwd`. An app's
+resources are addressed relative to its bundle root, for example
+`resources/help.txt` resolves inside `/apps/name.app/resources/`.
+
 ## Limits and Semantics
 
 | Limit | Value |
@@ -402,8 +411,10 @@ The card layout separates protected system files from user data:
 
 - `core/` contains `boot.lua`/`boot.prg`, `os.lua`/`os.prg`, and other
   system-installed programs. The shell cannot manipulate this directory.
-- `apps/` contains installed applications. `APPS` lists these while hiding
-  compiled `.prg` companions. Programs can be launched from this directory.
+- `apps/` contains installed applications as `.app` directories. Each app
+  contains `app.prg`, `app.json`, an optional `icon.*`, and a `resources/`
+  directory. `APPS` lists app directories while hiding implementation files.
+  Programs can be launched by app name or explicit `app.prg` path.
 - `data/` is the user area. `DIR`, `CD`, `MD`, `RD`, `DEL`, `REN`, `MOVE`,
   `COPY`, `TYPE`, and `STAT` are restricted to this directory.
 

@@ -15,5 +15,6 @@
   ],
   "format_version" : 1,
   "name" : "boot",
+  "output_kind" : "prg",
   "output_directory" : "../core"
 }

@@ -2,7 +2,7 @@
 
 local function banner()
     out("")
-    out("     **** SPIOS - SPIComputer OS ****")
+    out("     **** SPIComputer OS v1.0 ****")
     out("")
     local free_kb = 0
     local ok, free = pcall(fs.free)
@@ -20,8 +20,8 @@ end
 
 function setup()
     ScreenMode(1) -- 40x30 tiles, invert + colour
-    ScreenPalette(0, 0x40, 0x40, 0xE0) -- background: C64 blue
-    ScreenPalette(1, 0x7C, 0x70, 0xDA) -- default text: light blue
-    ScreenPalette(2, 0xFF, 0xFF, 0xFF) -- attribute colour 1: white
+    ScreenPalette(0, 0x00, 0x00, 0xAA) -- background: CPC blue
+    ScreenPalette(1, 0xFF, 0xFF, 0x00) -- default text: CPC yellow
+    ScreenPalette(2, 0xFF, 0xFF, 0x00) -- attribute colour 1: CPC yellow
     banner()
 end

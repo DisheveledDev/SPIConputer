@@ -44,7 +44,7 @@ static audio_state_t *current(lua_State *L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "_spi_program");
     program_t *p = (program_t *)lua_touserdata(L, -1);
     lua_pop(L, 1);
-    if (!p || !p->interactive || !g_current_audio) {
+    if (!p || !p->requires_audio || !g_current_audio) {
         luaL_error(L, "sound API called outside a program");
     }
     return g_current_audio;
@@ -426,8 +426,8 @@ static bool skip_bytes(int32_t handle, uint32_t n) {
 
 /* Parse a PCM (8/16-bit, mono/stereo) WAV into the sample pool.
  * On success returns true and *slot_out is set. */
-static bool wav_load(audio_state_t *a, const char *path, int *slot_out,
-                     const char **err) {
+static bool wav_load(lua_State *L, audio_state_t *a, const char *path,
+                     int *slot_out, const char **err) {
     int slot = -1;
     for (int i = 0; i < AUDIO_SAMPLE_MAX; i++) {
         if (!a->samples[i].defined) {
@@ -447,6 +447,8 @@ static bool wav_load(audio_state_t *a, const char *path, int *slot_out,
         }
     }
 
+    char resolved[FS_LUA_PATH_MAX];
+    path = fs_lua_resolve_path(L, path, resolved);
     int32_t handle = 0;
     FRESULT fr = fs_lua_open_read(path, &handle);
     if (fr != FR_OK) {
@@ -574,7 +576,7 @@ static int sound_load(lua_State *L) {
     const char *path = luaL_checkstring(L, 1);
     int slot = 0;
     const char *err = NULL;
-    if (!wav_load(a, path, &slot, &err)) {
+    if (!wav_load(L, a, path, &slot, &err)) {
         lua_pushnil(L);
         lua_pushstring(L, err ? err : "load failed");
         return 2;

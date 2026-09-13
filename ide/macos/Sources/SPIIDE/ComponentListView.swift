@@ -11,6 +11,15 @@ struct ComponentListView: View {
         @Bindable var model = model
 
         List(selection: $model.selectedComponentID) {
+            if model.project != nil {
+                Button {
+                    model.showingProjectSettings = true
+                } label: {
+                    Label("Project Settings", systemImage: "slider.horizontal.3")
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(model.showingProjectSettings ? Color.accentColor.opacity(0.15) : nil)
+            }
             ForEach(model.project?.manifest.components ?? []) { component in
                 ComponentRow(component: component)
                     .tag(component.id)
@@ -30,6 +39,7 @@ struct ComponentListView: View {
             }
         }
         .onChange(of: model.selectedComponentID) {
+            model.showingProjectSettings = false
             model.componentSelectionChanged()
         }
         .alert("Rename Component", isPresented: $showingRename) {

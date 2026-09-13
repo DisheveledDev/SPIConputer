@@ -12,6 +12,7 @@ final class AppModel {
     // Project
     var project: Project?
     var selectedComponentID: ComponentRef.ID?
+    var showingProjectSettings = true
     var showingNewProject = false
     var showingOpenPanel = false
     var errorMessage: String?
@@ -29,6 +30,7 @@ final class AppModel {
 
     // Compile checking
     var compileDiagnostic: CompileDiagnostic?
+    var runtimeDiagnostic: CompileDiagnostic?
     /// Non-nil when checks cannot run (shown in the editor banner).
     var compileCheckUnavailableReason: String?
     private var checkTask: Task<Void, Never>?
@@ -51,6 +53,7 @@ final class AppModel {
     private var saveTask: Task<Void, Never>?
     private var fileWatchTask: Task<Void, Never>?
     private var observedLuaData: Data?
+    private var runtimeBuffer = ""
 
     init() {
         (consoleStream, consoleContinuation) = AsyncStream<String>.makeStream()
@@ -193,6 +196,33 @@ final class AppModel {
         }
     }
 
+    func updateProjectSettings(
+        name: String,
+        version: String,
+        interactive: Bool,
+        outputKind: ProjectOutputKind,
+        requiresVideo: Bool,
+        requiresAudio: Bool,
+        iconFile: String?
+    ) {
+        guard var project else { return }
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        project.manifest.name = trimmedName
+        project.manifest.version = version
+        project.manifest.interactive = interactive
+        project.manifest.outputKind = outputKind
+        project.manifest.requiresVideo = requiresVideo
+        project.manifest.requiresAudio = requiresAudio
+        project.manifest.iconFile = iconFile?.isEmpty == true ? nil : iconFile
+        do {
+            try ProjectStore.save(project)
+            self.project = project
+        } catch {
+            errorMessage = "Cannot save project settings: \(error.localizedDescription)"
+        }
+    }
+
     func openProject(at root: URL) {
         do {
             open(try ProjectStore.load(from: root))
@@ -208,6 +238,7 @@ final class AppModel {
         checkTask?.cancel()
         editingComponent = nil // never save the previous project's buffer here
         self.project = project
+        showingProjectSettings = true
         selectedComponentID = project.manifest.components.first?.id
         loadSelectedComponent()
         lastBuildURL = project.buildProductURL
@@ -392,6 +423,9 @@ final class AppModel {
             refreshSimulator()
             let fileManager = FileManager.default
             try? fileManager.removeItem(at: project.prgProductURL)
+            if project.manifest.outputKind == .prg {
+                try? fileManager.removeItem(at: project.appBundleURL)
+            }
             var compiledMessage = ""
             if let simulator = simulatorURL {
                 let outcome = PrgCompiler.compile(
@@ -399,7 +433,11 @@ final class AppModel {
                     output: project.prgProductURL,
                     simulator: simulator)
                 if outcome.outputURL != nil {
-                    compiledMessage = " + \(project.prgProductURL.path)"
+                    try? ProjectBuilder.writeAppBundle(
+                        project, compiledURL: project.prgProductURL)
+                    compiledMessage = project.manifest.outputKind == .app
+                        ? " + \(project.appBundleURL.path)"
+                        : " + \(project.prgProductURL.path)"
                 } else if let error = outcome.error {
                     appendConsole(".prg compilation failed: \(error)\n")
                 } else if let reason = outcome.unavailableReason {
@@ -421,6 +459,8 @@ final class AppModel {
 
     func run() async {
         stop()
+        runtimeDiagnostic = nil
+        runtimeBuffer = ""
         guard let project, let product = build() else { return }
         await performCompileCheck()
         if let diagnostic = compileDiagnostic {
@@ -632,9 +672,32 @@ final class AppModel {
 
     private func appendConsole(_ text: String) {
         console += text
+        runtimeBuffer += text
+        let lines = runtimeBuffer.split(separator: "\n", omittingEmptySubsequences: false)
+        runtimeBuffer = lines.last.map(String.init) ?? ""
+        for line in lines.dropLast() {
+            captureRuntimeDiagnostic(String(line))
+        }
         // Keep the log bounded.
         if console.count > 60_000 {
             console = String(console.suffix(40_000))
         }
+    }
+
+    private func captureRuntimeDiagnostic(_ line: String) {
+        guard let parsed = LuaRuntimeErrorParser.parse(line),
+              let project,
+              let generatedLine = parsed.line
+        else { return }
+        guard let current = try? ProjectBuilder.renderProduct(project),
+              let location = current.lineMap.source(forGeneratedLine: generatedLine)
+        else { return }
+        runtimeDiagnostic = CompileDiagnostic(
+            message: parsed.message,
+            generatedLine: generatedLine,
+            location: location)
+        selectedComponentID = location.componentID
+        showingProjectSettings = false
+        console += "Runtime error: \(parsed.message) at generated line \(generatedLine)\n"
     }
 }

@@ -21,6 +21,9 @@ do {
     let project = try ProjectStore.load(from: root)
     let product = try ProjectBuilder.build(project)
     try? FileManager.default.removeItem(at: project.prgProductURL)
+    if project.manifest.outputKind == .prg {
+        try? FileManager.default.removeItem(at: project.appBundleURL)
+    }
 
     let executable = URL(fileURLWithPath: CommandLine.arguments[0])
     let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
@@ -33,6 +36,7 @@ do {
             output: project.prgProductURL,
             simulator: simulator)
         if outcome.outputURL != nil {
+            try ProjectBuilder.writeAppBundle(project, compiledURL: project.prgProductURL)
             compiled = true
         } else if let error = outcome.error {
             FileHandle.standardError.write(Data("spibuild: .prg compilation failed: \(error)\n".utf8))
@@ -43,7 +47,10 @@ do {
         FileHandle.standardError.write(Data("spibuild: simulator not found, skipped .prg output\n".utf8))
     }
 
-    let output = compiled ? " + \(project.prgProductURL.standardizedFileURL.path)" : ""
+    let outputPath = project.manifest.outputKind == .app
+        ? project.appBundleURL.standardizedFileURL.path
+        : project.prgProductURL.standardizedFileURL.path
+    let output = compiled ? " + \(outputPath)" : ""
     print("built \(product.outputURL.standardizedFileURL.path)\(output) "
         + "(\(product.componentCount) components, \(product.lua.utf8.count) bytes)")
 } catch {

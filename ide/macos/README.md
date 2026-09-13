@@ -42,6 +42,11 @@ carry an icon).
 
 ## Projects
 
+The first item in the project navigator is Project Settings. It controls the
+app name, version, interactive versus utility type, video/audio requirements,
+and optional icon. Build output is an installable `.app` directory containing
+`app.prg`, `app.json`, and a resources folder.
+
 A project is a folder with a manifest and component files:
 
 ```
@@ -55,8 +60,12 @@ My Program/
   build/
     My-Program.lua         generated source program (do not edit)
     My-Program.prg         generated Lua bytecode (do not edit)
+    My-Program.app/        installable app bundle
+      app.prg              bundle entry point
+      app.json             metadata and resource requirements
+      resources/            bundled app resources
     run/sdcard/core/       protected system area
-    run/sdcard/apps/       compiled project program
+    run/sdcard/apps/       compiled project app bundle
     run/sdcard/data/       writable user area
 ```
 

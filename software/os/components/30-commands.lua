@@ -62,18 +62,34 @@ local function display_path(path)
     return path:sub(2)
 end
 
+local function find_app_program(root, entry)
+    local folder = root .. "/" .. entry
+    local info = fs.stat(folder)
+    if not info or not info.dir then
+        return nil
+    end
+    local compiled = fs.find("app.prg", folder)
+    if compiled then return folder .. "/" .. compiled end
+    local source = fs.find("app.lua", folder)
+    if source then return folder .. "/" .. source end
+    return nil
+end
+
 local function find_program(name)
     local roots = { "/apps", "/data" }
     local lower = name:lower()
     local names = { name }
     if not lower:match("%.lua$") and not lower:match("%.prg$") then
-        names = { name .. ".prg", name .. ".lua" }
+        names = { name .. ".prg", name .. ".lua", name .. ".app" }
     end
     for _, root in ipairs(roots) do
         for _, candidate in ipairs(names) do
             local found = fs.find(candidate, root)
             if found then
-                return root .. "/" .. found
+                local app = find_app_program(root, found)
+                if app then return app end
+                local info = fs.stat(root .. "/" .. found)
+                if info and not info.dir then return root .. "/" .. found end
             end
         end
     end
@@ -81,6 +97,9 @@ local function find_program(name)
 end
 
 local function run_program(path, args)
+    if args[1] and args[1]:sub(1, 1) ~= "/" then
+        args[1] = full_path(args[1])
+    end
     local ok, err = Execute(path, table.unpack(args))
     if not ok then
         out("?" .. tostring(err))

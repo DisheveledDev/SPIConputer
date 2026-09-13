@@ -15,12 +15,15 @@
 
 #if defined(PICO_RP2350)
 
-/* ==================== RP2354B product board ==================== */
+/* ==================== RP2350 boards ==================== */
 
 #define SPICOMPUTER_HAS_HDMI 1
+
+#if defined(SPICOMPUTER_PROFILE_RP2354B)
 #define SPICOMPUTER_HAS_KEYMATRIX 1
 #define SPICOMPUTER_HAS_JOYSTICKS 1
 #define SPICOMPUTER_HAS_RESTORE 1
+#endif
 
 /* SD card on SPI1. GP12-15 carry HSTX on RP2350, so the card uses the
  * other SPI1 function pins: RX=GP8, CSn=GP9, SCK=GP10, TX=GP11. */

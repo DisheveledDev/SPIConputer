@@ -162,7 +162,7 @@ struct BuilderTests {
         #expect(onCard == product.lua)
         #expect(Runner.simulatorArguments(for: session) == [
             "--sdcard", session.sdcardURL.path,
-            "--boot", "Demo.lua",
+            "--boot", "apps/Demo.lua",
         ])
     }
 
@@ -183,7 +183,7 @@ struct BuilderTests {
         #expect(onCard == product.lua)
         #expect(Runner.simulatorArguments(for: session) == [
             "--sdcard", session.sdcardURL.path,
-            "--boot", "OS.lua",
+            "--boot", "apps/OS.lua",
         ])
     }
 }

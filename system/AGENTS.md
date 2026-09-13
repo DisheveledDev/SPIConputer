@@ -483,13 +483,13 @@ the final product is the **RP2354B** board (custom board header
 an `HDMI_ON` define, a board-type mechanism selects pin assignments and
 capabilities at compile time:
 
-| | RP2354B product board | RP2040 dev board |
-|---|---|---|
-| Platform | rp2350 (RISC-V) | rp2040 (Cortex-M0+) |
-| GPIOs | 48 | ~26 usable |
-| HDMI (HSTX GP12–19) | yes | no (HSTX absent) |
-| SD card (SPI) | SPI1 GP8–11 | SPI1 (e.g. GP10–13) |
-| RS232 dev link (115200) | UART GP36/37 | UART GP0/1 or GP4/5 |
+| | RP2354B product board | Pico 2 prototype | RP2040 dev board |
+|---|---|---|---|
+| Platform | rp2350 (RISC-V) | rp2350 (ARM) | rp2040 (Cortex-M0+) |
+| GPIOs | 48 | 26 | ~26 usable |
+| HDMI (HSTX GP12–19) | yes | yes | no (HSTX absent) |
+| SD card (SPI) | SPI1 GP8–11 | SPI1 GP8–11 | SPI1 GP10–13 |
+| C64 keyboard/joysticks | yes | no | no |
 | Keyboard matrix (16 pins) | yes | no (too few pins; keyboard via serial) |
 | 2x DSUB9 joysticks (10 pins) | yes | no |
 | Supported screen modes | all (0/1/2/3/10) | Mode 0 and Mode 1 only (B&W 40x30 text) |

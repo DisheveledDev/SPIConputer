@@ -20,6 +20,21 @@
             }
         },
         {
+            "name": "pico2",
+            "displayName": "Pico 2 prototype (RP2350, HDMI + SD)",
+            "description": "Pico 2 RP2350 prototype. HDMI and SPI SD are enabled; C64 keyboard, joysticks, and RESTORE are disabled.",
+            "binaryDir": "${sourceDir}/build-pico2",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "PICO_BOARD": "pico2",
+                "PICO_PLATFORM": "rp2350",
+                "PICO_TOOLCHAIN_PATH": "$env{HOME}/.pico-sdk/toolchain/15_2_Rel1",
+                "SPICOMPUTER_BOARD_PROFILE": "pico2",
+                "SPICOMPUTER_SKIP_VSCODE": "ON",
+                "CMAKE_MAKE_PROGRAM": "$env{HOME}/.pico-sdk/ninja/v1.13.2/ninja"
+            }
+        },
+        {
             "name": "product",
             "displayName": "RP2354B product board",
             "description": "RP2354B (48 GPIOs, 2 MB stacked flash), RISC-V toolchain. Custom board header (boards/rp2354b.h).",

@@ -45,7 +45,7 @@ struct NewProjectSheet: View {
             }
 
             HStack {
-                Text("Creates a project folder with a commented setup/tick/finish skeleton.")
+                Text("Creates an interactive or utility project with a generated app bundle.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()

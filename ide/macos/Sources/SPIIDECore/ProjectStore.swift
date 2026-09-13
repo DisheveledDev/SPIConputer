@@ -47,6 +47,18 @@ public struct Project: Sendable, Equatable {
     public var prgProductURL: URL {
         outputDirectoryURL.appendingPathComponent(prgFileName)
     }
+
+    public var appBundleURL: URL {
+        outputDirectoryURL.appendingPathComponent("\(programFileStem).app")
+    }
+
+    public var appProgramURL: URL {
+        appBundleURL.appendingPathComponent("app.prg")
+    }
+
+    public var appMetadataURL: URL {
+        appBundleURL.appendingPathComponent("app.json")
+    }
 }
 
 /// Disk operations for projects and components.
@@ -86,6 +98,8 @@ public enum ProjectStore {
     private static func writeTemplate(to root: URL, manifest: inout ProjectManifest) throws {
         let componentsDir = root.appendingPathComponent("components")
         try FileManager.default.createDirectory(at: componentsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("resources"), withIntermediateDirectories: true)
 
         let header = Template.headerComponent(projectName: manifest.name)
         let main = Template.mainComponent(

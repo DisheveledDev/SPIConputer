@@ -98,9 +98,11 @@ public enum ProjectBuilder {
 
         var emitter = Emitter()
         emitter.append(header(project: project, timestamp: timestamp), component: nil)
-        if !project.manifest.interactive {
-            emitter.append("__spi_interactive = false\n\n", component: nil)
-        }
+        emitter.append(
+            "__spi_interactive = \(project.manifest.interactive ? "true" : "false")\n" +
+            "__spi_requires_video = \(project.manifest.requiresVideo ? "true" : "false")\n" +
+            "__spi_requires_audio = \(project.manifest.requiresAudio ? "true" : "false")\n\n",
+            component: nil)
 
         var assetNames: [String] = []
         for component in project.manifest.components {
@@ -178,6 +180,34 @@ public enum ProjectBuilder {
     }
 
     /// Accumulates emitted text while tracking generated line numbers.
+    public static func writeAppBundle(_ project: Project, compiledURL: URL) throws {
+        guard project.manifest.outputKind == .app else { return }
+        let fileManager = FileManager.default
+        let resourcesURL = project.appBundleURL.appendingPathComponent("resources")
+        try fileManager.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
+        let projectResources = project.root.appendingPathComponent("resources")
+        if fileManager.fileExists(atPath: projectResources.path) {
+            for item in try fileManager.contentsOfDirectory(at: projectResources, includingPropertiesForKeys: nil) {
+                let destination = resourcesURL.appendingPathComponent(item.lastPathComponent)
+                try? fileManager.removeItem(at: destination)
+                try fileManager.copyItem(at: item, to: destination)
+            }
+        }
+        let metadata = try JSONCoding.encode(AppMetadata(project: project))
+        try metadata.write(to: project.appMetadataURL, options: .atomic)
+        try? fileManager.removeItem(at: project.appProgramURL)
+        try fileManager.copyItem(at: compiledURL, to: project.appProgramURL)
+        if let iconFile = project.manifest.iconFile {
+            let source = project.root.appendingPathComponent(iconFile)
+            let destination = project.appBundleURL.appendingPathComponent(
+                source.pathExtension.isEmpty ? "icon" : "icon.\(source.pathExtension)")
+            if fileManager.fileExists(atPath: source.path) {
+                try? fileManager.removeItem(at: destination)
+                try fileManager.copyItem(at: source, to: destination)
+            }
+        }
+    }
+
     private struct Emitter {
         var text = ""
         var spans: [LineMap.Span] = []
