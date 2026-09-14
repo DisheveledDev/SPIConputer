@@ -47,11 +47,12 @@
 /* Vertical timing. The pixel clock is fixed at 25.2 MHz (the HSTX clock
  * is clk_hstx / 5), so the refresh rate follows from the total line
  * count: 800 x 525 = 59.94 Hz, 800 x 630 = exactly 50.0 Hz. The default
- * is 50 Hz, which gives core 0 a 4.8 ms vblank (vs 1.4 ms) and 17% less
- * line rendering per second; build with -DSPICOMPUTER_REFRESH_HZ=60 for
- * the standard VESA 640x480@60 timing. */
+ * is 60 Hz, the standard VESA 640x480@60 timing every DVI/HDMI sink must
+ * accept; the 50 Hz variant (a 4.8 ms vblank for core 0 instead of
+ * 1.4 ms, 17% less line rendering) is a non-standard mode that some
+ * monitors refuse, so it is opt-in: -DSPICOMPUTER_REFRESH_HZ=50. */
 #ifndef SPICOMPUTER_REFRESH_HZ
-#define SPICOMPUTER_REFRESH_HZ 50
+#define SPICOMPUTER_REFRESH_HZ 60
 #endif
 
 #if SPICOMPUTER_REFRESH_HZ == 50

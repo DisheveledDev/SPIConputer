@@ -160,10 +160,11 @@ if (SPICOMPUTER_SYS_CLOCK_KHZ)
             SPICOMPUTER_SYS_CLOCK_KHZ=${SPICOMPUTER_SYS_CLOCK_KHZ})
 endif()
 
-# Display refresh: 50 (default) or 60 Hz. The pixel clock stays 25.2 MHz,
-# so this only changes the vertical blanking (800x630 vs 800x525 lines):
-# 50 Hz gives a 4.8 ms vblank for core 0 instead of 1.4 ms. See scanout.h.
-set(SPICOMPUTER_REFRESH_HZ 50 CACHE STRING
+# Display refresh: 60 (default, standard VESA 640x480) or 50 Hz. The pixel
+# clock stays 25.2 MHz, so this only changes the vertical blanking (800x525
+# vs 800x630 lines): 50 Hz gives core 0 a 4.8 ms vblank instead of 1.4 ms
+# but is a non-standard mode some monitors will not lock to. See scanout.h.
+set(SPICOMPUTER_REFRESH_HZ 60 CACHE STRING
         "Display refresh rate in Hz (50 or 60)")
 target_compile_definitions(SPIComputerOS PRIVATE
         SPICOMPUTER_REFRESH_HZ=${SPICOMPUTER_REFRESH_HZ})

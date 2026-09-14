@@ -173,9 +173,11 @@ Resolution: **fixed 640x480 output for all modes** (single DVI timing,
 on the monitor). Modes 0/1 and 10 are logically 320x240 and rendered 2x:
 each tile pixel written twice horizontally and each output line sent twice
 (trivial in the scanline renderer; aspect ratio is preserved). Scanline
-buffers are always 640 px wide. The default refresh is **50 Hz** (800x630
-lines; `-DSPICOMPUTER_REFRESH_HZ=60` selects the VESA 525-line timing),
-which gives core 0 a 4.8 ms vblank for collecting the op queue.
+buffers are always 640 px wide. The default refresh is **60 Hz** (the
+VESA 800x525-line timing; `-DSPICOMPUTER_REFRESH_HZ=50` selects a
+non-standard 800x630 mode that gives core 0 a 4.8 ms vblank but that
+some monitors refuse to lock to; the display produced no output while
+it was the default).
 
 Board restriction: the RP2040 dev board supports Mode 0 and Mode 1 only
 (B&W 40x30 text over the serial mirror).
@@ -223,7 +225,7 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   the sample point in the data eye unchanged. If the requested clock is
   not exactly attainable the firmware falls back to 126 MHz.
 - HSTX video: TMDS expansion for RGB332, fixed 640x480 with negative
-  sync polarity (50 Hz vertical timing by default); `clk_hstx` is
+  sync polarity (60 Hz vertical timing by default); `clk_hstx` is
   divided down from `clk_sys` to 126 MHz so
   the pixel clock is 25.2 MHz at any supported CPU clock (the boot log
   prints the divisor and pixel clock, and warns if no divisor is close).
@@ -275,7 +277,7 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
 
 **Implementation notes to resolve during planning:**
 - HDMI over HSTX; fixed 640x480 with a 25.2 MHz pixel clock (VESA's
-  25.175 MHz spec), 50 Hz vertical timing by default. The SDK itself
+  25.175 MHz spec), 60 Hz vertical timing by default. The SDK itself
   does not ship scanvideo; `pico_scanvideo_dpi`
   from pico-extras is the likely base (verify its RP2350/HSTX support).
 - Memory budget: RP2350 has 520 KB RAM. 76 KB pixel buffer + 2 KB per tile
