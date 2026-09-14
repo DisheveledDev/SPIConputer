@@ -1,0 +1,26 @@
+{
+  "components" : [
+    {
+      "file" : "components/00-header.lua",
+      "id" : "2A6B1F40-9C3D-4E52-8B7A-0D1E5F6A7B8C",
+      "kind" : "snippet",
+      "name" : "header"
+    },
+    {
+      "file" : "components/10-tests.lua",
+      "id" : "3B7C2A51-AD4E-4F63-9C8B-1E2F6A7B8C9D",
+      "kind" : "lua",
+      "name" : "tests"
+    },
+    {
+      "file" : "components/20-main.lua",
+      "id" : "4C8D3B62-BE5F-4A74-AD9C-2F3A7B8C9DAE",
+      "kind" : "lua",
+      "name" : "main"
+    }
+  ],
+  "format_version" : 1,
+  "name" : "bench",
+  "output_directory" : "../apps",
+  "requires_audio" : false
+}

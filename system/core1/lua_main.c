@@ -390,9 +390,33 @@ void core1_entry(void)
                 last_long_gaps = long_gaps;
             }
             last_underruns = underruns;
+            /* Core 0's row renderer: how much of the 63.5 us row it
+             * uses. Sprites and the audio pump spend from this margin. */
+            uint32_t rows, sum_us, max_us;
+            video_hw_render_stats(&rows, &sum_us, &max_us, true);
+            uint32_t avg_x10 = rows ? (sum_us * 10u) / rows : 0;
+            sd_log("render: rows=%lu avg=%lu.%luus max=%luus (row budget "
+                   "63us)",
+                   (unsigned long)rows, (unsigned long)(avg_x10 / 10),
+                   (unsigned long)(avg_x10 % 10), (unsigned long)max_us);
 #else
             sd_log("t=%lus", (unsigned long)up_s);
 #endif
+            /* Time inside Lua this period: a max well above the average
+             * is a slow tick or a GC stall; heap is the top program's
+             * Lua allocation against its cap. */
+            program_lua_stats_t ls;
+            program_lua_stats(&ls, true);
+            program_t *top = program_top();
+            sd_log("lua: calls=%lu avg=%luus min=%luus max=%luus busy=%lu%% "
+                   "pid=%ld heap=%lu/%luKB",
+                   (unsigned long)ls.calls,
+                   (unsigned long)(ls.calls ? ls.total_us / ls.calls : 0),
+                   (unsigned long)ls.min_us, (unsigned long)ls.max_us,
+                   (unsigned long)(ls.total_us * 100u / LOG_PERIOD_US),
+                   top ? (long)top->pid : -1L,
+                   (unsigned long)(top ? top->heap_used / 1024u : 0),
+                   (unsigned long)(top ? top->heap_cap / 1024u : 0));
             crumb_phase(PHASE_LOG);
             sd_log_flush();
             crumb_phase(PHASE_LOOP);

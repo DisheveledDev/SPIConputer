@@ -76,6 +76,14 @@ uint32_t video_hw_fifo_wofs(void);
 uint32_t video_hw_late_posts(void);
 uint32_t video_hw_fifo_min(void);
 
+/* Row render time since the last reset: rows rendered, their summed
+ * render time and the worst single row, in microseconds. A logical row
+ * has 63.5 us on screen and the ring gives the renderer six rows of
+ * slack, so the max is the margin any core 0 addition (sprites, audio)
+ * is spending. */
+void video_hw_render_stats(uint32_t *rows, uint32_t *sum_us,
+                           uint32_t *max_us, bool reset);
+
 /* Details of the most recent >64 us gap: its length, the frame and
  * output scanline it ended on, the HSTX FIFO level seen then (0 = the
  * FIFO had run dry), whether the next post is a command list, and the

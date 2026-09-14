@@ -439,10 +439,38 @@ static program_t *program_create(const char *name, const char *source,
     return p;
 }
 
+/* Lua time accounting (see program_lua_stats). Two os_time_us() reads
+ * per callback; the window is reset by whoever reads it. */
+static program_lua_stats_t s_lua_stats = {.min_us = UINT32_MAX};
+
+static void lua_stats_record(uint64_t start_us) {
+    uint32_t us = (uint32_t)(os_time_us() - start_us);
+    s_lua_stats.calls++;
+    s_lua_stats.total_us += us;
+    if (us < s_lua_stats.min_us) s_lua_stats.min_us = us;
+    if (us > s_lua_stats.max_us) s_lua_stats.max_us = us;
+}
+
+void program_lua_stats(program_lua_stats_t *out, bool reset) {
+    *out = s_lua_stats;
+    if (out->calls == 0) {
+        out->min_us = 0;
+    }
+    if (reset) {
+        s_lua_stats.calls = 0;
+        s_lua_stats.total_us = 0;
+        s_lua_stats.min_us = UINT32_MAX;
+        s_lua_stats.max_us = 0;
+    }
+}
+
 bool program_pcall(program_t *p, int fn_ref) {
     lua_settop(p->L, 0);
     lua_rawgeti(p->L, LUA_REGISTRYINDEX, fn_ref);
-    return lua_pcall(p->L, 0, 0, 0) == LUA_OK;
+    uint64_t start = os_time_us();
+    bool ok = lua_pcall(p->L, 0, 0, 0) == LUA_OK;
+    lua_stats_record(start);
+    return ok;
 }
 
 /* Point core 0 at the screen slot a program owns: its pool index. The
@@ -763,7 +791,10 @@ static bool call_on_keypress(program_t *p, const input_event_t *ev) {
     lua_pushboolean(L, (ev->mods & INPUT_MOD_CTRL) != 0);
     lua_pushboolean(L, (ev->mods & INPUT_MOD_CBM) != 0);
     lua_pushboolean(L, (ev->mods & INPUT_MOD_RESTORE) != 0);
-    if (lua_pcall(L, 5, 0, 0) != LUA_OK) {
+    uint64_t start = os_time_us();
+    int st = lua_pcall(L, 5, 0, 0);
+    lua_stats_record(start);
+    if (st != LUA_OK) {
         return callback_failed(p, "on_keypress");
     }
     return true;
@@ -781,7 +812,10 @@ static bool call_on_control(program_t *p, int index, uint8_t dirs) {
     lua_pushboolean(L, (dirs & INPUT_DIR_LEFT) != 0);
     lua_pushboolean(L, (dirs & INPUT_DIR_RIGHT) != 0);
     lua_pushboolean(L, (dirs & INPUT_DIR_FIRE) != 0);
-    if (lua_pcall(L, 6, 0, 0) != LUA_OK) {
+    uint64_t start = os_time_us();
+    int st = lua_pcall(L, 6, 0, 0);
+    lua_stats_record(start);
+    if (st != LUA_OK) {
         return callback_failed(p, "on_control");
     }
     return true;

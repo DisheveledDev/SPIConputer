@@ -161,6 +161,13 @@ static uint32_t s_diag_fifo_empty;
 static uint32_t s_diag_fifo_wofs;
 static uint32_t s_diag_late_posts;
 static uint32_t s_diag_fifo_min = UINT32_MAX;
+
+/* Row render time window (see video_hw_render_stats): reset by core 1
+ * after each read. A reset racing one update can lose that one sample;
+ * acceptable for a diagnostic. */
+static volatile uint32_t s_diag_render_rows;
+static volatile uint32_t s_diag_render_sum_us;
+static volatile uint32_t s_diag_render_max_us;
 static uint32_t s_diag_gap_max_us;
 static uint32_t s_diag_long_gaps;
 static uint32_t s_diag_steps;       /* scanout_step calls this frame */
@@ -498,10 +505,20 @@ static void __not_in_flash_func(render_rows)(void) {
         /* One pattern row per output line (geometry forced above). */
         render_test_line(row, dst);
 #else
+        /* The timer is a register read (inline), so this stays in SRAM;
+         * 1 us resolution is coarse for a ~4 us row, which is why the
+         * window keeps a sum as well as the max. */
+        uint32_t t0 = time_us_32();
         if (s_chequer_active) {
             render_chequer_line(row, dst);
         } else {
             render_line_332(video, (int)row, dst);
+        }
+        uint32_t dt = time_us_32() - t0;
+        s_diag_render_rows++;
+        s_diag_render_sum_us += dt;
+        if (dt > s_diag_render_max_us) {
+            s_diag_render_max_us = dt;
         }
 #endif
         if (!scanout_ring_publish(&s_scanout, row)) {
@@ -747,6 +764,18 @@ uint32_t video_hw_fifo_min(void) {
     return s_diag_fifo_min;
 }
 
+void video_hw_render_stats(uint32_t *rows, uint32_t *sum_us,
+                           uint32_t *max_us, bool reset) {
+    if (rows) *rows = s_diag_render_rows;
+    if (sum_us) *sum_us = s_diag_render_sum_us;
+    if (max_us) *max_us = s_diag_render_max_us;
+    if (reset) {
+        s_diag_render_rows = 0;
+        s_diag_render_sum_us = 0;
+        s_diag_render_max_us = 0;
+    }
+}
+
 uint32_t video_hw_last_gap_us(void) {
     return s_diag_evt_gap_us;
 }
@@ -790,6 +819,13 @@ uint32_t video_hw_fifo_empty(void) { return 0; }
 uint32_t video_hw_fifo_wofs(void) { return 0; }
 uint32_t video_hw_late_posts(void) { return 0; }
 uint32_t video_hw_fifo_min(void) { return 0; }
+void video_hw_render_stats(uint32_t *rows, uint32_t *sum_us,
+                           uint32_t *max_us, bool reset) {
+    if (rows) *rows = 0;
+    if (sum_us) *sum_us = 0;
+    if (max_us) *max_us = 0;
+    (void)reset;
+}
 uint32_t video_hw_last_gap_us(void) { return 0; }
 uint32_t video_hw_last_gap_frame(void) { return 0; }
 uint32_t video_hw_last_gap_line(void) { return 0; }

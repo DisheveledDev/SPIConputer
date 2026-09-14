@@ -280,7 +280,21 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   watchdog, ...) plus the previous run's uptime and loop phase, kept in
   watchdog scratch 0-2. A frame-counter stall is flushed immediately,
   ahead of the watchdog reset. Test-pattern builds do no SD work and so
-  log nothing.
+  log nothing. Two performance lines accompany each status line:
+  `render:` (core 0's row renderer: rows, average and worst row time
+  against the 63.5 us row budget, from `video_hw_render_stats`) and
+  `lua:` (time inside Lua callbacks on core 1: calls, average/min/max,
+  percent busy, and the top program's heap use, from
+  `program_lua_stats`). Take these before and after any change to the
+  Lua build or to core 0's render loop.
+- Lua benchmark: `software/bench` (SPIEdit project, app `bench`) runs a
+  fixed-size test per tick (integer/float loops, calls, table array and
+  hash churn, strings, OS API calls, `ScreenOut`, a full GC) and writes
+  `data/bench.txt` (build line, then `test,ms,ops_per_ms`). Results are
+  comparable across firmware builds; a `!` suffix marks a test that hit
+  the 64 KB heap cap. The simulator is single-threaded, so a tick that
+  queues more than 1024 display ops hangs it (the board just blocks
+  until the next frame); the benchmark stays under that.
 - `scanout_frame_begin` must set `rows_total` to `VIDEO_FB_ROWS` (240
   logical pixel rows). Setting it to `VIDEO_ROWS` (30 tile rows) made
   the sequencer rebase the frame every 60 output lines: most of the

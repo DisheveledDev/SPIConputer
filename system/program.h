@@ -139,6 +139,18 @@ bool program_utility_result(program_t *p, bool *ok, const char **output);
  * a Lua error (message pushed on the stack). */
 bool program_pcall(program_t *p, int fn_ref);
 
+/* Time spent inside Lua (every tick, timer and input callback, setup
+ * and finish) since the last reset: the numbers the bring-up log prints
+ * once per period, so a slow tick or a GC stall shows up as a max.
+ * `reset` clears the window after copying it out. */
+typedef struct {
+    uint32_t calls;
+    uint64_t total_us;
+    uint32_t min_us;
+    uint32_t max_us;
+} program_lua_stats_t;
+void program_lua_stats(program_lua_stats_t *out, bool reset);
+
 /* Terminate `p` (run finish(), close state, resume parent). */
 void program_terminate(program_t *p);
 

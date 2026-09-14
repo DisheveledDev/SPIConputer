@@ -1,0 +1,16 @@
+-- bench.lua — Lua engine benchmark for the SPIComputer OS.
+--
+-- Launch from the shell:  bench
+--
+-- Runs one timed test per tick (so the scheduler keeps feeding the
+-- watchdog between them), shows the results on screen and writes them
+-- to /data/bench.txt so they can be read off the card. Iteration counts
+-- are fixed, so a result is comparable across firmware builds: the
+-- numbers to watch are ops/ms per test and the GC stall time. Take a
+-- run before and after any change to the Lua build (number types, the
+-- interpreter's placement, GC settings) and compare the two files.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/bench` from the workspace root. The app bundle is written to
+-- software/apps/bench.app.
