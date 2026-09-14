@@ -587,41 +587,48 @@ static int fs_readall(lua_State *L) {
     return 1;
 }
 
+FRESULT fs_lua_writeall(const char *path, const void *data, size_t len) {
+    rpc_response_t resp;
+    rpc_fs(RPC_FS_OPEN, FA_CREATE_ALWAYS | FA_WRITE, 0, 0, path, NULL, &resp);
+    if (resp.result != FR_OK) {
+        return (FRESULT)resp.result;
+    }
+    int32_t handle = resp.value;
+    const char *bytes = (const char *)data;
+    FRESULT result = FR_OK;
+
+    size_t total = 0;
+    while (total < len) {
+        size_t chunk = len - total;
+        if (chunk > RPC_STAGING_SIZE) chunk = RPC_STAGING_SIZE;
+        memcpy(rpc_staging(), bytes + total, chunk);
+        rpc_fs(RPC_FS_WRITE, handle, (int32_t)chunk, 0, NULL, NULL, &resp);
+        if (resp.result != FR_OK) {
+            result = (FRESULT)resp.result;
+            break;
+        }
+        total += (size_t)resp.value;
+        if ((size_t)resp.value < chunk) {
+            result = FR_DISK_ERR; /* short write: card full */
+            break;
+        }
+    }
+    rpc_fs(RPC_FS_CLOSE, handle, 0, 0, NULL, NULL, &resp);
+    return result;
+}
+
 static int fs_writeall(lua_State *L) {
     char resolved[FS_LUA_PATH_MAX];
     const char *path = fs_lua_resolve_path(L, luaL_checkstring(L, 1), resolved);
     size_t len;
     const char *data = luaL_checklstring(L, 2, &len);
 
-    rpc_response_t resp;
-    rpc_fs(RPC_FS_OPEN, FA_CREATE_ALWAYS | FA_WRITE, 0, 0, path, NULL, &resp);
-    if (resp.result != FR_OK) {
+    FRESULT result = fs_lua_writeall(path, data, len);
+    if (result != FR_OK) {
         lua_pushnil(L);
-        lua_pushfstring(L, "cannot open '%s': %s", path,
-                        FRESULT_str((FRESULT)resp.result));
+        lua_pushfstring(L, "cannot write '%s': %s", path, FRESULT_str(result));
         return 2;
     }
-    int32_t handle = resp.value;
-
-    size_t total = 0;
-    while (total < len) {
-        size_t chunk = len - total;
-        if (chunk > RPC_STAGING_SIZE) chunk = RPC_STAGING_SIZE;
-        memcpy(rpc_staging(), data + total, chunk);
-        rpc_fs(RPC_FS_WRITE, handle, (int32_t)chunk, 0, NULL, NULL, &resp);
-        if (resp.result != FR_OK) {
-            rpc_fs(RPC_FS_CLOSE, handle, 0, 0, NULL, NULL, &resp);
-            lua_pushnil(L);
-            lua_pushfstring(L, "write failed: %s",
-                            FRESULT_str((FRESULT)resp.result));
-            return 2;
-        }
-        total += (size_t)resp.value;
-        if ((size_t)resp.value < chunk) {
-            break;
-        }
-    }
-    rpc_fs(RPC_FS_CLOSE, handle, 0, 0, NULL, NULL, &resp);
     lua_pushboolean(L, true);
     return 1;
 }

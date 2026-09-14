@@ -32,7 +32,7 @@ public enum LuaCompletion {
 
     public static let spiComputer: [String] = [
         // System
-        "TimeNow", "Pid", "ExitProgram", "Launch", "Execute", "ExecuteString",
+        "TimeNow", "Pid", "ExitProgram", "Launch", "Execute", "ExecuteString", "Compile",
         "UtilityResult", "UtilityPoll", "pid",
         "TimerCreate", "TimerStop",
         "InputPoll", "InputControl",

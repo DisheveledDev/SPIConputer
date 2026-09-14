@@ -10,6 +10,7 @@
 --   APPS                 list installed applications
 --   RUN <prog> [args]    run a program from apps or data
 --   <prog> [args]        run a program by name
+--   COMPILE <file.lua>   build a .prg next to a data program
 --
 -- Everything else on the card is just a program: `editor notes.txt` or
 -- `run editor notes.txt` both start the editor. There is no QUIT: the

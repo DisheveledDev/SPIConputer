@@ -126,6 +126,7 @@ local function cmd_help()
     out("  COPY <FROM> <TO>  COPY A FILE")
     out("  TYPE <FILE>       DISPLAY A TEXT FILE")
     out("  STAT <PATH>       SHOW FILE INFORMATION")
+    out("  COMPILE <FILE>    BUILD A .PRG FROM A .LUA")
     out("  FREE              SHOW CARD SPACE")
     out("  MOUNT             REMOUNT THE CARD")
     out("  CLS               CLEAR THE SCREEN")
@@ -296,6 +297,28 @@ local function cmd_mode(value)
     paint()
 end
 
+-- COMPILE <FILE.LUA> [OUT]: build a .prg next to the source (or at OUT)
+-- with the OS's own compiler, so a program written on the card with the
+-- editor loads as fast as one built by the IDE. The OS prefers a .prg
+-- over its .lua sibling when a program is run by name.
+local function cmd_compile(source, destination)
+    if not source then
+        out("USAGE: COMPILE <FILE.LUA> [OUT.PRG]")
+        return
+    end
+    local src = full_path(source)
+    local dst = destination and full_path(destination) or nil
+    local ok, result = Compile(src, dst)
+    if not ok then
+        command_error(result)
+        return
+    end
+    local shown = dst or (src:gsub("%.[Ll][Uu][Aa]$", "") .. ".prg")
+    shown = shown:gsub("^/data", "")
+    if shown == "" then shown = "/" end
+    out(string.format("%s: %d BYTES", display_path(shown), result))
+end
+
 local function execute(command_line)
     local words = split_words(command_line)
     local name = words[1]
@@ -329,6 +352,8 @@ local function execute(command_line)
         cmd_stat(words[2])
     elseif lower == "free" then
         cmd_free()
+    elseif lower == "compile" then
+        cmd_compile(words[2], words[3])
     elseif lower == "mount" then
         if not fs.mount() then out("?MOUNT FAILED") end
     elseif lower == "cls" or lower == "clear" then

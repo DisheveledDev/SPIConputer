@@ -554,6 +554,48 @@ static void test_execute(void) {
                "finish\n");
 }
 
+/* ---------------- test 8b: Compile() ---------------- */
+
+static const char *COMPILE_SRC =
+    "local function twice(n) return n * 2 end\n"
+    "return 'compiled-' .. twice(21)\n";
+
+static const char *COMPILE_BAD = "return 1 +\n";
+
+static const char *COMPILE_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "function setup()\n"
+    "  local ok, n = Compile('csrc.lua')\n"
+    "  log('compile:' .. tostring(ok) .. ':' .. tostring(n > 0) .. '\\n')\n"
+    "  log('run:' .. tostring(dofile('csrc.prg')) .. '\\n')\n"
+    "  local ok2, err2 = Compile('csrc.lua', 'other.bin')\n"
+    "  log('dst:' .. tostring(ok2) .. ':' .. tostring(fs.exists('other.bin')) .. '\\n')\n"
+    "  local ok3, err3 = Compile('cbad.lua')\n"
+    "  log('bad:' .. tostring(ok3) .. ':' .. tostring(err3) .. '\\n')\n"
+    "  local ok4, err4 = Compile('missing.lua')\n"
+    "  log('missing:' .. tostring(ok4) .. '\\n')\n"
+    "  ExitProgram()\n"
+    "end\n"
+    "function tick() end\n";
+
+static void test_compile(void) {
+    mock_set_file("csrc.lua", COMPILE_SRC);
+    mock_set_file("cbad.lua", COMPILE_BAD);
+    mock_set_file("cmp.lua", COMPILE_LUA);
+    boot("cmp.lua");
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "compile program finished");
+    expect_log("compile:true:true\n"
+               "run:compiled-42\n"
+               "dst:true:true\n"
+               "bad:nil:cbad.lua:2: unexpected symbol near <eof>\n"
+               "missing:nil\n");
+    /* The output is a binary chunk (the luac signature), not source. */
+    const char *prg = mock_get_file("csrc.prg");
+    CHECK(prg && prg[0] == '\x1b' && memcmp(prg + 1, "Lua", 3) == 0,
+          "csrc.prg starts with the Lua binary chunk signature");
+}
+
 /* ---------------- test 9: compiled .prg programs ---------------- */
 
 /* Compile `source` to a Lua 5.5 binary chunk and install it on the
@@ -801,6 +843,7 @@ int main(void) {
     test_alloc_churn();
     test_input_callbacks();
     test_execute();
+    test_compile();
     test_noninteractive_utility();
     test_compiled_programs();
     test_retire_graveyard();

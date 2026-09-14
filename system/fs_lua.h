@@ -33,6 +33,11 @@ int fs_lua_run_file(lua_State *L, const char *path);
  * FR_OK and a malloc'd buffer, or a FRESULT code on failure. */
 FRESULT fs_lua_readall(const char *path, char **out, size_t *out_len);
 
+/* Whole-file write over the RPC: creates or truncates `path` and writes
+ * `len` bytes in staging-sized chunks. Returns FR_OK, the open/write
+ * error, or FR_DISK_ERR for a short write. */
+FRESULT fs_lua_writeall(const char *path, const void *data, size_t len);
+
 /* Program read for the Lua loaders (loadfile/dofile/require and the
  * process model): a `*.lua` path prefers its compiled `*.prg` sibling
  * when one exists. Any other path is read as-is. `resolved` (optional)

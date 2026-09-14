@@ -40,7 +40,7 @@ void mock_set_os_lua(const char *content, size_t len) {
 /* Arbitrary program files for the process-model tests. Writable: the
  * mock keeps an owned buffer per entry so tests can read back what a
  * program saved. */
-#define MOCK_FILES_MAX 32
+#define MOCK_FILES_MAX 64
 #define MOCK_FILE_CAP 4096
 typedef struct {
     char *path;

@@ -58,6 +58,7 @@ Available as globals in every program.
 | `Launch(path [, arg [, replace]])` | `true`, or `nil, err` on failure (missing file, Lua error in body/setup, too many programs, out of memory). `arg` (a string) is passed to the program chunk as its first vararg: `local filename = ...`. With `replace` true the caller leaves the program stack on its way out (see below) |
 | `Execute(path, arg1, ...)` | `true`, or `nil, err`; runs a program file in the foreground with up to 16 string arguments |
 | `ExecuteString(source, arg1, ...)` | `true`, or `nil, err`; compiles and runs a Lua source string the same way |
+| `Compile(src [, dst])` | `true, bytes`, or `nil, err` (missing file, syntax error with line, write failure); compiles the Lua source file `src` on the card into a `.prg` binary chunk, the same format the IDE builds and `Launch`/`Execute`/`dofile`/`require` load. `dst` defaults to `src` with `.lua` replaced by `.prg`. Paths are program-relative like the `fs` module's. The parser runs outside the caller's heap cap |
 | `UtilityResult(ok, message)` | completes a noninteractive utility and returns a result to its caller |
 | `UtilityPoll()` | `ok, message`, or `nil`; retrieves a utility child result |
 

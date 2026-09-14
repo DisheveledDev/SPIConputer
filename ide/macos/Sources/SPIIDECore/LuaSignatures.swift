@@ -53,6 +53,7 @@ public enum LuaSignatures {
         add("ExitProgram")
         add("Launch", "path", "[arg]")
         add("Execute", "path", "...")
+        add("Compile", "src", "[dst]")
         add("ExecuteString", "source", "...")
         add("UtilityResult", "ok", "[message]")
         add("UtilityPoll")
