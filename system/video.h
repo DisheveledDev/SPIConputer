@@ -94,6 +94,10 @@ typedef struct {
 /* Append one op (core 1). */
 void video_op_put(const video_op_t *op);
 
+/* Weak hook run while video_op_put waits on a full queue: a no-op on
+ * the firmware, a drain in the single-threaded simulator. */
+void video_queue_full_hook(void);
+
 /* Latch a mode change into the core-1-side shadow (video_lua_mode()),
  * used by the process model to know when a pixel-mode program is on
  * top. Also used by the API layer when it queues VIDEO_OP_MODE/RESET. */

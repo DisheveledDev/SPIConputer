@@ -396,6 +396,13 @@ static const video_state_t *sim_screen(void) {
     return video_screen();
 }
 
+/* A program that queues more than VIDEO_QUEUE_OPS in one tick blocks in
+ * video_op_put until core 0 drains; here that would be a deadlock, so
+ * drain from inside the wait, as the board's frame boundary would. */
+void video_queue_full_hook(void) {
+    video_ops_drain();
+}
+
 static void sim_render(SDL_Renderer *ren, SDL_Texture *tex, uint8_t *frame) {
     const video_state_t *v = sim_screen();
     for (int y = 0; y < SIM_H; y++) {

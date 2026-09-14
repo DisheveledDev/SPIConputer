@@ -67,11 +67,18 @@ void VIDEO_HOT(video_state_init)(video_state_t *v) {
     }
 }
 
+/* Called while the producer waits on a full queue. Nothing on the
+ * firmware (core 0 drains on its own); the single-threaded simulator
+ * overrides it to play core 0's part, otherwise a program that queues
+ * more than a frame's worth of ops in one tick would spin forever. */
+__attribute__((weak)) void video_queue_full_hook(void) {}
+
 void video_op_put(const video_op_t *op) {
     /* Full queue: wait for core 0's frame-boundary drain. A dead video
      * core blocks here, which stops the watchdog feeds and resets the
      * board rather than running on with a frozen display. */
     while ((uint32_t)(s_tail - s_head) >= VIDEO_QUEUE_OPS) {
+        video_queue_full_hook();
         atomic_signal_fence(memory_order_seq_cst);
     }
     s_queue[s_tail % VIDEO_QUEUE_OPS] = *op;
