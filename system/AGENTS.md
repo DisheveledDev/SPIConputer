@@ -24,8 +24,8 @@ or new detail is captured.
 | Lua `fs` module | `fs_lua.c` — open/read/write/seek/tell/size/close/flush/ls/find/stat/exists/mkdir/remove/rename/free/ready/readall/writeall |
 | SD-backed loading | `dofile`/`loadfile` globals and `require()` searcher read through the fs layer; source is compiled on the OS core and `.prg` bytecode is loaded directly |
 | Filesystem call layer | `rpc.c`/`rpc.h` define the op codes, request/response shapes and the 4 KB staging buffer. Both sides run on the OS core, so `rpc_call` normally dispatches straight into `fs_core0_execute`; the original two-core slot transport survives only for builds that split them (host harness, desktop simulator) |
-| Boot flow | Core 0 (video) brings up HSTX and launches core 1 (OS). Core 1 owns stdio, mounts SD, starts the input tick, boots `core/boot.lua` (which launches `core/os.lua` in the foreground) and runs the scheduler, feeding the watchdog |
-| Process model | `program.c` — 4-program stack, per-program Lua state (64 KB heap cap), optional heap-allocated video/audio state, timers, per-program event rings; noninteractive utilities keep their isolated Lua state but return `UtilityResult` text to the parent via `UtilityPoll`; `sys_lua.c` exposes TimeNow/Pid/ExitProgram/Launch/Execute/ExecuteString/UtilityResult/UtilityPoll/TimerCreate/TimerStop/InputPoll/InputControl |
+| Boot flow | Core 0 (video) brings up HSTX and launches core 1 (OS). Core 1 owns stdio, mounts SD, starts the input tick, boots `core/boot.lua` (a timer-driven screen that hands the machine to `core/os.lua` with `Launch(..., replace)`, so boot's Lua state is released) and runs the scheduler, feeding the watchdog |
+| Process model | `program.c` — 4-program stack, per-program Lua state (64 KB heap cap), optional heap-allocated audio state, timers, per-program event rings; `Launch(..., replace)` hands the stack over and releases the replaced state; noninteractive utilities keep their isolated Lua state but return `UtilityResult` text to the parent via `UtilityPoll`; `sys_lua.c` exposes TimeNow/Pid/ExitProgram/Launch/Execute/ExecuteString/UtilityResult/UtilityPoll/TimerCreate/TimerStop/InputPoll/InputControl |
 | Shell / card programs | **Not in this repo.** `core/boot.lua`/`core/boot.prg`, the shell (`core/os.lua`/`core/os.prg`), installed apps, and other programs are SPIEdit projects developed outside the OS source tree (this workspace builds system outputs into `software/core/`, apps into `software/apps/`, and reserves `data/` for user files). The shell protects `core/`, lists apps with `APPS`, restricts file operations to `data/`, and launches programs from `apps/` or `data/`. It has no exit command: the shell is the OS. The OS only provides the runtime, `lua.md` the contract |
 | Lua API reference | `lua.md` — the developer contract (entry points, OS/functions/fs/input, limits); keep in sync with the implementation and use as the basis for the future IDE |
 | Display | `render.c` (scanline renderer, host-tested golden output) + `screen_lua.c` (ScreenMode/Out/Attr/OverlayOut/OverlayAttr/DefineTile/Palette/Clear/Plot) with a base layer plus one overlay. Product-board scanout: `render332.c` (RGB332 fast path, host-tested against `render.c`) + `scanout.c` (HSTX scanline sequencer, host-tested) + `core0/video_hw.c` (TMDS expander, ping/pong DMA, render pump into an 8-line ring) |
@@ -395,6 +395,13 @@ developed and driven on the dev board before HDMI hardware exists.
   tick/timer callback; a throwing `tick()`/timer callback also terminates
   the program. `finish()` runs either way (only if `setup()` completed).
   Errors print to stderr; the parent resumes.
+- Handover: `Launch(path, arg, true)` replaces the caller instead of
+  stacking on it. The caller leaves the stack (its parent becomes the
+  new program's parent) and its Lua state, timers and audio are released
+  once the launching call returns, because the caller is still inside
+  its own Lua frame at that point. `core/boot.lua` uses this to hand the
+  machine to the shell without staying resident, and runs on timers
+  rather than `tick()` so the scheduler idles between screen updates.
 - Input queueing: events drained by the scheduler go to whichever program
   is on top (events that arrive while a program is paused accumulate in
   core 0's queue and go to the current top when drained; overflow drops

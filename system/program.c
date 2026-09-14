@@ -83,6 +83,26 @@ int program_retire_pending(void) {
     return n;
 }
 
+/* Programs replaced by a Launch(..., replace): the replaced program is
+ * still inside its own Lua call when the handover happens, so its state
+ * cannot be closed there. Park it and release it at the start of the
+ * next scheduler step (finish() still runs: the handover was
+ * deliberate). */
+#define PROGRAM_REPLACED_MAX PROGRAM_MAX
+static program_t *s_replaced[PROGRAM_REPLACED_MAX];
+static int s_replaced_count;
+
+static void program_defer_replaced(program_t *p) {
+    if (s_replaced_count >= PROGRAM_REPLACED_MAX) {
+        /* Unreachable: a replace needs a running program, and at most
+         * PROGRAM_MAX exist. Leak rather than close a live state. */
+        fprintf(stderr, "program %u: replaced program was not reaped\n",
+                p->pid);
+        return;
+    }
+    s_replaced[s_replaced_count++] = p;
+}
+
 /* ------------------------------------------------------------------ */
 /* Capped per-program heap                                             */
 /* ------------------------------------------------------------------ */
@@ -133,6 +153,7 @@ void program_init(void) {
     memset(s_retire, 0, sizeof(s_retire));
     s_top = NULL;
     s_next_pid = 0;
+    s_replaced_count = 0;
     g_current_audio = NULL;
 }
 
@@ -435,6 +456,25 @@ void program_terminate(program_t *p) {
     pool_free(p);
 }
 
+/* Release the programs a replace-launch parked (see program_defer_replaced).
+ * Runs once per scheduler step, so the replaced program has returned from
+ * its Lua call by the time its state is closed. */
+static void program_reap_replaced(void) {
+    for (int i = 0; i < s_replaced_count; i++) {
+        program_t *p = s_replaced[i];
+        if (p->finish_ref != LUA_NOREF) {
+            if (!program_pcall(p, p->finish_ref)) {
+                fprintf(stderr, "program %u: finish error: %s\n", p->pid,
+                        lua_tostring(p->L, -1));
+            }
+        }
+        lua_close(p->L);
+        program_retire(p->audio);
+        pool_free(p);
+    }
+    s_replaced_count = 0;
+}
+
 static void run_setup(program_t *p, const char **err) {
     if (p->setup_ref == LUA_NOREF) {
         return;
@@ -447,16 +487,18 @@ static void run_setup(program_t *p, const char **err) {
 }
 
 static int launch_common(const char *name, const char *source, size_t len,
-                         const char *const *argv, int argc,
+                         const char *const *argv, int argc, bool replace,
                          const char **err) {
     *err = NULL;
     if (argc > PROGRAM_ARG_MAX) {
         *err = "too many arguments";
         return -1;
     }
-    if (s_top && s_top->requires_video &&
+    if (!replace && s_top && s_top->requires_video &&
         video_lua_mode() == VIDEO_MODE_PIXEL) {
-        /* Memory policy: mode 10 is single-program (see AGENTS.md). */
+        /* Memory policy: mode 10 is single-program (see AGENTS.md).
+         * Replacing the pixel-mode program is allowed: the new program
+         * takes its place and the slot resets. */
         *err = "cannot launch from mode 10";
         return -1;
     }
@@ -483,8 +525,17 @@ static int launch_common(const char *name, const char *source, size_t len,
         lua_setfield(p->L, -2, "cwd");
     }
     lua_pop(p->L, 1);
-    p->next = s_top;
-    s_top = p;
+    if (replace && s_top) {
+        /* Take the caller's place on the stack; the caller hands its
+         * parent over to us and is released after its call returns. */
+        program_t *old = s_top;
+        p->next = old->next;
+        s_top = p;
+        program_defer_replaced(old);
+    } else {
+        p->next = s_top;
+        s_top = p;
+    }
     if (p->interactive) {
         program_select_screen(p, true);
         g_current_audio = p->audio;
@@ -513,18 +564,30 @@ int program_launch(const char *path, const char *arg, const char **err) {
         argv[0] = arg;
         argc = 1;
     }
-    return launch_common(path, NULL, 0, argc ? argv : NULL, argc, err);
+    return launch_common(path, NULL, 0, argc ? argv : NULL, argc, false,
+                         err);
+}
+
+int program_launch_replace(const char *path, const char *arg,
+                           const char **err) {
+    const char *argv[1];
+    int argc = 0;
+    if (arg) {
+        argv[0] = arg;
+        argc = 1;
+    }
+    return launch_common(path, NULL, 0, argc ? argv : NULL, argc, true, err);
 }
 
 int program_launch_args(const char *path, const char *const *argv, int argc,
                         const char **err) {
-    return launch_common(path, NULL, 0, argv, argc, err);
+    return launch_common(path, NULL, 0, argv, argc, false, err);
 }
 
 int program_launch_source(const char *name, const char *source, size_t len,
                           const char *const *argv, int argc,
                           const char **err) {
-    return launch_common(name, source, len, argv, argc, err);
+    return launch_common(name, source, len, argv, argc, false, err);
 }
 
 bool program_boot(const char *path, const char *arg) {
@@ -702,9 +765,11 @@ static bool dispatch_input_callbacks(program_t *p, const input_event_t *ev) {
 void program_scheduler_step(void) {
     program_t *p = s_top;
 
-    /* Reap video/audio states whose two-frame grace period has passed
-     * (or, on the host, whose fake frame count has). Runs even with an
-     * empty stack so retired states cannot accumulate. */
+    /* Release any program a replace-launch handed over from (its Lua
+     * call has returned by now), then reap audio states whose two-frame
+     * grace period has passed (or, on the host, whose fake frame count
+     * has). Both run even with an empty stack so nothing accumulates. */
+    program_reap_replaced();
     program_retire_reap(g_system_state.video_frame_count);
 
     if (!p) {
@@ -719,6 +784,9 @@ void program_scheduler_step(void) {
         program_event_push(p, &ev);
         if (!dispatch_input_callbacks(p, &ev)) {
             return; /* program terminated by a callback error */
+        }
+        if (p != s_top) {
+            return; /* a callback launched or replaced this program */
         }
     }
 
@@ -735,6 +803,9 @@ void program_scheduler_step(void) {
         ran_timer = true;
         if (!run_timer(p, t)) {
             return; /* program terminated */
+        }
+        if (p != s_top) {
+            return; /* a timer covered or replaced this program */
         }
         if (p->exit_requested) {
             break;
@@ -772,6 +843,9 @@ void program_scheduler_step(void) {
                 lua_tostring(p->L, -1));
         program_terminate(p);
         return;
+    }
+    if (p != s_top) {
+        return; /* tick launched a program or replaced this one */
     }
     if (p->exit_requested && p == s_top) {
         program_terminate(p);

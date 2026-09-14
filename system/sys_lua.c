@@ -7,7 +7,10 @@
  *   TimeNow()                     -> milliseconds since boot
  *   Pid()                         -> this program's pid
  *   ExitProgram()                 -> request exit after the current tick
- *   Launch(path [, arg])          -> true | nil, err (pauses the caller)
+ *   Launch(path [, arg [, replace]]) -> true | nil, err (pauses the
+ *                                    caller; with replace the caller
+ *                                    leaves the stack and its state is
+ *                                    released)
  *   Execute(path, args...)        -> true | nil, err (foreground run)
  *   ExecuteString(src, args...)   -> true | nil, err (run Lua source)
  *   TimerCreate(fn, ms [, oneshot]) -> timer id
@@ -66,13 +69,17 @@ static int sys_launch(lua_State *L) {
     (void)program_of(L);
     const char *path = luaL_checkstring(L, 1);
     const char *arg = luaL_optstring(L, 2, NULL);
+    int replace = lua_toboolean(L, 3);
     const char *err = NULL;
-    if (program_launch(path, arg, &err) != 0) {
+    int rc = replace ? program_launch_replace(path, arg, &err)
+                     : program_launch(path, arg, &err);
+    if (rc != 0) {
         lua_pushnil(L);
         lua_pushstring(L, err ? err : "launch failed");
         return 2;
     }
-    /* Success: the caller is now paused. */
+    /* Success: the caller is now paused (or, when replacing, on its way
+     * out once this call returns). */
     lua_pushboolean(L, true);
     return 1;
 }

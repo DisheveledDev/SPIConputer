@@ -106,6 +106,14 @@ program_t *program_top(void);
  * chunk as its first vararg. */
 int program_launch(const char *path, const char *arg, const char **err);
 
+/* Launch `path` in place of the current program: the caller leaves the
+ * stack (its parent becomes the new program's parent) and its Lua
+ * state, timers and audio state are released once the call that
+ * launched it returns (the caller may finish its current function; it
+ * is never ticked again). A boot loader uses this to hand the machine
+ * over to the shell without staying resident. */
+int program_launch_replace(const char *path, const char *arg, const char **err);
+
 /* Foreground launch of a program file with `argc` (<= PROGRAM_ARG_MAX)
  * arguments. The arguments are exposed to the program as the global
  * `args` table (1-based); argv[0] is also the chunk's first vararg. */

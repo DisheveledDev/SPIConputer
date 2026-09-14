@@ -55,7 +55,7 @@ Available as globals in every program.
 | `TimeNow()` | milliseconds since boot (monotonic) |
 | `Pid()` | this program's pid (number) |
 | `ExitProgram()` | nothing; asks the OS to exit after the current tick/timer callback returns |
-| `Launch(path [, arg])` | `true`, or `nil, err` on failure (missing file, Lua error in body/setup, too many programs, out of memory). `arg` (a string) is passed to the program chunk as its first vararg: `local filename = ...` |
+| `Launch(path [, arg [, replace]])` | `true`, or `nil, err` on failure (missing file, Lua error in body/setup, too many programs, out of memory). `arg` (a string) is passed to the program chunk as its first vararg: `local filename = ...`. With `replace` true the caller leaves the program stack on its way out (see below) |
 | `Execute(path, arg1, ...)` | `true`, or `nil, err`; runs a program file in the foreground with up to 16 string arguments |
 | `ExecuteString(source, arg1, ...)` | `true`, or `nil, err`; compiles and runs a Lua source string the same way |
 | `UtilityResult(ok, message)` | completes a noninteractive utility and returns a result to its caller |
@@ -68,6 +68,13 @@ the child's video/audio current), so nothing may follow the call except
 returning from the current `tick()`; code that must run *after* the
 child exits belongs in the caller's next `tick()`, which only happens
 once the child has gone:
+
+`Launch(path, arg, true)` replaces the caller instead of stacking on it:
+the new program takes the caller's place (the caller's parent becomes its
+parent) and the caller leaves the stack. Its Lua state, timers and audio
+state are released once the call that launched it has returned, so a boot
+loader can hand the machine to the shell without staying resident. The
+caller's `finish()` still runs during that release.
 
 ```lua
 local child_running = false

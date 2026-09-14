@@ -144,6 +144,68 @@ static void test_launch_resume_video(void) {
                "A-tick3\nA-resumed\nA-finish\n");
 }
 
+/* ---------- test 1b: Launch(..., replace) hands the stack over ---------- */
+
+static const char *REPLACE_P_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "local n = 0\n"
+    "function setup() log('P-setup\\n') end\n"
+    "function tick()\n"
+    "  n = n + 1\n"
+    "  log('P-tick' .. n .. '\\n')\n"
+    "  if n == 1 then Launch('r1.lua') end\n"
+    "  if n >= 3 then ExitProgram() end\n"
+    "end\n";
+
+static const char *REPLACE_ONE_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "function setup() log('R1-setup\\n') end\n"
+    "function tick()\n"
+    "  log('R1-tick\\n')\n"
+    "  Launch('r2.lua', nil, true)\n"
+    "  log('R1-after\\n')\n"
+    "end\n"
+    "function finish() log('R1-finish\\n') end\n";
+
+static const char *REPLACE_TWO_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "function setup() log('R2-setup\\n') end\n"
+    "function tick() log('R2-tick\\n') ExitProgram() end\n"
+    "function finish() log('R2-finish\\n') end\n";
+
+static void test_launch_replace(void) {
+    video_screens_init();
+    mock_set_file("p.lua", REPLACE_P_LUA);
+    mock_set_file("r1.lua", REPLACE_ONE_LUA);
+    mock_set_file("r2.lua", REPLACE_TWO_LUA);
+    boot("p.lua");
+
+    program_t *p = program_top();
+    CHECK(p != NULL && p->pid == 0, "replacement parent is pid 0");
+
+    /* Step 1: P lets R1 take over normally (P stays paused below). */
+    program_scheduler_step();
+    CHECK(program_top()->pid == 1, "r1 is on top (pid 1)");
+    CHECK(program_top()->next == p, "r1 stacked on P");
+
+    /* Step 2: R1 replaces itself with R2; R1 finishes its own call. */
+    program_scheduler_step();
+    CHECK(program_top()->pid == 2, "r2 is on top (pid 2)");
+    CHECK(program_top()->next == p,
+          "the replacement took R1's place, so P is still the parent");
+
+    /* Step 3: R1 is reaped (finish runs), then R2 exits and P resumes. */
+    program_scheduler_step();
+    CHECK(program_top() == p, "P resumed when the replacement exited");
+
+    /* Steps 4-5: P runs its remaining ticks and exits. */
+    program_scheduler_step();
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "stack empty after P exits");
+    expect_log("P-setup\nP-tick1\nR1-setup\nR1-tick\nR2-setup\nR1-after\n"
+               "R1-finish\nR2-tick\nR2-finish\nP-tick2\nP-tick3\n");
+}
+
 /* ---------------- test 2: throwing tick terminates program ---------------- */
 
 static const char *A2_LUA =
@@ -730,6 +792,7 @@ int main(void) {
     }
 
     test_launch_resume_video();
+    test_launch_replace();
     test_tick_throws();
     test_timers();
     test_timer_pause_resume();
