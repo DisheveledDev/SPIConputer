@@ -19,15 +19,17 @@ local function cursor_cell()
 end
 
 local function paint_cursor()
-    if prompt_row >= ROWS then
+    OverlayClear(32)
+    if not cursor_on or prompt_row >= ROWS then
         return
     end
     local cx = math.min(caret_col, COLS - 1)
-    ScreenOut(cx, prompt_row, cursor_cell(), cursor_on and 0x80 or 0)
+    OverlayOut(cx, prompt_row, cursor_cell(), 0x80)
 end
 
 local function paint()
     ScreenClear(32)
+    OverlayClear(32)
     for i = 1, math.min(#lines, ROWS) do
         local line = lines[i]
         for c = 1, math.min(#line, COLS) do

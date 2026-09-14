@@ -129,7 +129,7 @@ local function cmd_help()
     out("  FREE              SHOW CARD SPACE")
     out("  MOUNT             REMOUNT THE CARD")
     out("  CLS               CLEAR THE SCREEN")
-    out("  MODE [40|80]      CHANGE TEXT WIDTH")
+    out("  MODE [0|1]        CHANGE TEXT MODE")
     out("  ECHO <TEXT>       PRINT TEXT")
     out("  TIME              SHOW MILLISECONDS")
     out("  RUN <PROG> [ARGS] RUN A PROGRAM")
@@ -274,10 +274,8 @@ local function cmd_mode(value)
         return
     end
     local mode = tonumber(value)
-    if mode == 40 then mode = shell_mode == 3 and 3 or 1 end
-    if mode == 80 then mode = shell_mode == 1 and 2 or 3 end
-    if mode ~= 0 and mode ~= 1 and mode ~= 2 and mode ~= 3 then
-        out("?USE MODE 40, 80, 0, 1, 2 OR 3")
+    if mode ~= 0 and mode ~= 1 then
+        out("?USE MODE 0 OR 1")
         return
     end
     local ok, err = ScreenMode(mode)
