@@ -30,6 +30,15 @@ _Static_assert(PROGRAM_MAX <= VIDEO_SLOTS,
 static program_t *s_top = NULL;
 static uint32_t s_next_pid = 0;
 
+static void program_log_event(const program_t *p, const char *event,
+                              const char *detail) {
+    char line[224];
+    snprintf(line, sizeof(line), "program: t=%llu pid=%lu name=%s event=%s%s%s",
+             (unsigned long long)os_time_us(), (unsigned long)p->pid, p->name,
+             event, detail ? " detail=" : "", detail ? detail : "");
+    fs_core0_debug_log(line);
+}
+
 static void program_log_error(const program_t *p, const char *phase,
                               const char *message) {
     const char *base = strrchr(p->name, '/');
@@ -391,6 +400,7 @@ static program_t *program_create(const char *name, const char *source,
         pool_free(p);
         return NULL;
     }
+    program_log_event(p, "chunk-ok", chunk_name);
 
     lua_getglobal(p->L, "__spi_interactive");
     p->interactive = !lua_isboolean(p->L, -1) || lua_toboolean(p->L, -1);
@@ -475,6 +485,7 @@ void program_terminate(program_t *p) {
     if (p != s_top) {
         return;
     }
+    program_log_event(p, "terminate", p->exit_requested ? "requested" : "error");
     if (!p->interactive && p->next) {
         p->next->child_result_pending = true;
         p->next->child_result_ok = p->utility_result_set && p->utility_ok;
@@ -582,6 +593,7 @@ static int launch_common(const char *name, const char *source, size_t len,
         p->next = s_top;
         s_top = p;
     }
+    program_log_event(p, replace ? "replace-created" : "created", NULL);
     if (p->interactive) {
         program_select_screen(p, true);
         g_current_audio = p->audio;
@@ -600,6 +612,7 @@ static int launch_common(const char *name, const char *source, size_t len,
         pool_free(p);
         return -1;
     }
+    program_log_event(p, "setup-ok", NULL);
     return 0;
 }
 
@@ -887,6 +900,10 @@ void program_scheduler_step(void) {
             program_terminate(p);
         }
         return;
+    }
+    if (!p->scheduler_started) {
+        p->scheduler_started = true;
+        program_log_event(p, "tick-first", NULL);
     }
     if (!program_pcall(p, p->tick_ref)) {
         const char *message = lua_tostring(p->L, -1);

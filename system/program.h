@@ -55,6 +55,7 @@ typedef struct program_s {
     char utility_output[256];
     bool child_result_pending;
     bool child_result_ok;
+    bool scheduler_started;
     char child_result_output[256];
     char cwd[260];
 
