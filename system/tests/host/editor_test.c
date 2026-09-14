@@ -66,11 +66,14 @@ static void push_key(uint8_t key) {
 static void type(uint8_t key) {
     push_key(key);
     program_scheduler_step();
+    /* Apply the editor's queued screen ops (core 0 would do this at the
+     * next frame boundary). */
+    video_ops_drain();
 }
 
-/* The editor's video state (mode 1, 40x30). */
+/* The editor's screen (core 0's active slot, mode 1, 40x30). */
 static const video_state_t *ed(void) {
-    return program_top()->video;
+    return video_screen();
 }
 
 static void test_editor(const char *editor_path) {
@@ -79,15 +82,21 @@ static void test_editor(const char *editor_path) {
     mock_set_file("editor.lua", editor_src ? editor_src : "");
     mock_set_file("/data/note.txt", "hello\nworld\n");
 
+    video_screens_init();
     CHECK(program_boot("editor.lua", "note.txt"), "editor boots with arg");
     CHECK(program_top() != NULL, "editor program running");
+    video_ops_drain();
+    CHECK(ed()->mode == VIDEO_MODE_TEXT40C, "editor starts in 40 columns");
 
+    /* The 80-column modes (2/3) are retired for now, so the options
+     * menu's column switch cannot change the mode. */
     type(135);
     type(13);
-    CHECK(ed()->mode == VIDEO_MODE_TEXT80C, "options menu switches to 80 columns");
+    CHECK(ed()->mode == VIDEO_MODE_TEXT40C, "80-column option stays in 40");
     type(135);
     type(13);
-    CHECK(ed()->mode == VIDEO_MODE_TEXT40C, "options menu switches back to 40 columns");
+    video_ops_drain();
+    CHECK(ed()->mode == VIDEO_MODE_TEXT40C, "back in 40 columns");
 
     /* Initial render: first line 'hello', second 'world' on line 1. */
     CHECK(ed()->char_map[0][0] == 'h' && ed()->char_map[0][4] == 'o',

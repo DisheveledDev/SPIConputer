@@ -2,8 +2,9 @@
  *
  * Core 0: the video core. After the core split this core does one thing:
  * the HSTX scanout. It brings the display up (TMDS expansion, the DMA
- * ping/pong chain, the render ISR) and then idles in WFI while those
- * IRQs feed the display from g_current_video.
+ * ping/pong chain, the render pump) and then idles in WFI while those
+ * IRQs feed the display from core 0's screen slots (see video.h); core 1
+ * only queues display ops for this core to apply at frame boundaries.
  *
  * Everything else - stdio, the SD card and FatFs, input scanning, the
  * watchdog and the Lua scheduler - runs on core 1 (core1/lua_main.c),

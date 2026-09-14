@@ -1,47 +1,50 @@
 /* video.h
  *
- * Video state (Phase 1). Each program owns its video state (heap-
- * allocated by program.c), so save/restore on the program stack is a
- * pointer swap of g_current_video. The scanline renderer (render.c)
- * state; the screen Lua module (screen_lua.c) is the writer.
+ * Display state and the core 1 -> core 0 change queue (see AGENTS.md,
+ * "Video Subsystem").
  *
- * Current scope: single-buffered state with a version counter. The
- * renderer tolerates mid-frame updates (bounded tearing); HSTX output
- * with double-buffered maps + vsync swaps lands with the product board
- * bring-up (Phase 7).
+ * The Lua Screen* API (screen_lua.c) never touches display memory: it
+ * appends small ops to the single-producer/single-consumer queue below.
+ * Core 0 drains the queue once per frame boundary, applies the ops to
+ * the screen slot the foreground program owns and renders the next
+ * frame from that slot. Nothing else is shared between the cores, so
+ * there are no frame snapshots and no cross-core copies of the screen.
+ *
+ * Logical geometry is fixed at 320x240: 40x30 tiles (modes 0/1) or a
+ * 320x240 pixel buffer (mode 10). The scanout doubles every row and
+ * column to 640x480; the 80-column modes 2 and 3 are retired.
  */
 #pragma once
 
-#include <stdatomic.h>
-#include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-#define VIDEO_COLS 80
-#define VIDEO_ROWS 60
+#define VIDEO_COLS 40
+#define VIDEO_ROWS 30
 #define VIDEO_FB_COLS 320
 #define VIDEO_FB_ROWS 240
 
-#define VIDEO_MODE_TEXT40 0 /* 40x30, B&W, 2x scaled */
+#define VIDEO_MODE_TEXT40 0  /* 40x30, B&W */
 #define VIDEO_MODE_TEXT40C 1 /* 40x30, per-cell invert + colour */
-#define VIDEO_MODE_TEXT80 2 /* 80x60, B&W */
-#define VIDEO_MODE_TEXT80C 3 /* 80x60, per-cell invert + colour */
-#define VIDEO_MODE_PIXEL 10 /* 320x240 direct pixels, 256-entry palette */
+#define VIDEO_MODE_PIXEL 10  /* 320x240 direct pixels, 256-entry palette */
+
 #define VIDEO_LAYERS 3
 #define VIDEO_ATTR_TRANSPARENT 0x40
+
+/* One screen slot per program stack level (must cover PROGRAM_MAX). */
+#define VIDEO_SLOTS 4
 
 typedef struct {
     uint8_t mode; /* VIDEO_MODE_* */
     uint8_t z_order;
     uint8_t layer_active[VIDEO_LAYERS];
 
-    /* Tile modes 0/1/2/3. Layer 0 is the base, layers 1 and 2 are
-     * transparent overlays. The maps are 80x60 (worst case); the active
-     * area depends on the mode. */
+    /* Tile modes 0/1. Layer 0 is the base, layers 1 and 2 are
+     * transparent overlays. Attribute byte: bit 7 invert; bits 0-2
+     * colour index; bit 6 makes overlay cells transparent. Colour index
+     * c uses palette entry c+1 (0 is the background). */
     uint8_t char_map[VIDEO_LAYERS][VIDEO_COLS * VIDEO_ROWS];
     uint8_t attr_map[VIDEO_LAYERS][VIDEO_COLS * VIDEO_ROWS];
-    /* Attribute byte: bit 7 invert; bits 0-2 colour index; bit 6 makes
-     * overlay cells transparent. Colour index c uses palette entry c+1. */
 
     /* RAM tile override set; ROM font (font8x8, ASCII-aligned) used
      * where tile_defined[i] == 0. Each tile is 8 row bytes; bit 0 of a
@@ -49,72 +52,73 @@ typedef struct {
     uint8_t tiles[256][8];
     uint8_t tile_defined[256];
 
-    /* Mode 10 only: 320x240 byte framebuffer, indexes into palette. */
+    /* Mode 10 only: 320x240 palette indexes into core 0's shared pixel
+     * buffer, attached when the mode is entered. */
     uint8_t *framebuf;
 
     uint32_t palette[256]; /* RGB888 */
-
-    /* Even version = stable. A mutation changes this to odd before
-     * writing and back to the next even value after writing. The update
-     * flag blocks Lua mutations while core 0 copies a frame snapshot. */
-    volatile uint32_t version;
-    atomic_flag update_lock;
 } video_state_t;
 
-/* The active video state: points at the top program's video state.
- * Published by the OS core and read by the video core. The atomic pointer
- * makes the cross-core publication explicit; the retire queue keeps the
- * pointed-to state alive for two frame boundaries. */
-extern _Atomic(video_state_t *) g_current_video;
+/* ------------------------------------------------------------------ */
+/* Change queue (producer = core 1, consumer = core 0)                 */
+/* ------------------------------------------------------------------ */
 
-static inline video_state_t *video_current_load(void) {
-    return atomic_load_explicit(&g_current_video, memory_order_acquire);
-}
+typedef enum {
+    VIDEO_OP_RESET,   /* fresh screen: mode 0, maps/tiles/palette reset */
+    VIDEO_OP_MODE,    /* a = mode */
+    VIDEO_OP_ZORDER,  /* a = layer */
+    VIDEO_OP_OUT,     /* a,b = x,y; c = char; d = attr */
+    VIDEO_OP_ATTR,    /* a,b = x,y; d = flags */
+    VIDEO_OP_TILE,    /* a = index; d,e = the 8 row bytes */
+    VIDEO_OP_PALETTE, /* a = index; d = 0xRRGGBB */
+    VIDEO_OP_CLEAR,   /* a = fill char */
+    VIDEO_OP_PLOT,    /* a,b = x,y; d = colour (mode 10) */
+    VIDEO_OP_SLOT,    /* a = screen slot for the ops that follow */
+} video_op_kind_t;
 
-static inline void video_current_store(video_state_t *video) {
-    atomic_store_explicit(&g_current_video, video, memory_order_release);
-}
+typedef struct {
+    uint8_t op;
+    uint8_t a, b, c;
+    uint32_t d, e;
+} video_op_t;
 
-/* Init a fresh state: mode 0, cleared maps, C64-ish 16-entry palette
- * for the low indexes, version 0. */
+/* Ops between frame boundaries; a full queue blocks the producer until
+ * core 0 drains it (bounded by one frame). */
+#define VIDEO_QUEUE_OPS 1024
+
+/* Append one op (core 1). */
+void video_op_put(const video_op_t *op);
+
+/* Latch a mode change into the core-1-side shadow (video_lua_mode()),
+ * used by the process model to know when a pixel-mode program is on
+ * top. Also used by the API layer when it queues VIDEO_OP_MODE/RESET. */
+void video_note_mode(int mode);
+
+/* ------------------------------------------------------------------ */
+/* Core-0 side                                                         */
+/* ------------------------------------------------------------------ */
+
+/* Initialise every slot and the queue. Called by core 0 before the
+ * scanout starts; host tests and the simulator call it too. */
+void video_screens_init(void);
+
+/* Apply every queued op, in order, to the slot in force. Called by core
+ * 0 once per frame boundary before the next frame is rendered. Returns
+ * true when the palette changed (the caller rebuilds its RGB332 LUT). */
+bool video_ops_drain(void);
+
+/* The screen the scanout renders from. */
+video_state_t *video_screen(void);
+int video_screen_index(void);
+
+/* Core-1-side shadow of the mode Lua last asked for. */
+int video_lua_mode(void);
+
+/* Reset a state to its power-on contents (mode 0, blank maps, default
+ * palette). Host tests use it to build render inputs. */
 void video_state_init(video_state_t *v);
 
-/* Release dynamic buffers (mode 10 framebuffer). */
-void video_state_free(video_state_t *v);
-
-/* Begin/end a core-1 mutation. The video core's snapshot copy takes the
- * same flag, so screen updates block briefly while a frame is copied. */
-static inline void video_state_begin_mutation(video_state_t *v) {
-    while (atomic_flag_test_and_set_explicit(&v->update_lock,
-                                              memory_order_acquire)) {
-        atomic_signal_fence(memory_order_seq_cst);
-    }
-    v->version++;
-}
-
-static inline void video_state_end_mutation(video_state_t *v) {
-    v->version++;
-    atomic_flag_clear_explicit(&v->update_lock, memory_order_release);
-}
-
-/* Copy a stable source state into a core-0 snapshot. Returns false if
- * core 1 currently owns the update lock; core 0 skips that frame rather
- * than spinning inside the real-time DMA IRQ. */
-bool video_state_snapshot_copy(const video_state_t *src, video_state_t *dst,
-                               uint8_t *dst_framebuf,
-                               size_t dst_framebuf_size);
-
-/* Active logical dimensions for a mode. */
+/* Active dimensions for a mode; false when the mode is unsupported. */
 int video_mode_cols(int mode);
 int video_mode_rows(int mode);
-
-/* Switch modes: clears maps (or allocates the mode 10 framebuffer),
- * bumps the version. Returns false on invalid mode or OOM. */
-bool video_set_mode(video_state_t *v, int mode);
-
-/* Character dimensions (text modes only). */
-int video_char_cols(const video_state_t *v);
-int video_char_rows(const video_state_t *v);
-
-/* Select the layer mutated by the Screen* text APIs. */
-bool video_set_z_order(video_state_t *v, int layer);
+bool video_mode_valid(int mode);

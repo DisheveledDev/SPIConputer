@@ -1,7 +1,7 @@
 /* program.h
  *
  * Process model (Phase 5): a stack of Lua programs, each with its own
- * lua_State (capped heap), video state, timer list and input event
+ * lua_State (capped heap), screen slot, timer list and input event
  * ring. The scheduler loop (driven from core 1) drains core 0's input
  * queue into the top program, runs due timers, otherwise calls tick().
  *
@@ -61,10 +61,12 @@ typedef struct program_s {
     size_t heap_used;
     size_t heap_cap;
 
-    /* -- video state (heap-allocated; pointer-swap save/restore) -- */
-    video_state_t *video;
+    /* -- screen slot --
+     * The display state lives on core 0 (video.h); a program's slot is
+     * its index in the pool below, selected via a queued op on launch
+     * and on exit. Needs no memory here. */
 
-    /* -- audio state (heap-allocated like video) -- */
+    /* -- audio state (heap-allocated like the screen used to be) -- */
     audio_state_t *audio;
 
     /* -- timers -- */
@@ -130,11 +132,10 @@ bool program_pcall(program_t *p, int fn_ref);
 /* Terminate `p` (run finish(), close state, resume parent). */
 void program_terminate(program_t *p);
 
-/* Deferred video/audio state frees. A terminated program's state is
- * freed only after core 0's scanout has crossed two frame boundaries,
- * so a scanline in flight can never dereference freed memory.
- * program_retire_reap() runs once per scheduler step (it also accepts
- * a synthetic count in the host tests). */
+/* Deferred audio state frees. A terminated program's audio state stays
+ * alive until the audio path is done with it; the retire queue parks it
+ * for two frame boundaries first. program_retire_reap() runs once per
+ * scheduler step (it also accepts a synthetic count in the host tests). */
 void program_retire_reap(uint32_t frame_count);
 int program_retire_pending(void);
 

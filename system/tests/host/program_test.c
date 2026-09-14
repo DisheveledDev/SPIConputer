@@ -89,17 +89,25 @@ static const char *B_LUA =
     "function finish() log('B-finish\\n') end\n";
 
 static void test_launch_resume_video(void) {
+    video_screens_init();
     mock_set_file("a.lua", A_LUA);
     mock_set_file("b.lua", B_LUA);
     boot("a.lua");
 
     program_t *a = program_top();
     CHECK(a != NULL && a->pid == 0, "a.lua is pid 0");
-    CHECK(video_current_load() == a->video, "a.lua video current");
+    video_ops_drain();
+    CHECK(video_screen_index() == 0, "a.lua selected screen slot 0");
 
-    /* Simulate video content in A's state. */
-    a->video->mode = 1;
-    a->video->char_map[0][0] = 42;
+    /* Simulate screen content in A's slot. */
+    video_op_t mode = {.op = VIDEO_OP_MODE, .a = VIDEO_MODE_TEXT40C};
+    video_op_t out = {.op = VIDEO_OP_OUT, .a = 0, .b = 0, .c = 42, .d = 0};
+    video_op_put(&mode);
+    video_op_put(&out);
+    video_ops_drain();
+    CHECK(video_screen()->mode == VIDEO_MODE_TEXT40C &&
+              video_screen()->char_map[0][0] == 42,
+          "A screen content set");
 
     /* Step 1: A tick 1. */
     program_scheduler_step();
@@ -110,17 +118,21 @@ static void test_launch_resume_video(void) {
     CHECK(strcmp(mock_boot_log(), "A-setup\nA-tick1\nA-tick2\nB-setup\n") == 0,
           "B launched and setup");
     CHECK(program_top()->pid == 1, "B is on top (pid 1)");
-    CHECK(video_current_load() == program_top()->video, "B video current");
-    CHECK(video_current_load()->mode == 0 && video_current_load()->char_map[0][0] == 0,
-          "B video state is fresh");
+    video_ops_drain();
+    CHECK(video_screen_index() == 1, "B selected its own screen slot");
+    CHECK(video_screen()->mode == VIDEO_MODE_TEXT40 &&
+              video_screen()->char_map[0][0] == 0,
+          "B screen is fresh");
     CHECK(program_top()->next == a, "B stacked on A");
 
     /* Step 3: B tick 1 -> B exits -> A resumes. */
     program_scheduler_step();
     CHECK(program_top() == a, "A resumed after B exit");
-    CHECK(video_current_load() == a->video, "A video restored");
-    CHECK(video_current_load()->mode == 1 && video_current_load()->char_map[0][0] == 42,
-          "A video content intact");
+    video_ops_drain();
+    CHECK(video_screen_index() == 0, "A's screen slot restored");
+    CHECK(video_screen()->mode == VIDEO_MODE_TEXT40C &&
+              video_screen()->char_map[0][0] == 42,
+          "A screen content intact");
     CHECK(strcmp(mock_boot_log(),
                  "A-setup\nA-tick1\nA-tick2\nB-setup\nB-tick1\nB-finish\n") == 0,
           "B finished cleanly");
@@ -128,7 +140,6 @@ static void test_launch_resume_video(void) {
     /* Step 4: A tick 3 -> A exits -> stack empty. */
     program_scheduler_step();
     CHECK(program_top() == NULL, "stack empty after A exit");
-    CHECK(video_current_load() == NULL, "no current video on empty stack");
     expect_log("A-setup\nA-tick1\nA-tick2\nB-setup\nB-tick1\nB-finish\n"
                "A-tick3\nA-resumed\nA-finish\n");
 }
@@ -618,15 +629,16 @@ static void test_compiled_programs(void) {
     expect_log("loaded-chunk\ndofile:true:loaded\nrequire:true:lib-ok\n");
 }
 
-/* ------------- test: deferred video-state free (graveyard) ------------- */
+/* ------------- test: deferred audio-state free (graveyard) ------------- */
 
 static const char *RETIRE_LUA =
     "__spi_interactive = true\n"
     "__spi_requires_video = true\n"
+    "__spi_requires_audio = true\n"
     "function tick() ExitProgram() end\n";
 
 static void test_retire_graveyard(void) {
-    /* Earlier tests popped video programs without a frame clock: drain
+    /* Earlier tests popped programs without a frame clock: drain
      * anything they left parked. */
     g_system_state.video_frame_count += 1000;
     program_retire_reap(g_system_state.video_frame_count);
@@ -635,13 +647,12 @@ static void test_retire_graveyard(void) {
     mock_set_file("retire.lua", RETIRE_LUA);
     boot("retire.lua");
     program_scheduler_step();
-    CHECK(program_top() == NULL, "video program exits");
-    CHECK(video_current_load() == NULL, "current video cleared on exit");
+    CHECK(program_top() == NULL, "audio program exits");
 
     uint32_t now = g_system_state.video_frame_count;
 
-    /* One frame later it must still be parked (the scanout may not have
-     * snapshotted the new state yet). */
+    /* One frame later it must still be parked (the audio path may not
+     * have let go of the state yet). */
     program_retire_reap(now + 1);
     CHECK(program_retire_pending() == 1, "first frame keeps the state");
 

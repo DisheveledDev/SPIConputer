@@ -2,14 +2,30 @@
 #include "video.h"
 
 #include <stdatomic.h>
-#include <stdlib.h>
 #include <string.h>
 
-_Atomic(video_state_t *) g_current_video;
+/* One pixel buffer, shared by whichever slot holds mode 10. Only one
+ * program can use the pixel mode at a time (Launch from a mode-10
+ * program is refused), so two slots never need it at once. Core 0 owns
+ * it, like the slots themselves. */
+static uint8_t s_pixel_buffer[VIDEO_FB_COLS * VIDEO_FB_ROWS];
+
+static video_state_t s_screens[VIDEO_SLOTS];
+static int s_screen_active;
+
+/* Single-producer/single-consumer op ring. The indices are free-running
+ * and masked on use; the producer only ever writes s_tail and the
+ * consumer only s_head. The cores share SRAM with no caches between
+ * them, so plain volatile words are enough, as elsewhere. */
+static video_op_t s_queue[VIDEO_QUEUE_OPS];
+static volatile uint32_t s_head; /* consumer: core 0 */
+static volatile uint32_t s_tail; /* producer: core 1 */
+
+/* Core-1-side shadow of the mode Lua last requested. */
+static uint8_t s_lua_mode;
 
 void video_state_init(video_state_t *v) {
     memset(v, 0, sizeof(*v));
-    atomic_flag_clear(&v->update_lock);
     v->z_order = 0;
     v->layer_active[0] = 1;
     for (int layer = 1; layer < VIDEO_LAYERS; layer++) {
@@ -29,52 +45,62 @@ void video_state_init(video_state_t *v) {
     }
 }
 
-bool video_state_snapshot_copy(const video_state_t *src, video_state_t *dst,
-                               uint8_t *dst_framebuf,
-                               size_t dst_framebuf_size) {
-    video_state_t *mutable_src = (video_state_t *)src;
-    if (atomic_flag_test_and_set_explicit(&mutable_src->update_lock,
-                                          memory_order_acquire)) {
-        return false;
+void video_op_put(const video_op_t *op) {
+    /* Full queue: wait for core 0's frame-boundary drain. A dead video
+     * core blocks here, which stops the watchdog feeds and resets the
+     * board rather than running on with a frozen display. */
+    while ((uint32_t)(s_tail - s_head) >= VIDEO_QUEUE_OPS) {
+        atomic_signal_fence(memory_order_seq_cst);
     }
-
-    uint8_t *source_framebuf = mutable_src->framebuf;
-    memcpy(dst, mutable_src, offsetof(video_state_t, version));
-    dst->framebuf = NULL;
-    if (source_framebuf && dst_framebuf &&
-        dst_framebuf_size >= VIDEO_FB_COLS * VIDEO_FB_ROWS) {
-        memcpy(dst_framebuf, source_framebuf, VIDEO_FB_COLS * VIDEO_FB_ROWS);
-        dst->framebuf = dst_framebuf;
-    }
-    dst->version = mutable_src->version;
-    atomic_flag_clear_explicit(&mutable_src->update_lock, memory_order_release);
-    return true;
+    s_queue[s_tail % VIDEO_QUEUE_OPS] = *op;
+    atomic_signal_fence(memory_order_seq_cst);
+    s_tail++;
 }
 
-void video_state_free(video_state_t *v) {
-    free(v->framebuf);
-    v->framebuf = NULL;
+void video_note_mode(int mode) {
+    s_lua_mode = (uint8_t)mode;
+}
+
+int video_lua_mode(void) {
+    return s_lua_mode;
+}
+
+void video_screens_init(void) {
+    for (int i = 0; i < VIDEO_SLOTS; i++) {
+        video_state_init(&s_screens[i]);
+    }
+    s_screen_active = 0;
+    s_head = 0;
+    s_tail = 0;
+    s_lua_mode = VIDEO_MODE_TEXT40;
+}
+
+video_state_t *video_screen(void) {
+    return &s_screens[s_screen_active];
+}
+
+int video_screen_index(void) {
+    return s_screen_active;
+}
+
+bool video_mode_valid(int mode) {
+    return mode == VIDEO_MODE_TEXT40 || mode == VIDEO_MODE_TEXT40C ||
+           mode == VIDEO_MODE_PIXEL;
 }
 
 int video_mode_cols(int mode) {
     if (mode == VIDEO_MODE_PIXEL) return VIDEO_FB_COLS;
-    if (mode == VIDEO_MODE_TEXT80 || mode == VIDEO_MODE_TEXT80C) return 80;
-    return 40;
+    return VIDEO_COLS;
 }
 
 int video_mode_rows(int mode) {
     if (mode == VIDEO_MODE_PIXEL) return VIDEO_FB_ROWS;
-    if (mode == VIDEO_MODE_TEXT80 || mode == VIDEO_MODE_TEXT80C) return 60;
-    return 30;
+    return VIDEO_ROWS;
 }
 
-bool video_set_mode(video_state_t *v, int mode) {
-    if (mode != VIDEO_MODE_TEXT40 && mode != VIDEO_MODE_TEXT40C &&
-        mode != VIDEO_MODE_TEXT80 && mode != VIDEO_MODE_TEXT80C &&
-        mode != VIDEO_MODE_PIXEL) {
-        return false;
-    }
-    video_state_begin_mutation(v);
+/* Clear the maps and the frame geometry for a new mode; entering the
+ * pixel mode attaches and clears the shared pixel buffer. */
+static void apply_mode(video_state_t *v, int mode) {
     v->z_order = 0;
     v->layer_active[0] = 1;
     for (int layer = 1; layer < VIDEO_LAYERS; layer++) {
@@ -87,54 +113,106 @@ bool video_set_mode(video_state_t *v, int mode) {
                sizeof(v->attr_map[layer]));
     }
     if (mode == VIDEO_MODE_PIXEL) {
-        /* Allocate before publishing the mode: core 0's renderer must
-         * never observe mode 10 without a framebuffer. */
-        if (!v->framebuf) {
-            uint8_t *fb = (uint8_t *)malloc(VIDEO_FB_COLS * VIDEO_FB_ROWS);
-            if (!fb) {
-                video_state_end_mutation(v);
-                return false;
-            }
-            memset(fb, 0, VIDEO_FB_COLS * VIDEO_FB_ROWS);
-            v->framebuf = fb;
-        } else {
-            memset(v->framebuf, 0, VIDEO_FB_COLS * VIDEO_FB_ROWS);
-        }
+        memset(s_pixel_buffer, 0, sizeof(s_pixel_buffer));
+        v->framebuf = s_pixel_buffer;
     } else {
-        /* Leaving the pixel mode: publish the new mode first (with a
-         * barrier), then release the framebuffer. */
-        v->mode = (uint8_t)mode;
-        atomic_thread_fence(memory_order_seq_cst);
-        video_state_free(v);
-        video_state_end_mutation(v);
-        return true;
+        v->framebuf = NULL;
     }
     v->mode = (uint8_t)mode;
-    atomic_thread_fence(memory_order_seq_cst);
-    video_state_end_mutation(v);
-    return true;
-}
-int video_char_cols(const video_state_t *v) {
-    if (v->mode == VIDEO_MODE_TEXT80 || v->mode == VIDEO_MODE_TEXT80C) {
-        return 80;
-    }
-    return 40;
 }
 
-int video_char_rows(const video_state_t *v) {
-    if (v->mode == VIDEO_MODE_TEXT80 || v->mode == VIDEO_MODE_TEXT80C) {
-        return 60;
+static void apply_clear(video_state_t *v, int ch) {
+    if (v->mode == VIDEO_MODE_PIXEL) {
+        if (v->framebuf) {
+            memset(v->framebuf, (uint8_t)ch, VIDEO_FB_COLS * VIDEO_FB_ROWS);
+        }
+        return;
     }
-    return 30;
+    size_t cells = (size_t)VIDEO_COLS * VIDEO_ROWS;
+    memset(v->char_map[v->z_order], (uint8_t)ch, cells);
+    memset(v->attr_map[v->z_order], 0, cells);
+    if (v->z_order > 0) {
+        memset(v->attr_map[v->z_order], VIDEO_ATTR_TRANSPARENT, cells);
+        v->layer_active[v->z_order] = 0;
+    } else {
+        v->layer_active[0] = 1;
+    }
 }
 
-bool video_set_z_order(video_state_t *v, int layer) {
-    if (layer < 0 || layer >= VIDEO_LAYERS ||
-        v->mode == VIDEO_MODE_PIXEL) {
-        return false;
+/* Apply one op. Returns true when the palette changed. */
+static bool apply_op(video_state_t *v, const video_op_t *op) {
+    switch (op->op) {
+        case VIDEO_OP_RESET:
+            video_state_init(v);
+            return true;
+        case VIDEO_OP_MODE:
+            if (video_mode_valid(op->a)) {
+                apply_mode(v, op->a);
+            }
+            return false;
+        case VIDEO_OP_ZORDER:
+            if (op->a < VIDEO_LAYERS && v->mode != VIDEO_MODE_PIXEL) {
+                v->z_order = op->a;
+            }
+            return false;
+        case VIDEO_OP_OUT:
+            if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
+                v->mode != VIDEO_MODE_PIXEL) {
+                v->char_map[v->z_order][op->b * VIDEO_COLS + op->a] = op->c;
+                v->attr_map[v->z_order][op->b * VIDEO_COLS + op->a] =
+                    (uint8_t)op->d;
+                v->layer_active[v->z_order] = 1;
+            }
+            return false;
+        case VIDEO_OP_ATTR:
+            if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
+                v->mode != VIDEO_MODE_PIXEL) {
+                v->attr_map[v->z_order][op->b * VIDEO_COLS + op->a] =
+                    (uint8_t)op->d;
+                v->layer_active[v->z_order] = 1;
+            }
+            return false;
+        case VIDEO_OP_TILE:
+            for (int i = 0; i < 4; i++) {
+                v->tiles[op->a][i] = (uint8_t)(op->d >> (i * 8));
+                v->tiles[op->a][4 + i] = (uint8_t)(op->e >> (i * 8));
+            }
+            v->tile_defined[op->a] = 1;
+            return false;
+        case VIDEO_OP_PALETTE:
+            v->palette[op->a] = op->d & 0xffffffu;
+            return true;
+        case VIDEO_OP_CLEAR:
+            apply_clear(v, op->a);
+            return false;
+        case VIDEO_OP_PLOT:
+            /* a (x) is a uint8_t, so x < 320 always holds. */
+            if (v->mode == VIDEO_MODE_PIXEL && v->framebuf &&
+                op->b < VIDEO_FB_ROWS) {
+                v->framebuf[op->b * VIDEO_FB_COLS + op->a] = (uint8_t)op->d;
+            }
+            return false;
+        default:
+            return false; /* VIDEO_OP_SLOT is handled by the drain */
     }
-    video_state_begin_mutation(v);
-    v->z_order = (uint8_t)layer;
-    video_state_end_mutation(v);
-    return true;
+}
+
+bool video_ops_drain(void) {
+    bool palette_changed = false;
+    uint32_t tail = s_tail;
+
+    while (s_head != tail) {
+        /* Copy before publishing the head: the producer may overwrite
+         * the slot as soon as it sees the advance. */
+        video_op_t op = s_queue[s_head % VIDEO_QUEUE_OPS];
+        s_head++;
+        if (op.op == VIDEO_OP_SLOT) {
+            if (op.a < VIDEO_SLOTS) {
+                s_screen_active = op.a;
+            }
+        } else if (apply_op(&s_screens[s_screen_active], &op)) {
+            palette_changed = true;
+        }
+    }
+    return palette_changed;
 }

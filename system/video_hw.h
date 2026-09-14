@@ -34,13 +34,10 @@ uint32_t video_hw_underruns(void);
 /* Bring-up diagnostics for the "picture drops out but the system keeps
  * running" class of faults. All are cumulative counters since boot:
  *
- *   black_rows    - rows rendered from the black placeholder because no
- *                   program snapshot owned the screen
- *   snapshot_fail - frame snapshots cancelled by a core 1 mutation
  *   skews/last    - frames whose DMA step count was not exactly
- *                   45 blank + 480*2 active steps, with the last bad
- *                   count (the sequencer lost or gained a step, so the
- *                   line structure shifted)
+ *                   (blanking + 480*2) steps, with the last bad count
+ *                   (the sequencer lost or gained a step, so the line
+ *                   structure shifted)
  *   gap_max_us    - worst interval between two DMA completion IRQs; one
  *                   line is ~31.7 us, so far above that is a stalled
  *                   stream (frozen picture / lost TMDS lock)
@@ -48,8 +45,6 @@ uint32_t video_hw_underruns(void);
  *   fifo_empty    - completions that found the HSTX FIFO empty
  *   fifo_wofs     - HSTX FIFO write-overflow events (a dropped word)
  */
-uint32_t video_hw_black_rows(void);
-uint32_t video_hw_snapshot_fails(void);
 uint32_t video_hw_skews(void);
 uint32_t video_hw_last_frame_steps(void);
 uint32_t video_hw_gap_max_us(void);

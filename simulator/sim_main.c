@@ -389,14 +389,17 @@ static void pad_button(SDL_ControllerButtonEvent *e) {
 /* Video / audio pump                                                  */
 /* ------------------------------------------------------------------ */
 
+/* The simulator plays core 0's part: apply the ops the programs queued
+ * and render the resulting screen slot. */
+static const video_state_t *sim_screen(void) {
+    video_ops_drain();
+    return video_screen();
+}
+
 static void sim_render(SDL_Renderer *ren, SDL_Texture *tex, uint8_t *frame) {
-    const video_state_t *v = g_current_video;
-    if (v) {
-        for (int y = 0; y < SIM_H; y++) {
-            render_line(v, y, frame + (size_t)y * SIM_W * 3);
-        }
-    } else {
-        memset(frame, 0, SIM_W * SIM_H * 3);
+    const video_state_t *v = sim_screen();
+    for (int y = 0; y < SIM_H; y++) {
+        render_line(v, y / 2, frame + (size_t)y * SIM_W * 3);
     }
     SDL_UpdateTexture(tex, NULL, frame, SIM_W * 3);
 
@@ -457,13 +460,9 @@ static void usage(const char *argv0) {
 }
 
 static void dump_frame_ppm(const char *path, uint8_t *frame) {
-    const video_state_t *v = g_current_video;
-    if (v) {
-        for (int y = 0; y < SIM_H; y++) {
-            render_line(v, y, frame + (size_t)y * SIM_W * 3);
-        }
-    } else {
-        memset(frame, 0, SIM_W * SIM_H * 3);
+    const video_state_t *v = sim_screen();
+    for (int y = 0; y < SIM_H; y++) {
+        render_line(v, y / 2, frame + (size_t)y * SIM_W * 3);
     }
     FILE *f = fopen(path, "wb");
     if (!f) {
@@ -562,6 +561,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[sim] cannot mount the virtual SD card\n");
         return 1;
     }
+    video_screens_init();
     if (!program_boot(o.boot_file, NULL)) {
         fprintf(stderr,
                 "[sim] boot failed: no %s in %s (copy your programs in)\n",
@@ -665,6 +665,9 @@ int main(int argc, char **argv) {
 
         for (int i = 0; i < o.ticks_per_frame && s_running; i++) {
             program_scheduler_step();
+            /* Core 0's part: collect the display ops each tick queued,
+             * or a drawing-heavy program fills the queue and blocks. */
+            video_ops_drain();
             ticks++;
         }
 
@@ -699,16 +702,13 @@ int main(int argc, char **argv) {
     /* Smoke summary (useful with --headless). */
     program_t *p = program_top();
     int painted = 0;
-    if (g_current_video) {
-        int n = video_mode_cols(g_current_video->mode) *
-                video_mode_rows(g_current_video->mode);
-        if (g_current_video->mode == VIDEO_MODE_TEXT40 ||
-            g_current_video->mode == VIDEO_MODE_TEXT40C) {
-            n = 40 * 30;
-        }
+    const video_state_t *screen = sim_screen();
+    if (screen) {
+        int n = video_mode_cols(screen->mode) *
+                video_mode_rows(screen->mode);
         for (int i = 0; i < n; i++) {
-            if (g_current_video->char_map[0][i] != ' ' &&
-                g_current_video->char_map[0][i] != 0) {
+            if (screen->char_map[0][i] != ' ' &&
+                screen->char_map[0][i] != 0) {
                 painted++;
             }
         }
@@ -716,9 +716,8 @@ int main(int argc, char **argv) {
     printf("[sim] exit: ticks=%llu, programs=%d, video=%dx%d@%d (chars=%d), "
            "audio=%s\n",
            (unsigned long long)ticks, p ? (int)(p->pid + 1) : 0,
-           g_current_video ? video_mode_cols(g_current_video->mode) : 0,
-           g_current_video ? video_mode_rows(g_current_video->mode) : 0,
-           g_current_video ? g_current_video->mode : -1, painted,
+           video_mode_cols(screen->mode), video_mode_rows(screen->mode),
+           screen->mode, painted,
            audio ? "on" : (o.headless ? "off (headless)" : "unavailable"));
 
     if (!o.headless) {

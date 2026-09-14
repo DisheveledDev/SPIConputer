@@ -25,17 +25,16 @@
  * on the product board, test setup on the host) before rendering. */
 void render332_init(void);
 
-/* Render output line y (0..479) into out (RENDER332_WORDS_PER_LINE
- * words). Same picture as render_line() with the palette reduced to
- * RGB332. `framebuf` NULL (mode 10 mid-switch) renders black. */
-void render_line_332(const video_state_t *v, int y, uint32_t *out);
+/* Drop the cached RGB332 palette LUT: the next line rebuilds it from
+ * the state's palette. Core 0 calls this after a drain that changed the
+ * palette (see video_ops_drain). */
+void render332_invalidate_palette(void);
 
-/* Output lines that repeat a logical row (2x-scaled modes), so a
- * scanout can render each row once and show it twice. Inline so the
- * video core's DMA IRQ never fetches this from flash. */
-static inline bool render332_is_2x(const video_state_t *v) {
-    return v->mode != VIDEO_MODE_TEXT80 && v->mode != VIDEO_MODE_TEXT80C;
-}
+/* Render logical row ly (0..VIDEO_ROWS-1) into out
+ * (RENDER332_WORDS_PER_LINE words). Same picture as render_line() with
+ * the palette reduced to RGB332; every pixel is doubled horizontally.
+ * `framebuf` NULL (mode 10 mid-switch) renders black. */
+void render_line_332(const video_state_t *v, int ly, uint32_t *out);
 
 /* RGB332 value for an RGB888 colour, exposed for palette building and
  * the host colour-order test. R in bits 7:5, G in 4:2, B in 1:0. */

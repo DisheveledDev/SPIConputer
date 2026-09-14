@@ -82,12 +82,10 @@ static void log_status(uint64_t now_us, uint32_t frames) {
     char line[224];
 
     snprintf(line, sizeof(line),
-             "t=%lus frame=%lu underruns=%lu black=%lu snapfail=%lu "
-             "skew=%lu(%lu) gap=%luus long=%lu empty=%lu wof=%lu",
+             "t=%lus frame=%lu underruns=%lu skew=%lu(%lu) gap=%luus "
+             "long=%lu empty=%lu wof=%lu",
              (unsigned long)(now_us / 1000000u), (unsigned long)frames,
              (unsigned long)video_hw_underruns(),
-             (unsigned long)video_hw_black_rows(),
-             (unsigned long)video_hw_snapshot_fails(),
              (unsigned long)video_hw_skews(),
              (unsigned long)video_hw_last_frame_steps(),
              (unsigned long)video_hw_gap_max_us(),
@@ -267,10 +265,8 @@ void core1_entry(void)
                    (unsigned long)video_hw_scanline(),
                    (unsigned long)underruns,
                    (unsigned long)(underruns - last_underruns));
-            printf("video: black %lu snapfail %lu skew %lu(%lu) gap %lu us "
-                   "long %lu empty %lu wof %lu\n",
-                   (unsigned long)video_hw_black_rows(),
-                   (unsigned long)video_hw_snapshot_fails(),
+            printf("video: skew %lu(%lu) gap %lu us long %lu empty %lu "
+                   "wof %lu\n",
                    (unsigned long)video_hw_skews(),
                    (unsigned long)video_hw_last_frame_steps(),
                    (unsigned long)video_hw_gap_max_us(),

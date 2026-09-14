@@ -9,7 +9,8 @@ extern "C" {
 
 /* Register the display globals: ScreenMode, ScreenOut, ScreenAttr,
  * ScreenDefineTile, ScreenPalette, ScreenPaletteSet, ScreenClear,
- * ScreenPlot. Requires a running program (g_current_video). */
+ * ScreenPlot. Requires a running program; calls queue ops for core 0 to
+ * apply (see video.h). */
 void screen_lua_openlibs(lua_State *L);
 
 #ifdef __cplusplus

@@ -216,8 +216,11 @@ edges, or modifier-key events.
 
 ## Display (Screen API)
 
-Available as globals; they operate on the program's own video state
-(restored automatically when the program resumes after a launch).
+Available as globals; they operate on the program's own screen slot
+(restored automatically when the program resumes after a launch). Calls
+are queued to the display core and applied at the next frame boundary
+(50 Hz), so a change becomes visible on the following frame; a program
+that queues faster than a frame's worth of changes is briefly blocked.
 
 ### Screen modes
 
@@ -225,18 +228,17 @@ Available as globals; they operate on the program's own video state
 |---|---|---|---|
 | 0 | 40x30 tiles | 8x8 tiles + attribute map | B&W (invert attr applies) |
 | 1 | 40x30 tiles | 8x8 tiles + attribute map | per-cell invert + 7 colours |
-| 2 | 80x60 tiles | 8x8 tiles + attribute map | B&W |
-| 3 | 80x60 tiles | 8x8 tiles + attribute map | per-cell invert + 7 colours |
 | 10 | 320x240 | direct pixels | 256-entry palette |
 
-Output is always 640x480; modes 0/1/10 are scaled 2x. The RP2040 dev
-board supports modes 0 and 1 only.
+The 80x60 modes 2 and 3 are retired for now (`ScreenMode` returns
+`nil, err`). Output is always 640x480 at 50 Hz; the 320x240 logical
+modes are scaled 2x. The RP2040 dev board supports modes 0 and 1 only.
 
 ### Functions
 
 | Function | Returns |
 |---|---|
-| `ScreenMode(mode)` | `true`, or `nil, err` (invalid mode, unsupported board, out of memory for mode 10) |
+| `ScreenMode(mode)` | `true`, or `nil, err` (invalid mode, unsupported board) |
 | `ScreenZOrder(layer)` | `true`, or `nil, err`; selects the text layer that subsequent `ScreenOut`, `ScreenAttr`, and `ScreenClear` calls mutate; it does not reorder compositing |
 | `ScreenOut(x, y, char [, attr])` | `true`, or `nil, err` (text modes) |
 | `ScreenAttr(x, y, flags)` | `true`, or `nil, err` |
@@ -415,7 +417,7 @@ resources are addressed relative to its bundle root, for example
 ## Not Yet Implemented
 
 The HDMI audio data-island output backend (Phase 7): the HSTX video path
-is live on the product board (RGB332 scanout, 640x480@60), but audio is
+is live on the product board (RGB332 scanout, 640x480 at 50 Hz), but audio is
 still simulator-only. Programs run fully in the simulator; the sound
 engine itself is complete and host-tested meanwhile.
 

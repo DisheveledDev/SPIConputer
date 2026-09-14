@@ -24,48 +24,41 @@
 #include "screen_lua.h"
 
 static program_t s_pool[PROGRAM_MAX];
+_Static_assert(PROGRAM_MAX <= VIDEO_SLOTS,
+               "every program needs its own screen slot (video.h)");
 static program_t *s_top = NULL;
 static uint32_t s_next_pid = 0;
 
-/* Deferred video/audio state frees.
+/* Deferred audio state frees.
  *
- * Core 0's scanout snapshots g_current_video once per frame, but a
- * program pop can land mid-frame: freeing immediately would pull the
- * state out from under a scanline. Terminated states are parked here
- * for two frame boundaries instead. */
+ * A program pop can land mid-frame; the audio path may still be reading
+ * the state, so terminated states are parked here for two frame
+ * boundaries instead. */
 #define PROGRAM_RETIRE_MAX PROGRAM_MAX
 
 typedef struct {
     bool used;
     uint32_t when; /* free once the frame counter reaches this */
-    video_state_t *video;
     audio_state_t *audio;
 } program_retire_t;
 
 static program_retire_t s_retire[PROGRAM_RETIRE_MAX];
 
-static void program_retire(video_state_t *video, audio_state_t *audio) {
-    if (!video && !audio) {
+static void program_retire(audio_state_t *audio) {
+    if (!audio) {
         return;
     }
     for (int i = 0; i < PROGRAM_RETIRE_MAX; i++) {
         if (!s_retire[i].used) {
             s_retire[i].used = true;
             s_retire[i].when = g_system_state.video_frame_count + 2;
-            s_retire[i].video = video;
             s_retire[i].audio = audio;
             return;
         }
     }
     /* Queue full (cannot happen with one pop per frame): free now. */
-    if (video) {
-        video_state_free(video);
-        free(video);
-    }
-    if (audio) {
-        audio_state_free(audio);
-        free(audio);
-    }
+    audio_state_free(audio);
+    free(audio);
 }
 
 void program_retire_reap(uint32_t frame_count) {
@@ -73,10 +66,6 @@ void program_retire_reap(uint32_t frame_count) {
         program_retire_t *r = &s_retire[i];
         if (!r->used || (int32_t)(frame_count - r->when) < 0) {
             continue;
-        }
-        if (r->video) {
-            video_state_free(r->video);
-            free(r->video);
         }
         if (r->audio) {
             audio_state_free(r->audio);
@@ -144,7 +133,6 @@ void program_init(void) {
     memset(s_retire, 0, sizeof(s_retire));
     s_top = NULL;
     s_next_pid = 0;
-    video_current_store(NULL);
     g_current_audio = NULL;
 }
 
@@ -376,23 +364,9 @@ static program_t *program_create(const char *name, const char *source,
     lua_setglobal(p->L, "pid");
     p->vsync_last_frames = g_system_state.video_frame_count;
 
-    if (p->requires_video) {
-        p->video = (video_state_t *)malloc(sizeof(video_state_t));
-        if (!p->video) {
-            lua_close(p->L);
-            pool_free(p);
-            *err = "out of memory";
-            return NULL;
-        }
-        video_state_init(p->video);
-    }
     if (p->requires_audio) {
         p->audio = (audio_state_t *)malloc(sizeof(audio_state_t));
         if (!p->audio) {
-            if (p->video) {
-                video_state_free(p->video);
-                free(p->video);
-            }
             lua_close(p->L);
             pool_free(p);
             *err = "out of memory";
@@ -409,13 +383,29 @@ bool program_pcall(program_t *p, int fn_ref) {
     return lua_pcall(p->L, 0, 0, 0) == LUA_OK;
 }
 
+/* Point core 0 at the screen slot a program owns: its pool index. The
+ * display state itself never leaves core 0; this only queues a slot
+ * select (and, on launch, the reset that clears the slot). */
+static void program_select_screen(program_t *p, bool reset) {
+    if (!p || !p->interactive || !p->requires_video) {
+        return;
+    }
+    video_op_t slot = {.op = VIDEO_OP_SLOT, .a = (uint8_t)(p - s_pool)};
+    video_op_put(&slot);
+    if (reset) {
+        video_op_t op = {.op = VIDEO_OP_RESET};
+        video_op_put(&op);
+        video_note_mode(VIDEO_MODE_TEXT40);
+    }
+}
+
 /* Pop `p` from the stack (p must be the top) and resume the parent. */
 static void program_pop(program_t *p) {
     s_top = p->next;
     if (s_top) {
         program_resume(s_top);
     }
-    video_current_store((s_top && s_top->requires_video) ? s_top->video : NULL);
+    program_select_screen(s_top, false);
     g_current_audio = (s_top && s_top->requires_audio) ? s_top->audio : NULL;
 }
 
@@ -438,9 +428,9 @@ void program_terminate(program_t *p) {
         }
     }
     lua_close(p->L);
-    /* Core 0 may still be mid-scanline on these states: park them until
-     * the scanout has crossed a frame boundary (see program_retire). */
-    program_retire(p->video, p->audio);
+    /* The audio path may still be reading the state; park it until two
+     * frame boundaries have passed (see program_retire). */
+    program_retire(p->audio);
     program_pop(p); /* reads p->next: must run before pool_free zeroes it */
     pool_free(p);
 }
@@ -464,7 +454,8 @@ static int launch_common(const char *name, const char *source, size_t len,
         *err = "too many arguments";
         return -1;
     }
-    if (s_top && s_top->requires_video && s_top->video->mode == VIDEO_MODE_PIXEL) {
+    if (s_top && s_top->requires_video &&
+        video_lua_mode() == VIDEO_MODE_PIXEL) {
         /* Memory policy: mode 10 is single-program (see AGENTS.md). */
         *err = "cannot launch from mode 10";
         return -1;
@@ -495,7 +486,7 @@ static int launch_common(const char *name, const char *source, size_t len,
     p->next = s_top;
     s_top = p;
     if (p->interactive) {
-        video_current_store(p->video);
+        program_select_screen(p, true);
         g_current_audio = p->audio;
     }
 
@@ -504,10 +495,6 @@ static int launch_common(const char *name, const char *source, size_t len,
         /* Setup failed: the program never started; close it without
          * finish() and resume the parent. */
         lua_close(p->L);
-        if (p->video) {
-            video_state_free(p->video);
-            free(p->video);
-        }
         if (p->audio) {
             audio_state_free(p->audio);
             free(p->audio);

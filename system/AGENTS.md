@@ -108,17 +108,25 @@ Changing screen mode frees any previous display buffer memory.
 **Core split (video core / OS core).** Core 0 does one thing: the HSTX
 scanout. `core0/main.c` sets the clock, brings the display up (`video_hw_init`),
 launches core 1, then alternately pumps the render (`video_hw_poll`)
-and idles in WFI while the video DMA IRQ feeds the display from
-`g_current_video`. Rendering runs in that loop, never in an ISR: the DMA
+and idles in WFI while the video DMA IRQ feeds the display from core
+0's screen slots (see video.h). Rendering runs in that loop, never in an
+ISR: the DMA
 completion must be able to preempt it, or the 8-word HSTX FIFO starves
 while a row is drawn. Core 1
 (`core1/lua_main.c`) runs everything else: stdio, FatFs + the SD SPI,
 the 1 kHz input tick, the watchdog and the Lua scheduler. Consequences
 worth remembering:
 
-- The only cross-core object is `g_system_state.video_frame_count`
-  (written by core 0 at each vertical blank, read by core 1). No RPC, no
-  queues, no locks elsewhere.
+- The cross-core objects are `g_system_state.video_frame_count`
+  (written by core 0 at each vertical blank, read by core 1) and the
+  display op queue (`video.h`): core 1 appends small ops (`ScreenOut`,
+  `ScreenPalette`, ...) and core 0 drains and applies them at each frame
+  boundary. No RPC, no locks.
+- The display state lives on **core 0** (one `video_state_t` slot per
+  program, ~10 KB each). Core 1 never reads or writes it, so there are
+  no frame snapshots and no cross-core copies; a full queue blocks the
+  drawing call until core 0's next drain, which paces drawing to the
+  frame rate.
 - IRQ affinity: each IRQ is enabled on the core that should take it.
   The video DMA IRQ (DMA_IRQ_2) on core 0; the SD
   SPI's DMA_IRQ_0, the input timer and USB on core 1. The SDK keeps one
@@ -156,16 +164,18 @@ the per-character invert + 7-colour attribute.
 |---|---|---|---|
 | 0 | 40x30 tiles (320x240) | 8x8 tiles + attribute map | 1-bit (B&W, invert attr) |
 | 1 | 40x30 tiles (320x240) | 8x8 tiles + attribute map | per-char invert + 7 colours |
-| 2 | 80x60 tiles | 8x8 tiles + attribute map | 1-bit |
-| 3 | 80x60 tiles | 8x8 tiles + attribute map | per-char invert + 7 colours |
-| 10 | 320x240 | direct pixel | 8-bit colour, ~76 KB buffer (streamed out) |
+| 10 | 320x240 | direct pixel | 8-bit colour, core 0's shared 76 KB buffer |
+
+The 80x60 modes 2/3 are retired for now (`ScreenMode` refuses them).
 
 Resolution: **fixed 640x480 output for all modes** (single DVI timing,
-25.175 MHz pixel clock, configured once at boot — no mode-switch resync
+25.2 MHz pixel clock, configured once at boot — no mode-switch resync
 on the monitor). Modes 0/1 and 10 are logically 320x240 and rendered 2x:
 each tile pixel written twice horizontally and each output line sent twice
-(trivial in the scanline renderer; aspect ratio is preserved). Modes 2/3
-(80x60) render natively. Scanline buffers are always 640 px wide.
+(trivial in the scanline renderer; aspect ratio is preserved). Scanline
+buffers are always 640 px wide. The default refresh is **50 Hz** (800x630
+lines; `-DSPICOMPUTER_REFRESH_HZ=60` selects the VESA 525-line timing),
+which gives core 0 a 4.8 ms vblank for collecting the op queue.
 
 Board restriction: the RP2040 dev board supports Mode 0 and Mode 1 only
 (B&W 40x30 text over the serial mirror).
@@ -185,13 +195,14 @@ uses palette entry `c+1` (0 = default white); background is palette
 entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
 
 **Implemented (Phase 1, firmware-side scope):**
-- `render.c` — platform-neutral scanline renderer (`render_line(y, out)`,
-  640 RGB888 per line, 2x scaling for modes 0/1/10), host-tested against
-  golden output. Uses the font8x8 ROM font for undefined tiles.
-- `screen_lua.c` — the API above; mutations bump `video_state.version`.
+- `render.c` — platform-neutral scanline renderer (`render_line(ly, out)`,
+  640 RGB888 per logical row, 2x scaling), host-tested against golden
+  output. Uses the font8x8 ROM font for undefined tiles.
+- `screen_lua.c` — the API above; each call queues an op for core 0.
   Text modes provide three composited content/attribute layers.
-- Mode 10 allocates its 320x240 framebuffer on demand; per the memory
-  policy, `Launch` from a mode 10 program fails.
+- Mode 10 uses core 0's shared 320x240 pixel buffer; entering the mode
+  attaches and clears it, and per the memory policy `Launch` from a
+  mode 10 program fails.
 
 **Implemented (Phase 7, video):**
 - CPU clock: `core0/main.c` overclocks `clk_sys` to 378 MHz (3x the stock
@@ -209,8 +220,9 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   scales the QMI divider and RX sampling delay to keep the flash clock and
   the sample point in the data eye unchanged. If the requested clock is
   not exactly attainable the firmware falls back to 126 MHz.
-- HSTX video: TMDS expansion for RGB332, fixed 640x480@60 with negative
-  sync polarity; `clk_hstx` is divided down from `clk_sys` to 126 MHz so
+- HSTX video: TMDS expansion for RGB332, fixed 640x480 with negative
+  sync polarity (50 Hz vertical timing by default); `clk_hstx` is
+  divided down from `clk_sys` to 126 MHz so
   the pixel clock is 25.2 MHz at any supported CPU clock (the boot log
   prints the divisor and pixel clock, and warns if no divisor is close).
 - Scanout pipeline: `scanout.c` sequences the ping/pong DMA (43 vblank
@@ -239,15 +251,15 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   vertical blank; `WaitVSync([ms])` in `sys_lua.c` reports frames elapsed
   since the program's previous call. HSTX audio data islands remain the
   only deferred Phase 7 piece.
-- Video states are freed two frame boundaries after a program terminates
-  (the `program.c` retire queue), so a scanline in flight cannot touch
-  freed memory; `video_set_mode` publishes the framebuffer before the mode
-  byte with a release fence.
+- Program screens persist across launches: each program owns a core 0
+  slot (its pool index), selected by a queued op on launch and on exit,
+  so returning to the shell restores its screen with no copy.
 - Attribute bit 6 is reserved for transparent overlay cells.
 
 **Implementation notes to resolve during planning:**
-- HDMI over HSTX; 640x480@60 pixel clock (25.175 MHz) is well within RP2350
-  capability. The SDK itself does not ship scanvideo; `pico_scanvideo_dpi`
+- HDMI over HSTX; fixed 640x480 with a 25.2 MHz pixel clock (VESA's
+  25.175 MHz spec), 50 Hz vertical timing by default. The SDK itself
+  does not ship scanvideo; `pico_scanvideo_dpi`
   from pico-extras is the likely base (verify its RP2350/HSTX support).
 - Memory budget: RP2350 has 520 KB RAM. 76 KB pixel buffer + 2 KB per tile
   set is fine, but per-program video snapshots need a memory policy
@@ -374,10 +386,11 @@ developed and driven on the dev board before HDMI hardware exists.
   *tag*, not a size (only `nsize` is accounted), otherwise the byte
   accounting underflows under churn and every program dies with a bogus
   "not enough memory" (host regression: `test_alloc_churn`).
-- Per-program video state is **heap-allocated** (28 KB, outside the Lua
-  heap budget) and owned by its program; save/restore on the stack is a
-  pointer swap of `g_current_video`. The copy-based snapshot from the
-  original plan is unnecessary while states are per-program.
+- Per-program **screen slots** live on core 0 (one ~10 KB state per
+  program; no heap use on core 1). The program's only display memory is
+  the small op queue (`video.h`), drained by core 0 at frame boundaries;
+  the Lua API blocks only when that queue is full. The audio state
+  remains heap-allocated per program (outside the Lua heap budget).
 - Exit semantics: `ExitProgram()` sets a flag checked after the current
   tick/timer callback; a throwing `tick()`/timer callback also terminates
   the program. `finish()` runs either way (only if `setup()` completed).

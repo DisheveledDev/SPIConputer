@@ -40,12 +40,10 @@ static bool screen_contains(const video_state_t *v, const char *needle) {
     if (!v || v->mode == VIDEO_MODE_PIXEL) {
         return false;
     }
-    int cols = video_char_cols(v);
-    int rows = video_char_rows(v);
     size_t n = strlen(needle);
-    for (int y = 0; y < rows; y++) {
-        for (int x = 0; x + (int)n <= cols; x++) {
-            if (memcmp(&v->char_map[0][y * cols + x], needle, n) == 0) {
+    for (int y = 0; y < VIDEO_ROWS; y++) {
+        for (int x = 0; x + (int)n <= VIDEO_COLS; x++) {
+            if (memcmp(&v->char_map[0][y * VIDEO_COLS + x], needle, n) == 0) {
                 return true;
             }
         }
@@ -171,17 +169,19 @@ int main(void) {
             printf("TEST FAIL: shell is not pid 0\n");
             g_failures++;
         }
-        if (video_current_load() != shell->video) {
-            printf("TEST FAIL: video state not current\n");
+        /* setup() already ran: apply its queued ops to the screen
+         * slots, then read the slot the shell selected. */
+        video_ops_drain();
+        if (video_screen_index() != 0) {
+            printf("TEST FAIL: shell did not select slot 0\n");
             g_failures++;
         }
-        /* setup() already ran: the fixture drew its marker in mode 1. */
-        if (shell->video->mode != VIDEO_MODE_TEXT40C) {
+        if (video_screen()->mode != VIDEO_MODE_TEXT40C) {
             printf("TEST FAIL: boot program did not set mode 1 (got %d)\n",
-                   shell->video->mode);
+                   video_screen()->mode);
             g_failures++;
         }
-        if (!screen_contains(shell->video, "RE")) {
+        if (!screen_contains(video_screen(), "RE")) {
             printf("TEST FAIL: boot program screen output missing\n");
             g_failures++;
         }
@@ -189,7 +189,7 @@ int main(void) {
         program_scheduler_step();
         /* Quit the shell cleanly. */
         program_terminate(shell);
-        if (program_top() != NULL || video_current_load() != NULL) {
+        if (program_top() != NULL) {
             printf("TEST FAIL: stack not empty after shell exit\n");
             g_failures++;
         }

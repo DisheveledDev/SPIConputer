@@ -348,16 +348,17 @@ static void test_rgb332(void) {
 
 static void test_render332_matches_reference(void) {
     video_state_t v;
+    static uint8_t fb[VIDEO_FB_COLS * VIDEO_FB_ROWS];
     uint8_t ref[RENDER_LINE_BYTES];
     uint32_t words[RENDER332_WORDS_PER_LINE];
     const int modes[] = {VIDEO_MODE_TEXT40, VIDEO_MODE_TEXT40C,
-                         VIDEO_MODE_TEXT80, VIDEO_MODE_TEXT80C,
                          VIDEO_MODE_PIXEL};
 
     render332_init();
     for (int m = 0; m < (int)(sizeof(modes) / sizeof(modes[0])); m++) {
         video_state_init(&v);
-        CHECK(video_set_mode(&v, modes[m]), "set video mode");
+        v.mode = (uint8_t)modes[m];
+        v.framebuf = (v.mode == VIDEO_MODE_PIXEL) ? fb : NULL;
 
         for (int i = 0; i < VIDEO_COLS * VIDEO_ROWS; i++) {
             v.char_map[0][i] = (uint8_t)('A' + (i * 7) % 26);
@@ -369,6 +370,7 @@ static void test_render332_matches_reference(void) {
         for (int i = 0; i < 256; i++) {
             v.palette[i] = (uint32_t)(i * 0x010101) | 0x001020u;
         }
+        render332_invalidate_palette();
         if (v.mode == VIDEO_MODE_PIXEL) {
             /* Vary by column *and* row: patterns that repeat every
              * 256 bytes can hide a wrong framebuffer row. */
@@ -379,9 +381,9 @@ static void test_render332_matches_reference(void) {
             }
         }
 
-        for (int y = 0; y < RENDER_OUT_HEIGHT; y += 29) {
-            render_line(&v, y, ref);
-            render_line_332(&v, y, words);
+        for (int ly = 0; ly < VIDEO_ROWS; ly += 7) {
+            render_line(&v, ly, ref);
+            render_line_332(&v, ly, words);
 
             for (int x = 0; x < RENDER_OUT_WIDTH; x += 29) {
                 uint32_t ref_rgb = ((uint32_t)ref[x * 3] << 16) |
@@ -393,11 +395,6 @@ static void test_render332_matches_reference(void) {
                 CHECK(got == want, "render332 pixel matches reference");
             }
         }
-
-        CHECK(render332_is_2x(&v) ==
-                  (modes[m] != VIDEO_MODE_TEXT80 &&
-                   modes[m] != VIDEO_MODE_TEXT80C),
-              "2x classification");
     }
 }
 
@@ -409,20 +406,12 @@ static void test_text_cell_masks(void) {
     video_state_init(&v);
     v.char_map[0][0] = '#';
     v.palette[1] = 0xff0000;
-    v.version++;
+    render332_invalidate_palette();
     render_line_332(&v, 0, words);
     CHECK(words[0] == 0xe0e00000u, "2x cell first word preserves pixel order");
     CHECK(words[1] == 0x0000e0e0u, "2x cell second word preserves pixel order");
     CHECK(words[2] == 0xe0e0e0e0u, "2x cell third word preserves pixel order");
     CHECK(words[3] == 0x00000000u, "2x cell fourth word preserves pixel order");
-
-    CHECK(video_set_mode(&v, VIDEO_MODE_TEXT80), "switch to 1x text mode");
-    v.char_map[0][0] = '#';
-    v.palette[1] = 0xff0000;
-    v.version++;
-    render_line_332(&v, 0, words);
-    CHECK(words[0] == 0x00e0e000u, "1x cell first word preserves pixel order");
-    CHECK(words[1] == 0x0000e0e0u, "1x cell second word preserves pixel order");
 }
 
 /* ------------- test 8: palette version cache ------------- */
@@ -437,17 +426,17 @@ static void test_palette_cache(void) {
     v.attr_map[0][0] = 0x00;
 
     v.palette[1] = 0xff0000;
-    v.version++;
+    render332_invalidate_palette();
     render_line_332(&v, 0, words);
     uint32_t red = words[2];
 
     v.palette[1] = 0x0000ff;
     render_line_332(&v, 0, words);
-    CHECK(words[2] == red, "palette LUT stays cached without a version bump");
+    CHECK(words[2] == red, "palette LUT stays cached until invalidated");
 
-    v.version++;
+    render332_invalidate_palette();
     render_line_332(&v, 0, words);
-    CHECK(words[2] != red, "palette change is picked up via version");
+    CHECK(words[2] != red, "invalidated palette is rebuilt");
 }
 
 int main(void) {

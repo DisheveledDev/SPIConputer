@@ -124,15 +124,7 @@ static const uint32_t s_vactive_cmdlist[] = {
 /* ------------------------------------------------------------------ */
 
 static scanout_t s_scanout;
-static video_state_t s_frame_video[2];
-static uint8_t s_frame_framebuf[2][VIDEO_FB_COLS * VIDEO_FB_ROWS];
-static const video_state_t *s_frame_source;
-static const video_state_t *s_frame_video_ptr;
-static unsigned s_frame_slot;
-static bool s_frame_video_valid;
-static bool s_frame_snapshot_pending;
 static uint32_t s_ring[SCANOUT_RING_LINES][SCANOUT_WORDS_PER_LINE];
-static uint32_t s_black_line[SCANOUT_WORDS_PER_LINE];
 
 /* Rendering runs in core 0's main loop (video_hw_poll), never in an
  * IRQ: the DMA completion IRQ must be able to preempt it at any point,
@@ -141,14 +133,17 @@ static uint32_t s_black_line[SCANOUT_WORDS_PER_LINE];
  * exactly that, so the IRQ only raises this flag. */
 static volatile bool s_render_pending;
 
+/* A frame boundary passed: collect the ops core 1 queued and apply them
+ * to the screen slots before rendering the next frame. Set from the
+ * scanout ISR (scanout_frame_begin), handled in video_hw_poll. */
+static volatile bool s_drain_pending;
+
 static int s_dma_ping;
 static int s_dma_pong;
 static bool s_started;
 
 /* Bring-up diagnostics (read by core 1 once per second; see
  * video_hw.h). Counters are cumulative since boot. */
-static uint32_t s_diag_black_rows;
-static uint32_t s_diag_snapshot_fails;
 static uint32_t s_diag_fifo_empty;
 static uint32_t s_diag_fifo_wofs;
 static uint32_t s_diag_gap_max_us;
@@ -248,19 +243,13 @@ void __not_in_flash_func(scanout_frame_begin)(scanout_t *s) {
     s->rows_total = RENDER_OUT_HEIGHT;
     s->row_2x = false;
 #else
-    const video_state_t *source = video_current_load();
-    bool dirty = source != s_frame_source || !s_frame_video_valid;
-    if (source != NULL && s_frame_video_valid && source == s_frame_source &&
-        source->version != s_frame_video_ptr->version) {
-        dirty = true;
-    }
-    s_frame_source = source;
-    s_frame_snapshot_pending = source != NULL && dirty;
-    s->rows_total = (source && render332_is_2x(source))
-                        ? RENDER_OUT_HEIGHT / 2
-                        : RENDER_OUT_HEIGHT;
-    s->row_2x = source && render332_is_2x(source);
+    /* Logical geometry is fixed: 240 rows, every row scanned twice.
+     * Core 1's queued ops are collected at this boundary (see
+     * video_hw_poll) before the next frame is rendered. */
+    s->rows_total = VIDEO_ROWS;
+    s->row_2x = true;
 #endif
+    s_drain_pending = true;
 }
 
 #if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
@@ -408,55 +397,26 @@ static void __not_in_flash_func(render_test_line)(uint32_t row,
  * scanout_ring_publish() detects that and drops the stale row, and the
  * loop re-reads the geometry for the new frame. */
 static void __not_in_flash_func(render_rows)(void) {
-#if !defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
-    if (s_frame_snapshot_pending) {
-        const video_state_t *source = video_current_load();
-        if (source == NULL) {
-            s_frame_source = NULL;
-            s_frame_video_ptr = NULL;
-            s_frame_video_valid = false;
-            s_frame_snapshot_pending = false;
-        } else {
-            unsigned next = s_frame_slot ^ 1u;
-            if (video_state_snapshot_copy(source, &s_frame_video[next],
-                                          s_frame_framebuf[next],
-                                          sizeof(s_frame_framebuf[next]))) {
-                s_frame_slot = next;
-                s_frame_source = source;
-                s_frame_video_ptr = &s_frame_video[next];
-                s_frame_video_valid = true;
-                s_frame_snapshot_pending = false;
-                s_scanout.rows_total = render332_is_2x(s_frame_video_ptr)
-                                            ? RENDER_OUT_HEIGHT / 2
-                                            : RENDER_OUT_HEIGHT;
-                s_scanout.row_2x = render332_is_2x(s_frame_video_ptr);
-            } else {
-                s_diag_snapshot_fails++;
-            }
+    if (s_drain_pending) {
+        /* New frame: apply the ops core 1 queued while the old one was
+         * on screen, then render from the (possibly new) slot. */
+        s_drain_pending = false;
+        if (video_ops_drain()) {
+            render332_invalidate_palette();
         }
     }
-#endif
+
+    const video_state_t *video = video_screen();
     while (scanout_ring_can_publish(&s_scanout)) {
-        const video_state_t *video = s_frame_video_valid
-                                         ? s_frame_video_ptr
-                                         : NULL;
         uint32_t row = s_scanout.rows_published;
         uint32_t *dst = scanout_ring_next(&s_scanout);
 
 #if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
         (void)video;
-        /* One pattern row per output line (geometry forced below). */
+        /* One pattern row per output line (geometry forced above). */
         render_test_line(row, dst);
 #else
-        if (video != NULL) {
-            render_line_332(video, (int)row * (s_scanout.row_2x ? 2 : 1),
-                            dst);
-        } else {
-            /* No program owns the screen (boot, or a gap between
-             * programs): publish black so the frame stays complete. */
-            memcpy(dst, s_black_line, sizeof(s_black_line));
-            s_diag_black_rows++;
-        }
+        render_line_332(video, (int)row, dst);
 #endif
         if (!scanout_ring_publish(&s_scanout, row)) {
             break; /* a frame boundary passed: re-read the geometry */
@@ -615,7 +575,8 @@ void video_hw_init(void) {
     reset_unreset_block_num_wait_blocking(RESET_HSTX);
 
     render332_init();
-    memset(s_black_line, 0, sizeof(s_black_line));
+    /* Core 0 owns the display state; core 1 only queues ops for it. */
+    video_screens_init();
 #if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
     pattern_init(); /* build the static pattern rows before the DMA runs */
 #endif
@@ -629,8 +590,8 @@ void video_hw_init(void) {
         memset(s_scanout.ring[slot], 0, sizeof(s_ring[0]));
     }
     /* The ring is zeroed (black) and rows_published is 0, so the first
-     * frame shows black until the render pump has data: the scanout is
-     * live before core 1 (and any program's video) exists. */
+     * frame shows the active slot until the render pump has data: the
+     * scanout is live before core 1 (and any program) exists. */
     scanout_frame_begin(&s_scanout);
 
     /* Clock the peripheral before enabling its CSR. HSTX is clocked
@@ -662,14 +623,6 @@ uint32_t video_hw_scanline(void) {
 
 uint32_t video_hw_underruns(void) {
     return s_scanout.underruns;
-}
-
-uint32_t video_hw_black_rows(void) {
-    return s_diag_black_rows;
-}
-
-uint32_t video_hw_snapshot_fails(void) {
-    return s_diag_snapshot_fails;
 }
 
 uint32_t video_hw_skews(void) {
