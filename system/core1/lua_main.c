@@ -254,6 +254,17 @@ void core1_entry(void)
                    (unsigned long)video_hw_long_gaps(),
                    (unsigned long)video_hw_fifo_empty(),
                    (unsigned long)video_hw_fifo_wofs());
+            sd_log("video: frame=%lu scanline=%lu underruns=%lu "
+                   "queue=%lu drains=%lu slot=%d mode=%d base_out=%lu "
+                   "overlay_out=%lu",
+                   (unsigned long)frames,
+                   (unsigned long)video_hw_scanline(),
+                   (unsigned long)underruns,
+                   (unsigned long)video_ops_pending(),
+                   (unsigned long)video_ops_drain_count(),
+                   video_screen_index(), video_lua_mode(),
+                   (unsigned long)video_ops_base_out_count(),
+                   (unsigned long)video_ops_overlay_out_count());
             last_underruns = underruns;
 #endif
         }

@@ -20,6 +20,9 @@ static int s_screen_active;
 static video_op_t s_queue[VIDEO_QUEUE_OPS];
 static volatile uint32_t s_head; /* consumer: core 0 */
 static volatile uint32_t s_tail; /* producer: core 1 */
+static volatile uint32_t s_drain_count;
+static volatile uint32_t s_base_out_count;
+static volatile uint32_t s_overlay_out_count;
 
 /* Core-1-side shadow of the mode Lua last requested. */
 static uint8_t s_lua_mode;
@@ -68,6 +71,9 @@ void video_screens_init(void) {
     s_screen_active = 0;
     s_head = 0;
     s_tail = 0;
+    s_drain_count = 0;
+    s_base_out_count = 0;
+    s_overlay_out_count = 0;
     s_lua_mode = VIDEO_MODE_TEXT40;
 }
 
@@ -77,6 +83,22 @@ video_state_t *video_screen(void) {
 
 int video_screen_index(void) {
     return s_screen_active;
+}
+
+uint32_t video_ops_pending(void) {
+    return (uint32_t)(s_tail - s_head);
+}
+
+uint32_t video_ops_drain_count(void) {
+    return s_drain_count;
+}
+
+uint32_t video_ops_base_out_count(void) {
+    return s_base_out_count;
+}
+
+uint32_t video_ops_overlay_out_count(void) {
+    return s_overlay_out_count;
 }
 
 bool video_mode_valid(int mode) {
@@ -142,6 +164,7 @@ static bool apply_op(video_state_t *v, const video_op_t *op) {
             }
             return false;
         case VIDEO_OP_OUT:
+            s_base_out_count++;
             if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
                 v->mode != VIDEO_MODE_PIXEL) {
                 int idx = op->b * VIDEO_COLS + op->a;
@@ -159,6 +182,7 @@ static bool apply_op(video_state_t *v, const video_op_t *op) {
             apply_clear(v, op->a);
             return false;
         case VIDEO_OP_OVER_OUT:
+            s_overlay_out_count++;
             if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
                 v->mode != VIDEO_MODE_PIXEL) {
                 int idx = op->b * VIDEO_COLS + op->a;
@@ -198,6 +222,7 @@ static bool apply_op(video_state_t *v, const video_op_t *op) {
 }
 
 bool video_ops_drain(void) {
+    s_drain_count++;
     bool palette_changed = false;
     uint32_t tail = s_tail;
 

@@ -115,6 +115,10 @@ bool video_ops_drain(void);
 /* The screen the scanout renders from. */
 video_state_t *video_screen(void);
 int video_screen_index(void);
+uint32_t video_ops_pending(void);
+uint32_t video_ops_drain_count(void);
+uint32_t video_ops_base_out_count(void);
+uint32_t video_ops_overlay_out_count(void);
 
 /* Core-1-side shadow of the mode Lua last asked for. */
 int video_lua_mode(void);
