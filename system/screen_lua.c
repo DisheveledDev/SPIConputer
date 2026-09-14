@@ -220,6 +220,9 @@ static int overlay_out(lua_State *L) {
         lua_pushliteral(L, "out of range");
         return 2;
     }
+    char detail[64];
+    snprintf(detail, sizeof(detail), "screen_overlay_out=%d,%d", x, y);
+    fs_core0_debug_log(detail);
     put(VIDEO_OP_OVER_OUT, x, y, ch, (uint32_t)(attr & 0xff), 0);
     lua_pushboolean(L, true);
     return 1;
@@ -243,6 +246,7 @@ static int overlay_attr(lua_State *L) {
 static int overlay_clear(lua_State *L) {
     check_program(L);
     int ch = (int)luaL_optinteger(L, 1, ' ');
+    fs_core0_debug_log("screen_overlay_clear");
     put(VIDEO_OP_OVER_CLEAR, ch & 0xff, 0, 0, 0, 0);
     lua_pushboolean(L, true);
     return 1;
