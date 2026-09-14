@@ -122,6 +122,7 @@ directory.
 |---|---|
 | `InputPoll()` | the next pending input event as a table, or `nil` when none |
 | `InputControl(n)` | current joystick state for controller `n` (1 or 2) as `{up=, down=, left=, right=, fire=}` (booleans), or `nil` for invalid `n` |
+| `WaitVSync([ms])` | frames elapsed since this program's previous `WaitVSync` (blocking up to `ms`, default 100, for the next frame) |
 
 Event table shape:
 
@@ -171,6 +172,25 @@ Key codes:
 - Joystick direction bits (`dirs`): UP = 1, DOWN = 2, LEFT = 4,
   RIGHT = 8, FIRE = 16. One event per direction edge.
 
+### Frame synchronisation
+
+`WaitVSync([ms])` returns the number of video frames that arrived since
+this program's previous `WaitVSync` (the first call measures from program
+start). With no argument it waits up to 100 ms for a frame; with `ms` it
+waits up to that long; `WaitVSync(0)` polls once and returns immediately,
+which suits programs that already run from a timer.
+
+```lua
+function tick()
+    WaitVSync()          -- pace the tick to the 60 Hz display
+    ...                  -- draw the next frame
+end
+```
+
+On hardware without a display (dev boards, or a stalled scanout) the call
+simply times out and returns 0, so programs must not assume frames always
+advance.
+
 ### Optional input callbacks
 
 Instead of (or as well as) polling, a program may define these globals:
@@ -217,7 +237,7 @@ board supports modes 0 and 1 only.
 | Function | Returns |
 |---|---|
 | `ScreenMode(mode)` | `true`, or `nil, err` (invalid mode, unsupported board, out of memory for mode 10) |
-| `ScreenZOrder(layer)` | `true`, or `nil, err`; selects text layer 0, 1, or 2 |
+| `ScreenZOrder(layer)` | `true`, or `nil, err`; selects the text layer that subsequent `ScreenOut`, `ScreenAttr`, and `ScreenClear` calls mutate; it does not reorder compositing |
 | `ScreenOut(x, y, char [, attr])` | `true`, or `nil, err` (text modes) |
 | `ScreenAttr(x, y, flags)` | `true`, or `nil, err` |
 | `ScreenDefineTile(index, bytes)` | `true` (bytes = table of 8 row patterns or 8-byte string; bit 0 of a row is the leftmost pixel) |
@@ -229,9 +249,12 @@ board supports modes 0 and 1 only.
 Attribute byte: bit 7 = invert (swap fg/bg), bits 0-2 = colour index,
 bit 6 = transparent overlay cell. Colour index `c` uses palette entry `c+1`
 (so 0 = default white); the background is palette entry 0 (black). Text
-modes have three content/attribute pairs. Layer 0 is opaque; layers 1 and 2
-are composited above it and reveal lower layers wherever bit 6 is set.
-`ScreenClear()` clears the selected layer, making overlay cells transparent.
+modes have three content/attribute pairs. Layer 0 is always active and opaque;
+layers 1 and 2 are inactive until `ScreenOut` or `ScreenAttr` writes to them.
+Inactive overlays are skipped entirely by the renderer. Active overlays are
+composited above layer 0 and reveal lower layers wherever bit 6 is set.
+`ScreenClear()` clears the selected overlay and deactivates it; selecting a
+layer with `ScreenZOrder` alone does not activate it.
 Tiles not redefined render with the ROM font (ASCII-aligned, tile index =
 character code). Tile rows and ROM font rows share one convention: bit 0 is
 the leftmost pixel. A mode switch clears all layers; switching to mode 10
@@ -243,9 +266,10 @@ mode 10 fails).
 Available as globals; they operate on the program's own audio state
 (restored automatically when the program resumes after a launch). The
 engine renders 8 score channels plus 8 sound-effect voices, stereo, at
-44.1 kHz. The mix is designed to feed the HDMI audio data islands; the
-HSTX output backend lands with the Phase 7 hardware bring-up, so audio is
-not audible on the RP2040 dev board.
+44.1 kHz. The mix is designed to feed the HDMI audio data islands; that
+backend is still to come, so audio is only audible under the simulator.
+Screen updates are visible on the product board, which scans them out
+over HSTX (see `WaitVSync` above).
 
 ### Sounds and samples
 
@@ -343,14 +367,14 @@ upgrade to read+write. Default is `"r"`.
 | `f:close()` | `true` |
 
 Files are also closed automatically when garbage-collected or when the
-program exits. Note: all fs calls block the program until core 0 has
-serviced them (they are RPCs); a missing or ejected SD card produces
+program exits. Note: fs calls run synchronously on the OS core (they
+used to be cross-core RPCs); a missing or ejected SD card produces
 `nil, err`, never a crash.
 
 ## Loading Code from the SD Card
 
 - `loadfile(path)` / `dofile(path)` — replaced with SD-backed versions;
-  source files are compiled on core 1 and `.prg` files are loaded as Lua
+  source files are compiled on the OS core and `.prg` files are loaded as Lua
   5.5 binary chunks.
 - A `*.lua` load prefers the matching `*.prg` file when both are present.
   An explicit `*.prg` path is loaded directly.
@@ -390,9 +414,10 @@ resources are addressed relative to its bundle root, for example
 
 ## Not Yet Implemented
 
-The HDMI/HSTX video output path and the HDMI audio data-island output
-backend (hardware bring-up, Phase 7). Programs run fully in the simulator;
-the sound engine itself is complete and host-tested meanwhile.
+The HDMI audio data-island output backend (Phase 7): the HSTX video path
+is live on the product board (RGB332 scanout, 640x480@60), but audio is
+still simulator-only. Programs run fully in the simulator; the sound
+engine itself is complete and host-tested meanwhile.
 
 ## Card Programs
 

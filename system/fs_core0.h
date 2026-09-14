@@ -1,15 +1,25 @@
 /* fs_core0.h
  *
- * Core 0 side of the SD/filesystem RPC (Phase 4). Core 0 is the only
- * owner of FatFs and the SPI bus: all f_* calls happen here, inside
- * fs_core0_service(), driven by RPC requests from core 1. FIL handles
- * never leave core 0; core 1 sees handle ids.
+ * FatFs side of the filesystem interface (Phase 4). This is the only
+ * owner of FatFs and the SD SPI bus: all f_* calls happen here. FIL
+ * handles never leave this file; the Lua side sees handle ids.
+ *
+ * fs_core0_execute() runs one request inline (the normal firmware path:
+ * both sides are on the OS core). fs_core0_service() is the two-core
+ * variant used by the host harness and the desktop simulator.
  */
 #pragma once
 
 #include <stdbool.h>
 
-/* Mount the SD card (logical drive "0:"). Runs on core 0 only. */
+#include "rpc.h"
+
+/* Execute one filesystem request. The caller has already copied any
+ * outbound payload into rpc_staging(); inbound payload (if any) is in
+ * rpc_staging() on return. */
+void fs_core0_execute(const rpc_request_t *req, rpc_response_t *resp);
+
+/* Mount the SD card (logical drive "0:"). */
 bool fs_core0_mount(void);
 
 /* True if the SD card is mounted (core 0 side). */

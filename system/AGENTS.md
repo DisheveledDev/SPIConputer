@@ -20,21 +20,21 @@ or new detail is captured.
 | Piece | Status |
 |---|---|
 | Lua 5.5 core | Built as `lua_core` static lib (`lua/`, `lua.c`/`luac.c` excluded) |
-| SD card + FatFs | Vendored in `FatFs_SPI/` (carlk3 no-OS-FatFS-SD-SPI, patched for RP2350/RISC-V). Owned exclusively by core 0 (`fs_core0.c`) |
-| Lua `fs` module | `fs_lua.c` — open/read/write/seek/tell/size/close/flush/ls/find/stat/exists/mkdir/remove/rename/free/ready/readall/writeall, all over the core 1→0 RPC |
-| SD-backed loading | `dofile`/`loadfile` globals and `require()` searcher read via RPC; source is compiled on core 1 and `.prg` bytecode is loaded directly |
-| RPC transport | `rpc.c` + `system_state.h` — request/response slots, 4 KB staging buffer, semaphore wakeup; FatFs ops only (`rpc.h`) |
-| Boot flow | Core 0 mounts SD, services RPCs, feeds watchdog gated on core 1 heartbeat; core 1 boots `core/boot.lua`, which launches `core/os.lua` in the foreground, and runs the scheduler |
+| SD card + FatFs | Vendored in `FatFs_SPI/` (carlk3 no-OS-FatFS-SD-SPI, patched for RP2350/RISC-V). Owned by the OS core (`fs_core0.c`, `core1/`) |
+| Lua `fs` module | `fs_lua.c` — open/read/write/seek/tell/size/close/flush/ls/find/stat/exists/mkdir/remove/rename/free/ready/readall/writeall |
+| SD-backed loading | `dofile`/`loadfile` globals and `require()` searcher read through the fs layer; source is compiled on the OS core and `.prg` bytecode is loaded directly |
+| Filesystem call layer | `rpc.c`/`rpc.h` define the op codes, request/response shapes and the 4 KB staging buffer. Both sides run on the OS core, so `rpc_call` normally dispatches straight into `fs_core0_execute`; the original two-core slot transport survives only for builds that split them (host harness, desktop simulator) |
+| Boot flow | Core 0 (video) brings up HSTX and launches core 1 (OS). Core 1 owns stdio, mounts SD, starts the input tick, boots `core/boot.lua` (which launches `core/os.lua` in the foreground) and runs the scheduler, feeding the watchdog |
 | Process model | `program.c` — 4-program stack, per-program Lua state (64 KB heap cap), optional heap-allocated video/audio state, timers, per-program event rings; noninteractive utilities keep their isolated Lua state but return `UtilityResult` text to the parent via `UtilityPoll`; `sys_lua.c` exposes TimeNow/Pid/ExitProgram/Launch/Execute/ExecuteString/UtilityResult/UtilityPoll/TimerCreate/TimerStop/InputPoll/InputControl |
 | Shell / card programs | **Not in this repo.** `core/boot.lua`/`core/boot.prg`, the shell (`core/os.lua`/`core/os.prg`), installed apps, and other programs are SPIEdit projects developed outside the OS source tree (this workspace builds system outputs into `software/core/`, apps into `software/apps/`, and reserves `data/` for user files). The shell protects `core/`, lists apps with `APPS`, restricts file operations to `data/`, and launches programs from `apps/` or `data/`. It has no exit command: the shell is the OS. The OS only provides the runtime, `lua.md` the contract |
 | Lua API reference | `lua.md` — the developer contract (entry points, OS/functions/fs/input, limits); keep in sync with the implementation and use as the basis for the future IDE |
-| Display | `render.c` (scanline renderer, host-tested golden output) + `screen_lua.c` (ScreenMode/ZOrder/Out/Attr/DefineTile/Palette/Clear/Plot) with three composited text layers. HSTX/HDMI wiring deferred to Phase 7 |
+| Display | `render.c` (scanline renderer, host-tested golden output) + `screen_lua.c` (ScreenMode/ZOrder/Out/Attr/DefineTile/Palette/Clear/Plot) with three composited text layers. Product-board scanout: `render332.c` (RGB332 fast path, host-tested against `render.c`) + `scanout.c` (HSTX scanline sequencer, host-tested) + `core0/video_hw.c` (TMDS expander, ping/pong DMA, render ISR into an 8-line ring) |
 | Audio | `audio.c` (8-voice stereo synth, score scheduler, WAV sample voices) + `sound_lua.c` (Sound*/Music* API); per-program state like video; host-tested. HDMI data-island feed deferred to Phase 7 |
-| Input | `input.c` + `core0/input_hw.c` — 1 kHz matrix scan + joystick poll into a SPSC event queue (`system_state.h`); core 1 drains it in the scheduler loop |
+| Input | `input.c` + `core1/input_hw.c` — 1 kHz matrix scan + joystick poll into the event queue (`system_state.input`); the scheduler drains it between ticks. Producer and consumer are both on the OS core, so the ring indices are plain words |
 | Desktop terminal interface | Removed; display and input development now use the simulator |
 | Desktop simulator | `../simulator/` — sibling folder, not part of the OS. SDL2 app (macOS) running the real OS sources with `sdcard/` as the virtual SD card, an SDL window for video, queued audio, and keyboard/controller input; hardware files replaced by `sim_fs.c`/`sim_main.c` |
 | Desktop IDE | `../ide/macos` — sibling folder, not part of the OS. SwiftUI app managing component projects (manifest + Lua/tile/audio/snippet components) and building them into `.lua` source plus `.prg` Lua bytecode; new projects start with header/main/input/tick components. Editors show line numbers, syntax highlighting and autocomplete for Lua + SPIComputer APIs; a debounced compile check runs the OS's own Lua via `simulator --check` and maps errors back to component lines. Run writes both outputs into a run-folder SD card and boots the `.prg` directly with `simulator --boot` |
-| Host tests | `tests/host` — fs bridge + RPC round-trip over mock SD (incl. ejected-card errors), layered renderer, input engine, process model, audio engine/API, editor |
+| Host tests | `tests/host` — fs bridge (both the direct firmware path and the two-core slot transport) over mock SD (incl. ejected-card errors), scanout sequencer + RGB332 renderer, layered renderer, input engine, process model (retire queue, WaitVSync), audio engine/API, editor |
 
 Build (VS Code Pico extension or CLI):
 ```bash
@@ -105,6 +105,38 @@ code, e.g. `screen_data[0][0] = 'Z'`). Tiles are permanently defined as
 ROM font), which also keeps them mostly static and fast to index.
 Changing screen mode frees any previous display buffer memory.
 
+**Core split (video core / OS core).** Core 0 does one thing: the HSTX
+scanout. `core0/main.c` sets the clock, brings the display up (`video_hw_init`),
+launches core 1 and then idles in WFI while the video DMA IRQ and the
+render ISR feed the display from `g_current_video`. Core 1
+(`core1/lua_main.c`) runs everything else: stdio, FatFs + the SD SPI,
+the 1 kHz input tick, the watchdog and the Lua scheduler. Consequences
+worth remembering:
+
+- The only cross-core object is `g_system_state.video_frame_count`
+  (written by core 0 at each vertical blank, read by core 1). No RPC, no
+  queues, no locks elsewhere.
+- IRQ affinity: each IRQ is enabled on the core that should take it.
+  Video IRQs (DMA_IRQ_2, the render ISR's spare IRQ) on core 0; the SD
+  SPI's DMA_IRQ_0, the input timer and USB on core 1. The SDK keeps one
+  handler table but per-core enables, so no IRQ may be enabled on both.
+- The alarm pool/timer IRQ belongs to whichever core first uses it, so
+  core 0 must not call `sleep_ms()`, timers or `delay` functions - it
+  uses `busy_wait_us()` for the one regulator settle at boot. If it
+  claimed the pool, the input tick would be delivered to the video core.
+- stdio is core 1's: core 0 must not print. Anything core 0 wants
+  reported (the HSTX clock, scanline, underruns) is read through
+  `video_hw.h` getters and printed by core 1.
+- Stacks: core 1's SDK stack would live in SCRATCH_X (4 KB), so it is
+  given a 16 KB stack in main SRAM via
+  `multicore_launch_core1_with_stack()` (`PICO_CORE1_STACK_SIZE=0`);
+  core 0's `.stack` in SCRATCH_Y is 4 KB (`PICO_STACK_SIZE`).
+- Watchdog: fed from core 1's loop only while the loop is stepping *and*
+  the display is producing frames (a 250 ms stall limit, 5 s boot
+  grace). A stuck VM, a deadlock or a dead scanout all reset the board.
+  The boot phase runs with a longer 8 s period because the SD mount and
+  the first program load can outlast the normal one.
+
 **Tile-mode rendering (no pixel framebuffer):** core 0 renders scanlines on
 the fly. For output line y: row = y/8, subline = y%8; for each column x,
 look up the tile from the char map and fetch that tile's row byte
@@ -158,13 +190,55 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
 - Mode 10 allocates its 320x240 framebuffer on demand; per the memory
   policy, `Launch` from a mode 10 program fails.
 
-**Deferred to Phase 7 (product board bring-up):**
-- HSTX/HDMI output: vendoring an HSTX HDMI library — `pico_scanvideo_dpi`
-  (video only) or `pico_hdmi` (video + audio data islands, see the Audio
-  Subsystem section; only one library can own HSTX) — plus the fixed
-  640x480@60 timing and the DMA pipeline. The current state is
-  single-buffered (mid-frame tearing is bounded, see Q18); double-
-  buffered maps + vsync swaps land with the HSTX renderer.
+**Implemented (Phase 7, video):**
+- CPU clock: `core0/main.c` overclocks `clk_sys` to 378 MHz (3x the stock
+  126 MHz; core voltage 1.30 V) before stdio comes up, because a scanline
+  must never be missed and the display core still shares the clock (and
+  the bus) with the OS core. 378 MHz is chosen so `clk_hstx` can be
+  `clk_sys / 3 = 126 MHz`
+  and keep the exact 25.2 MHz pixel clock (the HSTX divider only divides
+  by 1..3). `SPICOMPUTER_SYS_CLOCK_KHZ` overrides the target; 400 MHz is
+  achievable but then `clk_hstx` is 133.3 MHz, i.e. a ~26.7 MHz pixel
+  clock and ~63.5 Hz refresh (off DVI spec but usually still locked),
+  while 252 MHz (2x) stays exact.
+  The QSPI flash is clocked from `clk_sys / PICO_FLASH_SPI_CLKDIV` (75 MHz
+  at boot), so `flash_scale_clock()` (SRAM-resident, before the jump)
+  scales the QMI divider and RX sampling delay to keep the flash clock and
+  the sample point in the data eye unchanged. If the requested clock is
+  not exactly attainable the firmware falls back to 126 MHz.
+- HSTX video: TMDS expansion for RGB332, fixed 640x480@60 with negative
+  sync polarity; `clk_hstx` is divided down from `clk_sys` to 126 MHz so
+  the pixel clock is 25.2 MHz at any supported CPU clock (the boot log
+  prints the divisor and pixel clock, and warns if no divisor is close).
+- Scanout pipeline: `scanout.c` sequences the ping/pong DMA (43 vblank
+  lines, a command list plus a pixel line per active line) into an 8-row
+  ring; `core0/video_hw.c` renders ahead in `SPARE_IRQ_0` (priority 0x40,
+  below `DMA_IRQ_2` at 0). The DMA IRQ never renders, so a scanline reload
+  has the whole blanking interval as slack.
+- Ring protocol (the failure mode this is built around): the ring holds
+  *rows of the current frame* in `row % SCANOUT_RING_LINES`; the producer
+  publishes rows only while `rows_published - rows_consumed <
+  SCANOUT_RING_AHEAD` (= RING - 2), because a buffer posted at completion
+  IRQ S is transferred between IRQs S+1 and S+2, so the two most recently
+  posted rows are still in the DMA pipeline and must not be overwritten.
+  At the end of the active region both counters reset and
+  `scanout_frame_begin()` refreshes the mode, so the vblank prefetch is
+  bounded (RING - 2 rows) and uses the geometry of the frame it feeds.
+  `scanout.c`/`scanout_frame_begin` run from SRAM (an XIP miss in the
+  sequencer would miss a line); the host tests in
+  `tests/host/scanout_test.c` drive this state machine and check the
+  *pixel data* that reaches the scanout plus the in-flight invariant, not
+  just the post order.
+  `video_hw_underruns()` counts scanlines that had to repeat (printed once
+  per second from the main loop).
+- Frame signal: `g_system_state.video_frame_count` is written at each
+  vertical blank; `WaitVSync([ms])` in `sys_lua.c` reports frames elapsed
+  since the program's previous call. HSTX audio data islands remain the
+  only deferred Phase 7 piece.
+- Video states are freed two frame boundaries after a program terminates
+  (the `program.c` retire queue), so a scanline in flight cannot touch
+  freed memory; `video_set_mode` publishes the framebuffer before the mode
+  byte with a release fence.
 - Attribute bit 6 is reserved for transparent overlay cells.
 
 **Implementation notes to resolve during planning:**
@@ -180,8 +254,8 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
 - **Keyboard:** external 8x8 matrix from a Commodore 64 keyboard connector,
   wired to GPIO: columns 0-7 read on GP20-27 (C64 PB0-7 order, pulled up),
   rows 0-7 driven on GP28-35 (C64 PA0-7 order, active low), RESTORE on
-  GP36 (active low, pulled up). Core 0 scans the matrix at 1 kHz from a
-  repeating timer IRQ.
+  GP36 (active low, pulled up). The OS core scans the matrix at 1 kHz
+  from a repeating timer IRQ.
 - **Controllers:** two DSUB9 joysticks, active-low (switch to GND, pulled
   up): stick 1 dirs GP37-40, stick 2 dirs GP43-46, fires GP6/GP7. Polled
   in the same 1 kHz tick, one event per direction/fire edge.
@@ -189,8 +263,8 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   event (key 0, `INPUT_MOD_RESTORE` set while held).
 - **RS232 keyboard-in:** `input=` lines on the RS232 link feed the same
   event path (the terminal app's keypresses).
-- All decoding/debouncing/computation happens in bare metal (core 0);
-  Lua only sees events. Debounce is N-samples-of-M (3 consecutive 1 kHz
+- All decoding/debouncing/computation happens in bare metal (the OS
+  core); Lua only sees events. Debounce is N-samples-of-M (3 consecutive 1 kHz
   samples). Matrix ghosting is accepted (shift+letter = 2 keys is fine,
   3-key chords are not guaranteed).
 
@@ -208,9 +282,11 @@ typedef struct {
 } input_event_t;
 ```
 
-Events are pushed by core 0 (only the 1 kHz input IRQ) into a
+Events are pushed by the 1 kHz input IRQ (the only producer) into a
 single-producer/single-consumer ring (`g_system_state.input`, 128 deep,
-drop-oldest on overflow); core 1 drains it between ticks (Phase 4).
+drop-oldest on overflow); the scheduler drains it between ticks
+(Phase 4). Producer and consumer are both on the OS core now, so the
+indices are plain words rather than atomics.
 
 **Key mapping (provisional):** the matrix positions map to ASCII via a
 PC-style lookup table in `input.c` (`input_key_table[64]`): letters are
@@ -263,10 +339,10 @@ developed and driven on the dev board before HDMI hardware exists.
 
   ```
   loop:
-    heartbeat++
     drain input events -> deposit into top program's event ring
     if a timer is due: run due timer callback(s)
     else: tick()
+    (feed the watchdog while this loop is stepping and video is alive)
   ```
 
   `tick()` runs as often and as fast as possible; a due timer delays the
@@ -307,8 +383,9 @@ developed and driven on the dev board before HDMI hardware exists.
   core 0's queue and go to the current top when drained; overflow drops
   oldest). Per-program event rings are 128 deep.
 - `lua_sethook` input-injection machinery is not required for input
-  (ticks are atomic and short). No debug hook yet; the heartbeat-gated
-  watchdog covers stuck ticks at system level.
+  (ticks are atomic and short). No debug hook yet; the watchdog (fed from
+  the scheduler loop, gated on the display producing frames) covers stuck
+  ticks at system level.
 - Long-running work inside a tick (e.g. blocking on SD I/O) blocks that
   program only; an explicit `os.wait*()`/yield API may come later if
   programs need to suspend mid-tick.
@@ -367,7 +444,7 @@ are the core patch type, samples are the later addition):
 - **One-shots**: `SoundPlay` triggers a single voice for sound effects
   without disturbing the score channels.
 - **Samples**: `SoundLoad(path)` streams a WAV (8/16-bit PCM, mono/stereo,
-  rate ≤ 48 kHz) through the fs RPC into the 64 KB per-program sample pool,
+  rate ≤ 48 kHz) through the fs layer into the 64 KB per-program sample pool,
   resampled linearly at playback; a loaded sample doubles as an instrument
   (C4 = original rate) usable with `SoundPlay` and in scores. WAV keeps
   decoding trivial; IMA ADPCM (WAV tag 0x11) remains a possible later 4:1
@@ -405,29 +482,43 @@ frees it.
 
 ## Core Architecture
 
-RP2350 has two Hazard3 (RISC-V) cores. Planned split:
+RP2350 has two Hazard3 (RISC-V) cores. The split is by *real-time
+criticality*, not by hardware vs software:
 
-- **Core 0 (hardware core):** scans the keyboard matrix and joysticks,
-  handles all general IO, and prepares/render bytes for HDMI output
-  (HSTX + DMA). "The core 0 implementation of all the underlying workings
-  will be paramount."
-- **Core 1 (Lua core):** runs the Lua engine(s) entirely by itself.
+- **Core 0 (video core):** the HSTX scanout and nothing else. It sets the
+  clock, brings up the display, launches core 1, and then idles in WFI
+  while the video DMA IRQ and the render ISR keep the display fed. No
+  stdio, no SD, no input, no watchdog, no alarm pool - nothing that could
+  delay a scanline or thrash the XIP cache under it.
+- **Core 1 (OS core):** everything else - stdio, FatFs and the SD SPI,
+  the 1 kHz input tick, the watchdog, and the Lua scheduler. Filesystem
+  calls are direct function calls now (no cross-core RPC), and input is
+  produced and consumed on the same core, so the only shared object in
+  the system is the video frame counter.
+
+This replaced the earlier "core 0 owns all I/O, core 1 runs Lua" split:
+a long SD read on core 0 shared the core, the XIP cache and the bus with
+the scanout, and every cross-core service (SD, input, heartbeat) needed a
+queue or a semaphore. Giving video a core of its own removes those
+liabilities; the cost is the affinity rules listed under "Core split"
+above (IRQ, timer-pool and stdio ownership).
 
 Performance is symmetric: both cores are identical Hazard3 RISC-V cores at
-the same clock (150 MHz), each with its own dedicated 16 KB XIP cache
-(RP2350 split the cache per core; RP2040 shared one 16 KB cache). The
-core split is about responsibility, not speed. Shared-bus contention is the
-only asymmetry to be aware of, and hot code (scanline renderer) can be
-copied to RAM (`__not_in_flash_func` / PICO_COPY_TO_RAM) on either core.
+the same clock (378 MHz, see the Phase 7 notes), each with its own
+dedicated XIP cache (RP2350 split the cache per core; RP2040 shared one).
+The core split is about responsibility, not speed. Hot code (the scanout
+sequencer, the DMA IRQs) lives in RAM (`__not_in_flash_func`).
 Both cores always run the same ISA (all-RISC-V or all-ARM, set at boot).
 
-Design principles agreed so far:
-- **Strict rule: ALL hardware I/O lives on core 0.** Core 1 never touches
-  peripherals; it may block waiting for I/O to complete (RPC).
-- Lua may mutate memory that core 0 reads (video state). All shared access
-  must be carefully guarded.
-- IRQs (SPI, HSTX/DMA, timers) pinned to core 0; core 1 stays IRQ-free for
-  deterministic VM behaviour.
+Design principles:
+- **Real-time isolation:** core 0 runs only the scanout. Anything added
+  there must justify itself against a missed scanline.
+- **Single-owner I/O:** each peripheral, IRQ and timer belongs to exactly
+  one core, and is initialised on that core (see the affinity rules).
+- Lua may mutate memory that core 0 reads (the current video state). The
+  retire queue and the frame counter are the only synchronisation: video
+  states are freed two frame boundaries after their program exits, so a
+  scanline in flight can never touch freed memory.
 
 **Agreed mechanics:**
 - *Video:* don't share a giant pixel buffer where avoidable. For tile modes,
@@ -435,20 +526,21 @@ Design principles agreed so far:
   scanline/framebuffer at frame rate. Swap pointers atomically at vsync
   (double-buffered map or release/acquire swap) instead of locking hot paths.
   Pixel mode (mode 10): double-buffered 76 KB framebuffers (~152 KB, fits).
-- *Input:* ~~implemented~~ core 0 decodes and enqueues events into a
-  single-producer single-consumer lock-free queue (`input.c`); core 1
-  drains the queue between ticks and deposits values for `tick()` to
-  read and clear (drain lands with the process model). No cross-core
-  Lua calls.
-- *SD card / fs:* ~~implemented~~ all FatFs + SPI1 work runs on core 0
-  (`fs_core0.c`). Lua `fs` calls on core 1 are blocking RPCs
-  (`rpc.c`): core 1 waits (multicore semaphore), core 0 performs the
-  operation, replies. FatFs is single-owner/reentrancy safe. `fs_lua.c`
-  (formerly `fatfs_lua.c`) sends RPCs and holds handle ids, never
-  `FIL*`.
-- *Watchdog:* ~~implemented~~ fed by core 0, gated on core 1's heartbeat
-  counter advancing (plus a boot grace period and RPC activity), so a
-  stuck Lua VM stops the feeds and resets the system.
+- *Input:* ~~implemented~~ the OS core's 1 kHz timer IRQ decodes and
+  enqueues events into a single-producer single-consumer ring
+  (`input.c`); the scheduler drains it between ticks and deposits values
+  for `tick()` to read and clear. Same core both sides, so the ring
+  indices are plain words. No cross-core Lua calls.
+- *SD card / fs:* ~~implemented~~ all FatFs + SPI1 work runs on the OS
+  core (`fs_core0.c`). `fs_lua.c` (formerly `fatfs_lua.c`) holds handle
+  ids, never `FIL*`, and reaches FatFs either directly
+  (`fs_core0_execute`, the firmware path) or through the retained
+  two-core slot transport (`rpc.c`, used by the host harness and the
+  simulator). FatFs is single-owner/reentrancy safe.
+- *Watchdog:* ~~implemented~~ fed by the OS core's scheduler loop while
+  the loop is stepping *and* core 0 is producing frames; a stuck Lua VM,
+  a deadlock or a frozen display resets the system. The boot phase (SD
+  mount, first program load) runs with a longer period.
 
 ## First Application: Editor
 
@@ -607,9 +699,10 @@ bridge logic stays testable without hardware.
 14. ~~Stack limits~~ settled: fixed pool of 4 programs, 64 KB Lua heap cap
     each, heap-allocated 28 KB video state per program (outside the Lua
     budget). GC tuning per state remains TBD if tick consistency suffers.
-15. ~~Core 1 heartbeat~~ settled: core 0 gates the watchdog feed on the
-    heartbeat counter advancing (plus boot grace and RPC activity); a
-    stuck tick/VM stops the feeds and resets the system.
+15. ~~Watchdog liveness~~ settled: the OS core feeds the watchdog while
+    its scheduler loop is stepping and core 0 is still producing frames
+    (boot grace and a longer boot period); a stuck tick/VM or a frozen
+    display resets the system.
 16. ~~Timer details~~ settled: 1 ms minimum resolution, callbacks take no
     arguments, `TimerCreate(fn, ms [, oneshot])` / `TimerStop(id)`.
 17. **SD program storage layout:** `core/` contains protected boot and OS

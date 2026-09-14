@@ -16,7 +16,9 @@
 #include "f_util.h"
 
 #include "fs_lua.h"
+#include "input.h"
 #include "os_time.h"
+#include "system_state.h"
 #include "sound_lua.h"
 #include "sys_lua.h"
 #include "screen_lua.h"
@@ -24,6 +26,73 @@
 static program_t s_pool[PROGRAM_MAX];
 static program_t *s_top = NULL;
 static uint32_t s_next_pid = 0;
+
+/* Deferred video/audio state frees.
+ *
+ * Core 0's scanout snapshots g_current_video once per frame, but a
+ * program pop can land mid-frame: freeing immediately would pull the
+ * state out from under a scanline. Terminated states are parked here
+ * for two frame boundaries instead. */
+#define PROGRAM_RETIRE_MAX PROGRAM_MAX
+
+typedef struct {
+    bool used;
+    uint32_t when; /* free once the frame counter reaches this */
+    video_state_t *video;
+    audio_state_t *audio;
+} program_retire_t;
+
+static program_retire_t s_retire[PROGRAM_RETIRE_MAX];
+
+static void program_retire(video_state_t *video, audio_state_t *audio) {
+    if (!video && !audio) {
+        return;
+    }
+    for (int i = 0; i < PROGRAM_RETIRE_MAX; i++) {
+        if (!s_retire[i].used) {
+            s_retire[i].used = true;
+            s_retire[i].when = g_system_state.video_frame_count + 2;
+            s_retire[i].video = video;
+            s_retire[i].audio = audio;
+            return;
+        }
+    }
+    /* Queue full (cannot happen with one pop per frame): free now. */
+    if (video) {
+        video_state_free(video);
+        free(video);
+    }
+    if (audio) {
+        audio_state_free(audio);
+        free(audio);
+    }
+}
+
+void program_retire_reap(uint32_t frame_count) {
+    for (int i = 0; i < PROGRAM_RETIRE_MAX; i++) {
+        program_retire_t *r = &s_retire[i];
+        if (!r->used || (int32_t)(frame_count - r->when) < 0) {
+            continue;
+        }
+        if (r->video) {
+            video_state_free(r->video);
+            free(r->video);
+        }
+        if (r->audio) {
+            audio_state_free(r->audio);
+            free(r->audio);
+        }
+        r->used = false;
+    }
+}
+
+int program_retire_pending(void) {
+    int n = 0;
+    for (int i = 0; i < PROGRAM_RETIRE_MAX; i++) {
+        n += s_retire[i].used;
+    }
+    return n;
+}
 
 /* ------------------------------------------------------------------ */
 /* Capped per-program heap                                             */
@@ -72,9 +141,10 @@ static void *capped_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
 
 void program_init(void) {
     memset(s_pool, 0, sizeof(s_pool));
+    memset(s_retire, 0, sizeof(s_retire));
     s_top = NULL;
     s_next_pid = 0;
-    g_current_video = NULL;
+    video_current_store(NULL);
     g_current_audio = NULL;
 }
 
@@ -304,6 +374,7 @@ static program_t *program_create(const char *name, const char *source,
     p->pid = s_next_pid++;
     lua_pushinteger(p->L, (lua_Integer)p->pid);
     lua_setglobal(p->L, "pid");
+    p->vsync_last_frames = g_system_state.video_frame_count;
 
     if (p->requires_video) {
         p->video = (video_state_t *)malloc(sizeof(video_state_t));
@@ -344,7 +415,7 @@ static void program_pop(program_t *p) {
     if (s_top) {
         program_resume(s_top);
     }
-    g_current_video = (s_top && s_top->requires_video) ? s_top->video : NULL;
+    video_current_store((s_top && s_top->requires_video) ? s_top->video : NULL);
     g_current_audio = (s_top && s_top->requires_audio) ? s_top->audio : NULL;
 }
 
@@ -367,14 +438,9 @@ void program_terminate(program_t *p) {
         }
     }
     lua_close(p->L);
-    if (p->video) {
-        video_state_free(p->video);
-        free(p->video);
-    }
-    if (p->audio) {
-        audio_state_free(p->audio);
-        free(p->audio);
-    }
+    /* Core 0 may still be mid-scanline on these states: park them until
+     * the scanout has crossed a frame boundary (see program_retire). */
+    program_retire(p->video, p->audio);
     program_pop(p); /* reads p->next: must run before pool_free zeroes it */
     pool_free(p);
 }
@@ -429,7 +495,7 @@ static int launch_common(const char *name, const char *source, size_t len,
     p->next = s_top;
     s_top = p;
     if (p->interactive) {
-        g_current_video = p->video;
+        video_current_store(p->video);
         g_current_audio = p->audio;
     }
 
@@ -648,6 +714,12 @@ static bool dispatch_input_callbacks(program_t *p, const input_event_t *ev) {
 
 void program_scheduler_step(void) {
     program_t *p = s_top;
+
+    /* Reap video/audio states whose two-frame grace period has passed
+     * (or, on the host, whose fake frame count has). Runs even with an
+     * empty stack so retired states cannot accumulate. */
+    program_retire_reap(g_system_state.video_frame_count);
+
     if (!p) {
         return;
     }

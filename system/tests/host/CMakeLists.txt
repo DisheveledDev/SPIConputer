@@ -175,3 +175,17 @@ target_include_directories(spicomputer_editor_tests PRIVATE
 )
 
 target_link_libraries(spicomputer_editor_tests m)
+
+# Scanout sequencer + RGB332 renderer (Phase 7): the frame structure is
+# checked against a memory trace and the fast renderer against render.c.
+add_executable(spicomputer_scanout_tests
+        scanout_test.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../scanout.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../render332.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../render.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../video.c
+)
+
+target_include_directories(spicomputer_scanout_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../..
+)

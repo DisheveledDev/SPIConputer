@@ -22,6 +22,7 @@
 #include "fs_lua.h"
 #include "fs_core0.h"
 #include "rpc.h"
+#include "input.h"
 #include "system_state.h"
 #include "program.h"
 
@@ -170,7 +171,7 @@ int main(void) {
             printf("TEST FAIL: shell is not pid 0\n");
             g_failures++;
         }
-        if (g_current_video != shell->video) {
+        if (video_current_load() != shell->video) {
             printf("TEST FAIL: video state not current\n");
             g_failures++;
         }
@@ -188,7 +189,7 @@ int main(void) {
         program_scheduler_step();
         /* Quit the shell cleanly. */
         program_terminate(shell);
-        if (program_top() != NULL || g_current_video != NULL) {
+        if (program_top() != NULL || video_current_load() != NULL) {
             printf("TEST FAIL: stack not empty after shell exit\n");
             g_failures++;
         }
@@ -351,6 +352,38 @@ int main(void) {
             }
         }
     }
+
+    /* Direct transport: the firmware installs fs_core0_execute as a
+     * local handler because both sides run on the OS core. With it
+     * installed, a filesystem call must complete inline - no wait hook,
+     * no service loop - which is what this checks: the previous test
+     * harness pumped fs_core0_service() from inside rpc_call, so a
+     * missing local dispatch would hang or fail here. */
+    printf("=== test 40: direct filesystem dispatch (firmware path) ===\n");
+    mock_set_file("direct.txt", "direct-ok");
+    mock_clear_boot_log();
+    rpc_set_local_handler(fs_core0_execute);
+    {
+        static const char *DIRECT_LUA =
+            "local g = fs.open('direct.txt', 'r')\n"
+            "local s = g:read(64)\n"
+            "g:close()\n"
+            "assert(s == 'direct-ok', 'read failed: ' .. tostring(s))\n"
+            "local f = fs.open('boot.log', 'a')\n"
+            "f:write('direct-write\\n')\n"
+            "f:close()\n";
+        /* No wait hook is bound inside rpc_set_local_handler's path, so
+         * this only succeeds if rpc_call dispatched inline. */
+        if (luaL_dostring(L, DIRECT_LUA) != LUA_OK) {
+            printf("TEST FAIL: direct dispatch: %s\n", lua_tostring(L, -1));
+            g_failures++;
+        }
+        if (strcmp(mock_boot_log(), "direct-write\n") != 0) {
+            printf("TEST FAIL: direct dispatch write: [%s]\n", mock_boot_log());
+            g_failures++;
+        }
+    }
+    rpc_set_local_handler(NULL); /* back to the two-core path */
 
     lua_close(L);
     if (g_failures == 0) {

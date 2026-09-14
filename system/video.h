@@ -12,6 +12,8 @@
  */
 #pragma once
 
+#include <stdatomic.h>
+#include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -31,6 +33,7 @@
 typedef struct {
     uint8_t mode; /* VIDEO_MODE_* */
     uint8_t z_order;
+    uint8_t layer_active[VIDEO_LAYERS];
 
     /* Tile modes 0/1/2/3. Layer 0 is the base, layers 1 and 2 are
      * transparent overlays. The maps are 80x60 (worst case); the active
@@ -51,15 +54,26 @@ typedef struct {
 
     uint32_t palette[256]; /* RGB888 */
 
-    /* Bumped by the screen module on every mutation; the serial
-     * mirror uses it to detect changes (headers + tile diffs). */
-    uint32_t version;
+    /* Even version = stable. A mutation changes this to odd before
+     * writing and back to the next even value after writing. The update
+     * flag blocks Lua mutations while core 0 copies a frame snapshot. */
+    volatile uint32_t version;
+    atomic_flag update_lock;
 } video_state_t;
 
 /* The active video state: points at the top program's video state.
- * Written only by program push/pop (core 1); read by the renderer and
- * the serial mirror (core 0). */
-extern video_state_t *g_current_video;
+ * Published by the OS core and read by the video core. The atomic pointer
+ * makes the cross-core publication explicit; the retire queue keeps the
+ * pointed-to state alive for two frame boundaries. */
+extern _Atomic(video_state_t *) g_current_video;
+
+static inline video_state_t *video_current_load(void) {
+    return atomic_load_explicit(&g_current_video, memory_order_acquire);
+}
+
+static inline void video_current_store(video_state_t *video) {
+    atomic_store_explicit(&g_current_video, video, memory_order_release);
+}
 
 /* Init a fresh state: mode 0, cleared maps, C64-ish 16-entry palette
  * for the low indexes, version 0. */
@@ -67,6 +81,28 @@ void video_state_init(video_state_t *v);
 
 /* Release dynamic buffers (mode 10 framebuffer). */
 void video_state_free(video_state_t *v);
+
+/* Begin/end a core-1 mutation. The video core's snapshot copy takes the
+ * same flag, so screen updates block briefly while a frame is copied. */
+static inline void video_state_begin_mutation(video_state_t *v) {
+    while (atomic_flag_test_and_set_explicit(&v->update_lock,
+                                              memory_order_acquire)) {
+        atomic_signal_fence(memory_order_seq_cst);
+    }
+    v->version++;
+}
+
+static inline void video_state_end_mutation(video_state_t *v) {
+    v->version++;
+    atomic_flag_clear_explicit(&v->update_lock, memory_order_release);
+}
+
+/* Copy a stable source state into a core-0 snapshot. Returns false if
+ * core 1 currently owns the update lock; core 0 skips that frame rather
+ * than spinning inside the real-time DMA IRQ. */
+bool video_state_snapshot_copy(const video_state_t *src, video_state_t *dst,
+                               uint8_t *dst_framebuf,
+                               size_t dst_framebuf_size);
 
 /* Active logical dimensions for a mode. */
 int video_mode_cols(int mode);

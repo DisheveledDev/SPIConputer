@@ -31,10 +31,10 @@ static video_state_t *current(lua_State *L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "_spi_program");
     program_t *p = (program_t *)lua_touserdata(L, -1);
     lua_pop(L, 1);
-    if (!p || !p->requires_video || !g_current_video) {
+    if (!p || !p->requires_video || !video_current_load()) {
         luaL_error(L, "Screen API called outside a program");
     }
-    return g_current_video;
+    return video_current_load();
 }
 
 static int screen_z_order(lua_State *L) {
@@ -84,9 +84,11 @@ static int screen_out(lua_State *L) {
         lua_pushliteral(L, "out of range");
         return 2;
     }
+    video_state_begin_mutation(v);
     v->char_map[v->z_order][y * cols + x] = (uint8_t)ch;
     v->attr_map[v->z_order][y * cols + x] = (uint8_t)attr;
-    v->version++;
+    v->layer_active[v->z_order] = 1;
+    video_state_end_mutation(v);
     lua_pushboolean(L, true);
     return 1;
 }
@@ -103,8 +105,10 @@ static int screen_attr(lua_State *L) {
         lua_pushliteral(L, "out of range");
         return 2;
     }
+    video_state_begin_mutation(v);
     v->attr_map[v->z_order][y * cols + x] = (uint8_t)flags;
-    v->version++;
+    v->layer_active[v->z_order] = 1;
+    video_state_end_mutation(v);
     lua_pushboolean(L, true);
     return 1;
 }
@@ -132,9 +136,10 @@ static int screen_define_tile(lua_State *L) {
     } else {
         return luaL_error(L, "tile data must be a table or 8-byte string");
     }
+    video_state_begin_mutation(v);
     memcpy(v->tiles[index], rows, 8);
     v->tile_defined[index] = 1;
-    v->version++;
+    video_state_end_mutation(v);
     lua_pushboolean(L, true);
     return 1;
 }
@@ -148,9 +153,10 @@ static int screen_palette(lua_State *L) {
     if (i < 0 || i > 255) {
         return luaL_error(L, "palette index out of range");
     }
+    video_state_begin_mutation(v);
     v->palette[i] = ((uint32_t)(r & 0xff) << 16) | ((uint32_t)(g & 0xff) << 8) |
                     (uint32_t)(b & 0xff);
-    v->version++;
+    video_state_end_mutation(v);
     lua_pushboolean(L, true);
     return 1;
 }
@@ -162,6 +168,7 @@ static int screen_palette_set(lua_State *L) {
     if (n > 256) {
         n = 256;
     }
+    video_state_begin_mutation(v);
     for (int i = 0; i < n; i++) {
         lua_rawgeti(L, 1, i + 1);
         if (lua_istable(L, -1)) {
@@ -182,7 +189,7 @@ static int screen_palette_set(lua_State *L) {
         }
         lua_pop(L, 1);
     }
-    v->version++;
+    video_state_end_mutation(v);
     lua_pushboolean(L, true);
     return 1;
 }
@@ -190,6 +197,7 @@ static int screen_palette_set(lua_State *L) {
 static int screen_clear(lua_State *L) {
     video_state_t *v = current(L);
     int ch = (int)luaL_optinteger(L, 1, ' ');
+    video_state_begin_mutation(v);
     if (v->mode == VIDEO_MODE_PIXEL) {
         memset(v->framebuf, (uint8_t)ch, VIDEO_FB_COLS * VIDEO_FB_ROWS);
     } else {
@@ -198,9 +206,12 @@ static int screen_clear(lua_State *L) {
         memset(v->attr_map[v->z_order], 0, cells);
         if (v->z_order > 0) {
             memset(v->attr_map[v->z_order], VIDEO_ATTR_TRANSPARENT, cells);
+            v->layer_active[v->z_order] = 0;
+        } else {
+            v->layer_active[0] = 1;
         }
     }
-    v->version++;
+    video_state_end_mutation(v);
     lua_pushboolean(L, true);
     return 1;
 }
@@ -221,8 +232,9 @@ static int screen_plot(lua_State *L) {
         lua_pushliteral(L, "out of range");
         return 2;
     }
+    video_state_begin_mutation(v);
     v->framebuf[y * VIDEO_FB_COLS + x] = (uint8_t)c;
-    v->version++;
+    video_state_end_mutation(v);
     lua_pushboolean(L, true);
     return 1;
 }

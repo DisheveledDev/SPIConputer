@@ -19,14 +19,50 @@
 
 #define SPICOMPUTER_HAS_HDMI 1
 
+/* Target CPU clock (core0/main.c applies it before anything else runs;
+ * core 1 reports the result in the boot log).
+ *
+ * The value must divide (through the HSTX's 1..3 clock divider) to
+ * 126 MHz so the pixel clock stays the exact 25.2 MHz: 252 MHz (/2) and
+ * 378 MHz (/3) both do, and both keep the flash clock within its boot
+ * range. Higher clocks need more core voltage, so the default is the
+ * conservative 252 MHz (2x the 126 MHz baseline) until the board is
+ * known to run at 378 MHz. 400 MHz is achievable but cannot be divided
+ * to 25.2 MHz (400/3 = 133.3 MHz, i.e. 26.7 MHz pixels and ~63.5 Hz
+ * refresh, off spec).
+ *
+ * Build with -DSPICOMPUTER_SYS_CLOCK_KHZ=<khz> to override; the clock is
+ * applied by core0/main.c before anything else runs and reported in the
+ * boot log. */
+#ifndef SPICOMPUTER_SYS_CLOCK_KHZ
+#define SPICOMPUTER_SYS_CLOCK_KHZ 252000
+#endif
+
+#define HSTX_D0_P_PIN 12
+#define HSTX_D0_N_PIN 13
+#define HSTX_CLK_P_PIN 14
+#define HSTX_CLK_N_PIN 15
+#define HSTX_D2_P_PIN 16
+#define HSTX_D2_N_PIN 17
+#define HSTX_D1_P_PIN 18
+#define HSTX_D1_N_PIN 19
+
 #if defined(SPICOMPUTER_PROFILE_RP2354B)
 #define SPICOMPUTER_HAS_KEYMATRIX 1
 #define SPICOMPUTER_HAS_JOYSTICKS 1
 #define SPICOMPUTER_HAS_RESTORE 1
 #endif
 
-/* SD card on SPI1. GP12-15 carry HSTX on RP2350, so the card uses the
- * other SPI1 function pins: RX=GP8, CSn=GP9, SCK=GP10, TX=GP11. */
+/* The pico2 dev board's onboard LED makes boot progress observable
+ * without a console. Only for that profile: on the product board the
+ * same pin is a keyboard column. */
+#if defined(SPICOMPUTER_PROFILE_PICO2) && !defined(SPICOMPUTER_HAS_KEYMATRIX)
+#define SPICOMPUTER_HAS_BOOT_LED 1
+#define SPICOMPUTER_BOOT_LED_PIN PICO_DEFAULT_LED_PIN
+#endif
+
+/* SD card on SPI1. HSTX uses the explicit differential GPIO pairs above;
+ * SPI1 uses RX=GP8, CSn=GP9, SCK=GP10, TX=GP11. */
 #define SD_SPI_INSTANCE spi1
 #define SD_PIN_SCK 10
 #define SD_PIN_MOSI 11

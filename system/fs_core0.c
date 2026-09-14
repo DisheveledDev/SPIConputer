@@ -1,12 +1,17 @@
 /* fs_core0.c
  *
- * Core 0 filesystem service (Phase 4): executes FatFs operations on
- * behalf of core 1 RPC requests. Platform-neutral apart from the FatFs
- * API itself, so the host tests run this exact code against the mock
- * FatFs layer.
+ * FatFs layer (Phase 4): executes the filesystem operations behind the
+ * rpc_request_t/rpc_response_t contract. Platform-neutral apart from the
+ * FatFs API itself, so the host tests run this exact code against the
+ * mock FatFs layer.
  *
- * Handle pool: core 1 holds handle ids (1..FS_MAX_OPEN); the FIL
- * objects themselves stay in this file, owned by core 0.
+ * On the firmware both sides run on the OS core, so fs_lua.c reaches
+ * this code through fs_core0_execute() (installed as the local RPC
+ * handler); the two-core path through fs_core0_service() is retained for
+ * the host harness and the simulator.
+ *
+ * Handle pool: the Lua side holds handle ids (1..FS_MAX_OPEN); the FIL
+ * objects themselves stay in this file.
  */
 #include "fs_core0.h"
 
@@ -159,7 +164,7 @@ static int32_t pack_find(const char *dir, const char *name) {
     return found;
 }
 
-static void handle_request(const rpc_request_t *req, rpc_response_t *resp) {
+void fs_core0_execute(const rpc_request_t *req, rpc_response_t *resp) {
     FIL *f;
     FRESULT fr = FR_OK;
 
@@ -344,7 +349,7 @@ bool fs_core0_service(void) {
         return false;
     }
     rpc_response_t resp;
-    handle_request(rpc_peek(), &resp);
+    fs_core0_execute(rpc_peek(), &resp);
     rpc_respond(&resp);
     return true;
 }

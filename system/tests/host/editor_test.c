@@ -18,6 +18,7 @@
 #include "fs_core0.h"
 #include "program.h"
 #include "rpc.h"
+#include "input.h"
 #include "system_state.h"
 #include "video.h"
 

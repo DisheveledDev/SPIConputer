@@ -1,23 +1,24 @@
 /* rpc.h
  *
- * Core 1 -> core 0 RPC transport (Phase 4). Core 1 (the Lua core) makes
- * synchronous blocking calls; core 0 services them in its main loop.
- * One request is in flight at a time, so a single slot plus a staging
- * buffer is all the state needed.
+ * Filesystem call interface (Phase 4). The op codes, request/response
+ * shapes and the shared staging buffer are the contract between the Lua
+ * bindings (`fs_lua.c`) and the FatFs layer (`fs_core0.c`).
+ *
+ * After the core split both sides run on the OS core, so the normal
+ * firmware path is a direct call: `rpc_set_local_handler()` points at
+ * `fs_core0_execute()` and `rpc_call()` dispatches inline. The original
+ * two-core transport (a request slot, a response slot and the
+ * wait/signal hooks) is kept for builds that still split the two, such
+ * as the host harness and the desktop simulator; it is only used when no
+ * local handler is installed.
  *
  * Data protocol: the caller copies outbound payload into the staging
- * buffer before rpc_call(); the responder fills the staging buffer with
- * the inbound payload before rpc_respond(). Staging is
- * RPC_STAGING_SIZE bytes, owned by whichever side the protocol says.
- *
- * Platform hookup: g_system_state.rpc.wait/signal are bound at boot.
- * On firmware, wait blocks on a multicore semaphore (or spins on
- * __wfe) and signal wakes it; on the host test harness, wait runs the
- * core 0 service function inline and signal is a no-op.
+ * buffer before rpc_call(); the callee fills the staging buffer with the
+ * inbound payload before returning. Staging is RPC_STAGING_SIZE bytes,
+ * owned by whichever side the protocol says.
  */
 #pragma once
 
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -62,25 +63,20 @@ typedef struct {
     int32_t value2; /* op-specific secondary result */
 } rpc_response_t;
 
-typedef struct {
-    rpc_request_t request;
-    atomic_uint request_ready; /* core 1 writes (release), core 0 reads */
-    rpc_response_t response;
-    atomic_uint response_ready; /* core 0 writes (release), core 1 reads */
-    uint8_t staging[RPC_STAGING_SIZE];
+/* Install the filesystem service to call directly. The firmware passes
+ * `fs_core0_execute` because both sides run on the OS core; leaving it
+ * unset keeps the two-core slot transport in use. */
+void rpc_set_local_handler(
+    void (*handler)(const rpc_request_t *req, rpc_response_t *resp));
 
-    /* Platform hooks, bound at boot (see rpc_bind_wait/signal). */
-    void (*wait)(void);
-    void (*signal)(void);
-} rpc_t;
-
-/* Core 1 side: blocking call. The caller must have copied any outbound
+/* Issue a filesystem call. The caller must have copied any outbound
  * payload into rpc_staging() before calling; after return, inbound
  * payload (if any) is in rpc_staging(). Returns 0 on success. */
 int rpc_call(const rpc_request_t *req, rpc_response_t *resp);
 
-/* Core 0 side: poll and complete. rpc_respond copies the response into
- * the slot, marks it ready and wakes core 1. */
+/* Two-core transport (only used when no local handler is installed).
+ * The service side polls and completes: rpc_respond copies the response
+ * into the slot, marks it ready and wakes the caller. */
 bool rpc_pending(void);
 const rpc_request_t *rpc_peek(void);
 void rpc_respond(const rpc_response_t *resp);
@@ -88,6 +84,6 @@ void rpc_respond(const rpc_response_t *resp);
 /* The shared staging buffer (RPC_STAGING_SIZE bytes). */
 uint8_t *rpc_staging(void);
 
-/* Bind the platform blocking/wakeup hooks. */
+/* Bind the platform blocking/wakeup hooks (two-core builds only). */
 void rpc_bind_wait(void (*wait)(void));
 void rpc_bind_signal(void (*signal)(void));

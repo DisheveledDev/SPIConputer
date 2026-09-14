@@ -32,6 +32,8 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")
 set(SPICOMPUTER_BOARD_PROFILE "pico2" CACHE STRING "SPIComputer hardware profile")
 set_property(CACHE SPICOMPUTER_BOARD_PROFILE PROPERTY STRINGS pico2 rp2354b)
 
+
+
 if(SPICOMPUTER_BOARD_PROFILE STREQUAL "pico2")
     add_compile_definitions(SPICOMPUTER_PROFILE_PICO2=1)
 elseif(SPICOMPUTER_BOARD_PROFILE STREQUAL "rp2354b")
@@ -65,8 +67,8 @@ add_subdirectory(FatFs_SPI)
 
 add_executable(SPIComputerOS
         core0/main.c
-        core0/input_hw.c
         core0/video_hw.c
+        core1/input_hw.c
         core1/lua_main.c
         hw_config.c
         fs_lua.c
@@ -80,6 +82,9 @@ add_executable(SPIComputerOS
         audio.c
         video.c
         render.c
+        render332.c
+        scanout.c
+        boot_signal.c
         os_time.c
         system_state.c
 )
@@ -109,12 +114,46 @@ target_include_directories(SPIComputerOS PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
 )
 
+# Core 0's stack. This is a compile-time define in the SDK (not a CMake
+# cache variable) consumed by the CRT: the SDK default is 2 KB, and core
+# 0 now runs the scanout IRQs, where the video DMA IRQ can preempt the
+# render ISR. (SDK 2.x compiles its sources into the application target,
+# so the define goes here rather than on an SDK library.)
+#
+# Core 1's stack is not set here: the SDK's stack lives in SCRATCH_X,
+# which is only 4 KB, so core1_entry gets a stack in main SRAM instead
+# (see core0/main.c).
+# Diagnostic build: draw a test pattern on the scanout instead of running
+# the boot program (no SD card or Lua involved), so the video path can be
+# judged on its own. See core0/video_hw.c for the pattern layout.
+if (SPICOMPUTER_VIDEO_TEST_PATTERN)
+    target_compile_definitions(SPIComputerOS PRIVATE
+            SPICOMPUTER_VIDEO_TEST_PATTERN=1)
+endif()
+
+# Optional CPU clock override for experiments:
+#   cmake -DSPICOMPUTER_SYS_CLOCK_KHZ=126000 ...
+# (default comes from board_config.h; see the overclock notes there).
+if (SPICOMPUTER_SYS_CLOCK_KHZ)
+    target_compile_definitions(SPIComputerOS PRIVATE
+            SPICOMPUTER_SYS_CLOCK_KHZ=${SPICOMPUTER_SYS_CLOCK_KHZ})
+endif()
+
+target_compile_definitions(SPIComputerOS PRIVATE
+        PICO_STACK_SIZE=4096
+        # 0: no SDK core-1 stack in SCRATCH_X, we pass our own to
+        # multicore_launch_core1_with_stack().
+        PICO_CORE1_STACK_SIZE=0)
+
 # Add any user requested libraries
 target_link_libraries(SPIComputerOS
         hardware_spi
         hardware_timer
         hardware_watchdog
         hardware_clocks
+        hardware_dma
+        hardware_irq
+        hardware_resets
         pico_multicore
         pico_sync
         )

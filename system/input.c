@@ -5,13 +5,16 @@
  * platform glue, so the debounce/decoding logic is host-testable
  * (tests/host/input_test.c).
  *
- * All events are pushed to g_system_state.input by the core 0 producer
- * (the 1 kHz input IRQ); core 1 drains the queue between ticks in a
- * later phase.
+ * All events are pushed to g_system_state.input by the 1 kHz input IRQ; the
+ * scheduler drains the queue between ticks. Both run on the OS core, so
+ * the ring is a plain single-producer/single-consumer buffer with only
+ * the index words touched from the IRQ.
  */
 #include "input.h"
 
 #include <string.h>
+
+#include "system_state.h"
 
 /* ---------------------------------------------------------------- */
 /* Event queue (SPSC ring, drop-oldest on overflow)                 */
@@ -19,35 +22,32 @@
 
 void input_queue_init(input_queue_t *q) {
     memset(q->events, 0, sizeof(q->events));
-    atomic_init(&q->head, 0);
-    atomic_init(&q->tail, 0);
+    q->head = 0;
+    q->tail = 0;
 }
 
 void input_queue_push(input_queue_t *q, const input_event_t *ev) {
-    uint32_t head = atomic_load_explicit(&q->head, memory_order_relaxed);
-    uint32_t tail = atomic_load_explicit(&q->tail, memory_order_acquire);
+    uint32_t head = q->head;
+    uint32_t tail = q->tail;
     uint32_t next = (head + 1) & (INPUT_QUEUE_DEPTH - 1);
 
     if (next == tail) {
         /* Full: drop the oldest event. */
-        tail = (tail + 1) & (INPUT_QUEUE_DEPTH - 1);
-        atomic_store_explicit(&q->tail, tail, memory_order_relaxed);
+        q->tail = (tail + 1) & (INPUT_QUEUE_DEPTH - 1);
     }
     q->events[head] = *ev;
-    atomic_store_explicit(&q->head, next, memory_order_release);
+    q->head = next;
 }
 
 bool input_queue_pop(input_queue_t *q, input_event_t *ev) {
-    uint32_t tail = atomic_load_explicit(&q->tail, memory_order_relaxed);
-    uint32_t head = atomic_load_explicit(&q->head, memory_order_acquire);
+    uint32_t tail = q->tail;
+    uint32_t head = q->head;
 
     if (tail == head) {
         return false;
     }
     *ev = q->events[tail];
-    atomic_store_explicit(&q->tail,
-                          (tail + 1) & (INPUT_QUEUE_DEPTH - 1),
-                          memory_order_release);
+    q->tail = (tail + 1) & (INPUT_QUEUE_DEPTH - 1);
     return true;
 }
 

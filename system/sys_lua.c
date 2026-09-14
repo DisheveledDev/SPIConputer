@@ -14,15 +14,20 @@
  *   TimerStop(id)                 -> bool
  *   InputPoll()                   -> next event table | nil
  *   InputControl(n)               -> {up,down,left,right,fire} | nil
+ *   WaitVSync([ms])               -> frames elapsed since this
+ *                                    program's previous WaitVSync;
+ *                                    blocks up to ms for a frame
  */
 #include "sys_lua.h"
 
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "lauxlib.h"
 
+#include "input.h"
 #include "os_time.h"
 #include "program.h"
 #include "system_state.h"
@@ -217,6 +222,42 @@ static int sys_input_control(lua_State *L) {
     return 1;
 }
 
+/* WaitVSync([ms]) -> frames elapsed
+ *
+ * Blocks the running program (and only the running program: the
+ * scheduler skips its ticks meanwhile) until core 0's scanout crosses
+ * a frame boundary. Input events keep accumulating in the program
+ * ring, so nothing is lost. `ms` bounds the wait; without it the
+ * syscall gives up after about six frames so a display-less board or a
+ * stalled scanout cannot hang a program forever. */
+static int sys_wait_vsync(lua_State *L) {
+    program_t *p = program_of(L);
+    lua_Integer timeout_ms = 100;
+    if (!lua_isnoneornil(L, 1)) {
+        timeout_ms = luaL_checkinteger(L, 1);
+    }
+
+    uint32_t start = p->vsync_last_frames;
+    uint64_t deadline = os_time_us() + (uint64_t)timeout_ms * 1000;
+    uint32_t frames;
+
+    /* Read the frame counter at least once, so WaitVSync(0) reports the
+     * frames elapsed since this program's previous call instead of
+     * always returning zero. Input events keep accumulating in the
+     * program's ring while the program blocks here; nothing is lost. */
+    do {
+        atomic_signal_fence(memory_order_seq_cst);
+        frames = g_system_state.video_frame_count;
+        if (frames != start) {
+            break;
+        }
+    } while (os_time_us() < deadline);
+
+    p->vsync_last_frames = frames;
+    lua_pushinteger(L, (lua_Integer)(frames - start));
+    return 1;
+}
+
 static int sys_utility_result(lua_State *L) {
     program_t *p = program_of(L);
     if (p->interactive) {
@@ -258,6 +299,7 @@ static const luaL_Reg sys_funcs[] = {
     {"TimerStop", sys_timer_stop},
     {"InputPoll", sys_input_poll},
     {"InputControl", sys_input_control},
+    {"WaitVSync", sys_wait_vsync},
     {NULL, NULL},
 };
 

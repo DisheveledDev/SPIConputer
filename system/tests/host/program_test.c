@@ -25,12 +25,14 @@
 #include "fs_core0.h"
 #include "program.h"
 #include "rpc.h"
+#include "input.h"
 #include "system_state.h"
 
 extern void mock_set_file(const char *path, const char *content);
 extern void mock_set_file_bytes(const char *path, const void *data, size_t len);
 extern void mock_clear_boot_log(void);
 extern const char *mock_boot_log(void);
+extern const char *mock_get_file(const char *path);
 
 static int g_failures = 0;
 
@@ -93,7 +95,7 @@ static void test_launch_resume_video(void) {
 
     program_t *a = program_top();
     CHECK(a != NULL && a->pid == 0, "a.lua is pid 0");
-    CHECK(g_current_video == a->video, "a.lua video current");
+    CHECK(video_current_load() == a->video, "a.lua video current");
 
     /* Simulate video content in A's state. */
     a->video->mode = 1;
@@ -108,16 +110,16 @@ static void test_launch_resume_video(void) {
     CHECK(strcmp(mock_boot_log(), "A-setup\nA-tick1\nA-tick2\nB-setup\n") == 0,
           "B launched and setup");
     CHECK(program_top()->pid == 1, "B is on top (pid 1)");
-    CHECK(g_current_video == program_top()->video, "B video current");
-    CHECK(g_current_video->mode == 0 && g_current_video->char_map[0][0] == 0,
+    CHECK(video_current_load() == program_top()->video, "B video current");
+    CHECK(video_current_load()->mode == 0 && video_current_load()->char_map[0][0] == 0,
           "B video state is fresh");
     CHECK(program_top()->next == a, "B stacked on A");
 
     /* Step 3: B tick 1 -> B exits -> A resumes. */
     program_scheduler_step();
     CHECK(program_top() == a, "A resumed after B exit");
-    CHECK(g_current_video == a->video, "A video restored");
-    CHECK(g_current_video->mode == 1 && g_current_video->char_map[0][0] == 42,
+    CHECK(video_current_load() == a->video, "A video restored");
+    CHECK(video_current_load()->mode == 1 && video_current_load()->char_map[0][0] == 42,
           "A video content intact");
     CHECK(strcmp(mock_boot_log(),
                  "A-setup\nA-tick1\nA-tick2\nB-setup\nB-tick1\nB-finish\n") == 0,
@@ -126,7 +128,7 @@ static void test_launch_resume_video(void) {
     /* Step 4: A tick 3 -> A exits -> stack empty. */
     program_scheduler_step();
     CHECK(program_top() == NULL, "stack empty after A exit");
-    CHECK(g_current_video == NULL, "no current video on empty stack");
+    CHECK(video_current_load() == NULL, "no current video on empty stack");
     expect_log("A-setup\nA-tick1\nA-tick2\nB-setup\nB-tick1\nB-finish\n"
                "A-tick3\nA-resumed\nA-finish\n");
 }
@@ -616,6 +618,96 @@ static void test_compiled_programs(void) {
     expect_log("loaded-chunk\ndofile:true:loaded\nrequire:true:lib-ok\n");
 }
 
+/* ------------- test: deferred video-state free (graveyard) ------------- */
+
+static const char *RETIRE_LUA =
+    "__spi_interactive = true\n"
+    "__spi_requires_video = true\n"
+    "function tick() ExitProgram() end\n";
+
+static void test_retire_graveyard(void) {
+    /* Earlier tests popped video programs without a frame clock: drain
+     * anything they left parked. */
+    g_system_state.video_frame_count += 1000;
+    program_retire_reap(g_system_state.video_frame_count);
+    CHECK(program_retire_pending() == 0, "graveyard starts empty");
+
+    mock_set_file("retire.lua", RETIRE_LUA);
+    boot("retire.lua");
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "video program exits");
+    CHECK(video_current_load() == NULL, "current video cleared on exit");
+
+    uint32_t now = g_system_state.video_frame_count;
+
+    /* One frame later it must still be parked (the scanout may not have
+     * snapshotted the new state yet). */
+    program_retire_reap(now + 1);
+    CHECK(program_retire_pending() == 1, "first frame keeps the state");
+
+    /* Two frames later the grace period is over. */
+    program_retire_reap(now + 2);
+    CHECK(program_retire_pending() == 0, "second frame reaps the state");
+}
+
+/* ------------- test: WaitVSync ------------- */
+
+/* WaitVSync(0) polls once (never blocks), so a tick can report the
+ * frames that elapsed since the previous call. */
+static const char *VSYNC_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "local n = 0\n"
+    "function tick()\n"
+    "  local frames = WaitVSync(0)\n"
+    "  n = n + 1\n"
+    "  log('t' .. n .. '=' .. frames .. '\\n')\n"
+    "  if n == 3 then ExitProgram() end\n"
+    "end\n";
+
+static void test_wait_vsync(void) {
+    g_system_state.video_frame_count = 500;
+    mock_set_file("wait.lua", VSYNC_LUA);
+    boot("wait.lua");
+
+    /* Tick 1: no frame has passed since the program was created. */
+    program_scheduler_step();
+
+    /* Core 0 crosses two frame boundaries between ticks. */
+    g_system_state.video_frame_count = 502;
+
+    /* Tick 2: two frames elapsed. */
+    program_scheduler_step();
+
+    /* Two more boundaries. */
+    g_system_state.video_frame_count = 504;
+
+    /* Tick 3: two frames elapsed, then the program exits. */
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "wait program exits");
+    CHECK(strcmp(mock_boot_log(), "t1=0\nt2=2\nt3=2\n") == 0,
+          "WaitVSync reports frames since the previous call");
+}
+
+/* ------------- test: WaitVSync timeout ------------- */
+
+static const char *VSYNC_TIMEOUT_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "function tick()\n"
+    "  local frames = WaitVSync(1)\n"
+    "  log('frames=' .. frames .. '\\n')\n"
+    "  ExitProgram()\n"
+    "end\n";
+
+static void test_wait_vsync_timeout(void) {
+    g_system_state.video_frame_count = 900; /* never advances */
+    mock_set_file("waitt.lua", VSYNC_TIMEOUT_LUA);
+    boot("waitt.lua");
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "timeout program exits");
+    CHECK(strcmp(mock_boot_log(), "frames=0\n") == 0,
+          "WaitVSync times out with zero frames on a static display");
+}
+
 int main(void) {
     setbuf(stdout, NULL);
     printf("=== process model tests ===\n");
@@ -637,6 +729,9 @@ int main(void) {
     test_execute();
     test_noninteractive_utility();
     test_compiled_programs();
+    test_retire_graveyard();
+    test_wait_vsync();
+    test_wait_vsync_timeout();
 
     if (g_failures == 0) {
         printf("all process model tests passed\n");

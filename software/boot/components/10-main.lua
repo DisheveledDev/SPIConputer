@@ -42,9 +42,15 @@ function setup()
     ScreenPalette(2, 180, 220, 255)
     started_at = TimeNow()
     draw_boot(0)
+    --ScreenOut(10,10,79)
+    --ScreenOut(11,10,75)
 end
 
 function tick()
+    
+end
+
+function tick2()
     if started or failed then
         return
     end

@@ -18,7 +18,6 @@
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <limits.h>
 #include <stdio.h>
@@ -665,8 +664,6 @@ int main(int argc, char **argv) {
         }
 
         for (int i = 0; i < o.ticks_per_frame && s_running; i++) {
-            atomic_fetch_add_explicit(&g_system_state.heartbeat, 1,
-                                      memory_order_relaxed);
             program_scheduler_step();
             ticks++;
         }

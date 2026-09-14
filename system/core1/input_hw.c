@@ -1,10 +1,15 @@
-/* core0/input_hw.c
+/* core1/input_hw.c
  *
- * Core 0 hardware glue for the input subsystem (Phase 3).
+ * Hardware glue for the input subsystem (Phase 3), on the OS core.
  *
- * A 1 kHz repeating timer on core 0 is the single input tick: it scans
- * the C64 key matrix and polls both joysticks. All queue pushes happen
- * here (IRQ context), keeping the SPSC single-producer guarantee.
+ * A 1 kHz repeating timer is the single input tick: it scans the C64 key
+ * matrix and polls both joysticks. All queue pushes happen here (IRQ
+ * context), keeping the SPSC single-producer guarantee; the consumer is
+ * the scheduler on the same core.
+ *
+ * This claims the SDK's default alarm pool for the OS core - core 0 must
+ * not use sleep_ms()/timers, or the shared timer IRQ would be delivered
+ * to the video core instead (see core0/main.c).
  */
 #include <stdint.h>
 

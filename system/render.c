@@ -29,12 +29,15 @@ void render_line(const video_state_t *v, int y, uint8_t *out) {
         uint32_t colour;
 
         if (mode == VIDEO_MODE_PIXEL) {
-            uint8_t ci = v->framebuf[ly * cols + lpx];
+            uint8_t ci = v->framebuf ? v->framebuf[ly * cols + lpx] : 0;
             colour = v->palette[ci];
         } else {
             uint8_t ch = v->char_map[0][row * cols + col];
             uint8_t attr = v->attr_map[0][row * cols + col];
             for (int layer = VIDEO_LAYERS - 1; layer > 0; layer--) {
+                if (!v->layer_active[layer]) {
+                    continue;
+                }
                 uint8_t candidate = v->attr_map[layer][row * cols + col];
                 if ((candidate & VIDEO_ATTR_TRANSPARENT) == 0) {
                     ch = v->char_map[layer][row * cols + col];

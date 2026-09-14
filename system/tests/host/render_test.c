@@ -114,7 +114,16 @@ static void test_render_attrs(void) {
     v.attr_map[1][0] = 0;
     CHECK(video_set_z_order(&v, 1), "select overlay layer");
     render_line(&v, 4, line);
+    CHECK(memcmp(line, base_line, sizeof(line)) == 0,
+          "inactive overlay is skipped");
+    v.layer_active[1] = 1;
+    render_line(&v, 4, line);
     CHECK(memcmp(line, base_line, sizeof(line)) != 0, "overlay is visible");
+    v.layer_active[1] = 0;
+    render_line(&v, 4, line);
+    CHECK(memcmp(line, base_line, sizeof(line)) == 0,
+          "cleared overlay restores the base layer");
+    v.layer_active[1] = 1;
     v.attr_map[1][0] = VIDEO_ATTR_TRANSPARENT;
     render_line(&v, 4, line);
     CHECK(memcmp(line, base_line, sizeof(line)) == 0,
@@ -205,6 +214,32 @@ static const char *SCREEN_LUA =
     "end\n"
     "function tick() end\n";
 
+static void test_video_snapshot(void) {
+    video_state_t source;
+    video_state_t snapshot;
+    uint8_t framebuf[VIDEO_FB_COLS * VIDEO_FB_ROWS];
+
+    video_state_init(&source);
+    video_state_init(&snapshot);
+    source.char_map[0][0] = 'K';
+    source.version = 2;
+    CHECK(video_state_snapshot_copy(&source, &snapshot, framebuf,
+                                   sizeof(framebuf)),
+          "stable video state snapshots");
+    CHECK(snapshot.char_map[0][0] == 'K', "snapshot copies video data");
+
+    video_state_begin_mutation(&source);
+    source.char_map[0][0] = 'X';
+    CHECK(!video_state_snapshot_copy(&source, &snapshot, framebuf,
+                                     sizeof(framebuf)),
+          "odd video version is not published");
+    video_state_end_mutation(&source);
+    CHECK(video_state_snapshot_copy(&source, &snapshot, framebuf,
+                                    sizeof(framebuf)),
+          "completed video mutation is published");
+    CHECK(snapshot.char_map[0][0] == 'X', "new snapshot replaces old data");
+}
+
 static void test_screen_module(void) {
     mock_set_file("scr.lua", SCREEN_LUA);
     CHECK(program_boot("scr.lua", NULL), "screen program boots");
@@ -226,6 +261,7 @@ int main(void) {
     test_render_attrs();
     test_render_custom_tile_and_mode2();
     test_render_mode10();
+    test_video_snapshot();
     test_screen_module();
 
     if (g_failures == 0) {

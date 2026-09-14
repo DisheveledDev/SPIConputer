@@ -15,8 +15,8 @@
 #include <stdint.h>
 
 #include "lua.h"
-#include "system_state.h"
 #include "audio.h"
+#include "input.h"
 #include "video.h"
 
 #define PROGRAM_MAX 4
@@ -72,6 +72,10 @@ typedef struct program_s {
     bool paused;
     uint64_t pause_start_us; /* valid while paused */
 
+    /* WaitVSync bookkeeping: the frame counter at this program's last
+     * WaitVSync call, so each call reports the frames elapsed since. */
+    uint32_t vsync_last_frames;
+
     /* -- input event ring (core 1 only, no atomics needed) -- */
     input_event_t events[PROGRAM_EVENT_DEPTH];
     uint32_t ev_head; /* push here */
@@ -125,6 +129,14 @@ bool program_pcall(program_t *p, int fn_ref);
 
 /* Terminate `p` (run finish(), close state, resume parent). */
 void program_terminate(program_t *p);
+
+/* Deferred video/audio state frees. A terminated program's state is
+ * freed only after core 0's scanout has crossed two frame boundaries,
+ * so a scanline in flight can never dereference freed memory.
+ * program_retire_reap() runs once per scheduler step (it also accepts
+ * a synthetic count in the host tests). */
+void program_retire_reap(uint32_t frame_count);
+int program_retire_pending(void);
 
 /* Input event ring (core 1 only). */
 void program_event_push(program_t *p, const input_event_t *ev);
