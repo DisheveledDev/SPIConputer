@@ -13,10 +13,18 @@
  *   ScreenPalette(i, r, g, b)        -> true | nil, err
  *   ScreenPaletteSet(t)              -> true | nil, err
  *   ScreenClear([char])              -> true
+ *   ScreenBox(x, y, w, h [, style [, attr]])   -> true | nil, err
+ *   ScreenFill(x, y, w, h [, char [, attr]])   -> true | nil, err
  *   OverlayOut(x, y, char [, attr])  -> true | nil, err
  *   OverlayAttr(x, y, flags)         -> true | nil, err
  *   OverlayClear([char])             -> true
+ *   OverlayBox / OverlayFill         -> as ScreenBox / ScreenFill
  *   ScreenPlot(x, y, colour)         -> true | nil, err (mode 10)
+ *
+ * Box and Fill are the dialog primitives: Box draws a frame from the
+ * ROM font's box-drawing characters (style 1 = single line, 2 =
+ * double), Fill writes one character into a rectangle. Both clip to
+ * the screen and queue one op per cell.
  *
  * Screen* calls draw on the base layer; Overlay* calls draw on the
  * single overlay layer, whose untouched cells show the base. Mode table:
@@ -26,6 +34,7 @@
  */
 #include "screen_lua.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 #include "lauxlib.h"
@@ -243,6 +252,113 @@ static int overlay_clear(lua_State *L) {
     return 1;
 }
 
+/* ---------------- box / fill (dialog primitives) ---------------- */
+
+/* ROM font box-drawing codes (CP437 layout, see font8x8_rom.h):
+ * corners top-left, top-right, bottom-left, bottom-right, then the
+ * horizontal and vertical line. */
+static const uint8_t s_box_single[6] = {0xDA, 0xBF, 0xC0, 0xD9, 0xC4, 0xB3};
+static const uint8_t s_box_double[6] = {0xC9, 0xBB, 0xC8, 0xBC, 0xCD, 0xBA};
+
+/* Write one cell to the base or overlay layer, skipping cells that are
+ * off the screen (rectangles may be clipped). */
+static void put_cell(bool overlay, int x, int y, int ch, int attr) {
+    if (x < 0 || x >= VIDEO_COLS || y < 0 || y >= VIDEO_ROWS) {
+        return;
+    }
+    put(overlay ? VIDEO_OP_OVER_OUT : VIDEO_OP_OUT, x, y, ch,
+        (uint32_t)(attr & 0xff), 0);
+}
+
+/* Shared argument handling for Box and Fill: x, y, w, h; returns false
+ * (with nil, err pushed) when the rectangle is empty or entirely off
+ * the screen, or the mode has no cells. */
+static bool rect_args(lua_State *L, int *x, int *y, int *w, int *h) {
+    *x = (int)luaL_checkinteger(L, 1);
+    *y = (int)luaL_checkinteger(L, 2);
+    *w = (int)luaL_checkinteger(L, 3);
+    *h = (int)luaL_checkinteger(L, 4);
+    if (video_lua_mode() == VIDEO_MODE_PIXEL) {
+        luaL_error(L, "Box/Fill need a text mode (call ScreenMode first)");
+    }
+    if (*w < 1 || *h < 1 || *x >= VIDEO_COLS || *y >= VIDEO_ROWS ||
+        *x + *w <= 0 || *y + *h <= 0) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "out of range");
+        return false;
+    }
+    return true;
+}
+
+static int box_common(lua_State *L, bool overlay) {
+    check_program(L);
+    int x, y, w, h;
+    if (!rect_args(L, &x, &y, &w, &h)) {
+        return 2;
+    }
+    int style = (int)luaL_optinteger(L, 5, 1);
+    int attr = (int)luaL_optinteger(L, 6, 0);
+    if (w < 2 || h < 2) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "box needs w and h >= 2");
+        return 2;
+    }
+    if (style != 1 && style != 2) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "style must be 1 (single) or 2 (double)");
+        return 2;
+    }
+    const uint8_t *g = style == 2 ? s_box_double : s_box_single;
+    int x1 = x + w - 1;
+    int y1 = y + h - 1;
+    put_cell(overlay, x, y, g[0], attr);
+    put_cell(overlay, x1, y, g[1], attr);
+    put_cell(overlay, x, y1, g[2], attr);
+    put_cell(overlay, x1, y1, g[3], attr);
+    for (int i = x + 1; i < x1; i++) {
+        put_cell(overlay, i, y, g[4], attr);
+        put_cell(overlay, i, y1, g[4], attr);
+    }
+    for (int j = y + 1; j < y1; j++) {
+        put_cell(overlay, x, j, g[5], attr);
+        put_cell(overlay, x1, j, g[5], attr);
+    }
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+static int fill_common(lua_State *L, bool overlay) {
+    check_program(L);
+    int x, y, w, h;
+    if (!rect_args(L, &x, &y, &w, &h)) {
+        return 2;
+    }
+    int ch = (int)luaL_optinteger(L, 5, ' ');
+    int attr = (int)luaL_optinteger(L, 6, 0);
+    if (ch < 0 || ch > 255) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "out of range");
+        return 2;
+    }
+    /* Clip first so a large rectangle costs only its visible cells. */
+    int x0 = x < 0 ? 0 : x;
+    int y0 = y < 0 ? 0 : y;
+    int x1 = x + w > VIDEO_COLS ? VIDEO_COLS : x + w;
+    int y1 = y + h > VIDEO_ROWS ? VIDEO_ROWS : y + h;
+    for (int j = y0; j < y1; j++) {
+        for (int i = x0; i < x1; i++) {
+            put_cell(overlay, i, j, ch, attr);
+        }
+    }
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+static int screen_box(lua_State *L) { return box_common(L, false); }
+static int screen_fill(lua_State *L) { return fill_common(L, false); }
+static int overlay_box(lua_State *L) { return box_common(L, true); }
+static int overlay_fill(lua_State *L) { return fill_common(L, true); }
+
 static int screen_plot(lua_State *L) {
     check_program(L);
     int x = (int)luaL_checkinteger(L, 1);
@@ -272,9 +388,13 @@ static const luaL_Reg screen_funcs[] = {
     {"ScreenPalette", screen_palette},
     {"ScreenPaletteSet", screen_palette_set},
     {"ScreenClear", screen_clear},
+    {"ScreenBox", screen_box},
+    {"ScreenFill", screen_fill},
     {"OverlayOut", overlay_out},
     {"OverlayAttr", overlay_attr},
     {"OverlayClear", overlay_clear},
+    {"OverlayBox", overlay_box},
+    {"OverlayFill", overlay_fill},
     {"ScreenPlot", screen_plot},
     {NULL, NULL},
 };

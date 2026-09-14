@@ -279,6 +279,95 @@ static void test_overlay_module(void) {
     video_screens_init();
 }
 
+/* ---------------- test 8: ROM font upper half ---------------- */
+
+static void test_render_rom_font(void) {
+    video_state_t v;
+    uint8_t line[RENDER_LINE_BYTES];
+
+    video_state_init(&v);
+    /* 0xC4 (box light horizontal): rows 3-4 fully set, others blank.
+     * Before the 256-glyph ROM, 0xC4 aliased to 'D' (0x44). */
+    v.base_char[0] = 0xC4;
+    render_line(&v, 3, line);
+    bool all_on = true;
+    for (int x = 0; x < 16; x++) {
+        all_on = all_on && line[x * 3] == 0xff;
+    }
+    CHECK(all_on, "0xC4 row 3 is a full horizontal line");
+    render_line(&v, 0, line);
+    CHECK(line[0] == 0x00 && line[7 * 3] == 0x00,
+          "0xC4 row 0 is blank (no ASCII aliasing)");
+
+    /* 0xDB (full block) fills every pixel; 0xDF (upper half) stops at
+     * row 3. */
+    v.base_char[0] = 0xDB;
+    render_line(&v, 7, line);
+    CHECK(line[0] == 0xff && line[15 * 3] == 0xff, "0xDB row 7 full");
+    v.base_char[0] = 0xDF;
+    render_line(&v, 4, line);
+    CHECK(line[0] == 0x00, "0xDF row 4 blank");
+    render_line(&v, 3, line);
+    CHECK(line[0] == 0xff, "0xDF row 3 set");
+
+    /* Undefined upper codes are blank, and a program can still define
+     * a tile over any of them. */
+    v.base_char[0] = 0x80;
+    render_line(&v, 3, line);
+    CHECK(line[0] == 0x00, "undefined code 0x80 renders blank");
+}
+
+/* ---------------- test 9: Box / Fill (via a program) ---------------- */
+
+static const char *BOX_LUA =
+    "function setup()\n"
+    "  assert(ScreenMode(1) == true)\n"
+    "  assert(ScreenBox(2, 3, 10, 4) == true)\n"
+    "  assert(ScreenFill(3, 4, 8, 2, 46, 0x03) == true)\n"
+    "  assert(OverlayBox(0, 0, 40, 30, 2, 0x80) == true)\n"
+    "  assert(OverlayFill(38, 28, 10, 10, 35) == true)\n"
+    "  assert(ScreenBox(0, 0, 1, 5) == nil)\n"
+    "  assert(ScreenBox(0, 0, 5, 5, 3) == nil)\n"
+    "  assert(ScreenFill(40, 0, 5, 5) == nil)\n"
+    "  ExitProgram()\n"
+    "end\n"
+    "function tick() end\n";
+
+static void test_box_fill(void) {
+    video_screens_init();
+    mock_set_file("box.lua", BOX_LUA);
+    CHECK(program_boot("box.lua", NULL), "box program boots");
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "box program exited");
+    video_ops_drain();
+
+    const video_state_t *v = video_screen();
+#define CELL(x, y) ((y) * VIDEO_COLS + (x))
+    CHECK(v->base_char[CELL(2, 3)] == 0xDA && v->base_char[CELL(11, 3)] == 0xBF &&
+              v->base_char[CELL(2, 6)] == 0xC0 && v->base_char[CELL(11, 6)] == 0xD9,
+          "ScreenBox single-line corners");
+    CHECK(v->base_char[CELL(5, 3)] == 0xC4 && v->base_char[CELL(5, 6)] == 0xC4 &&
+              v->base_char[CELL(2, 5)] == 0xB3 && v->base_char[CELL(11, 4)] == 0xB3,
+          "ScreenBox single-line edges");
+    CHECK(v->base_char[CELL(3, 4)] == 46 && v->base_attr[CELL(10, 5)] == 0x03,
+          "ScreenFill fills the interior with char and attr");
+    CHECK(v->base_char[CELL(1, 3)] == ' ' && v->base_char[CELL(12, 6)] == ' ',
+          "cells outside the box are untouched");
+    CHECK(v->overlay_char[CELL(0, 0)] == 0xC9 && v->overlay_char[CELL(39, 0)] == 0xBB &&
+              v->overlay_char[CELL(0, 29)] == 0xC8 &&
+              v->overlay_char[CELL(20, 0)] == 0xCD && v->overlay_char[CELL(0, 15)] == 0xBA &&
+              v->overlay_attr[CELL(0, 0)] == 0x80,
+          "OverlayBox double-line frame at the screen edge");
+    /* The fill started at (38,28) with a 10x10 size: only its four
+     * on-screen cells are written, and they overwrite the frame corner. */
+    CHECK(v->overlay_char[CELL(39, 29)] == 35 && v->overlay_char[CELL(38, 28)] == 35 &&
+              v->overlay_attr[CELL(38, 29)] == 0x00 &&
+              v->overlay_char[CELL(37, 29)] == 0xCD,
+          "OverlayFill is clipped at the screen edge and later cells win");
+#undef CELL
+    video_screens_init();
+}
+
 int main(void) {
     printf("=== render / screen tests ===\n");
     rpc_bind_wait(rpc_wait_host);
@@ -292,6 +381,8 @@ int main(void) {
     test_render_attrs();
     test_render_custom_tile();
     test_op_queue();
+    test_render_rom_font();
+    test_box_fill();
     test_render_mode10();
     test_screen_module();
     test_overlay_module();

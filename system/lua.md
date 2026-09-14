@@ -252,10 +252,16 @@ modes are scaled 2x. The RP2040 dev board supports modes 0 and 1 only.
 | `ScreenPalette(i, r, g, b)` | `true` |
 | `ScreenPaletteSet(t)` | `true` (t = array of `{r,g,b}` tables or 0xRRGGBB integers, up to 256) |
 | `ScreenClear([char])` | `true` (defaults to space); clears the base layer |
+| `ScreenBox(x, y, w, h [, style [, attr]])` | `true`, or `nil, err`; draws a frame with the ROM box-drawing characters (style 1 = single line, default; 2 = double). Needs `w` and `h` >= 2; clipped at the screen edge |
+| `ScreenFill(x, y, w, h [, char [, attr]])` | `true`, or `nil, err`; writes `char` (default space) and `attr` into every cell of the rectangle; clipped at the screen edge |
 | `OverlayOut(x, y, char [, attr])` | `true`, or `nil, err` (text modes); draws on the overlay layer |
 | `OverlayAttr(x, y, flags)` | `true`, or `nil, err` |
 | `OverlayClear([char])` | `true` (defaults to space); blanks the overlay and hides it |
+| `OverlayBox(...)`, `OverlayFill(...)` | as `ScreenBox`/`ScreenFill`, on the overlay layer (a dialog over the base: `OverlayFill` the body, `OverlayBox` the frame, `OverlayOut` the text; `OverlayClear` removes it) |
 | `ScreenPlot(x, y, colour)` | `true`, or `nil, err` (mode 10 only) |
+
+Box and Fill queue one display op per cell, so a full-screen fill is
+1200 ops: more than one frame's queue, which briefly blocks the caller.
 
 Attribute byte: bit 7 = invert (swap fg/bg), bits 0-2 = colour index,
 bit 6 = transparent overlay cell. Colour index `c` uses palette entry `c+1`
@@ -270,6 +276,44 @@ character code). Tile rows and ROM font rows share one convention: bit 0 is
 the leftmost pixel. A mode switch clears both layers; switching to mode 10
 attaches the shared framebuffer (only one mode 10 program may run; `Launch`
 from mode 10 fails).
+
+### ROM character set
+
+The ROM font holds 256 glyphs laid out like CP437, so the codes match
+the classic box-drawing references. Codes 32-126 are ASCII. The rest:
+
+| Codes | Glyphs |
+|---|---|
+| 1, 2 | smiling faces (outline, filled) |
+| 3, 4, 5, 6 | card suits: heart, diamond, club, spade |
+| 7, 9 | bullet, hollow circle |
+| 13, 14 | music notes (single, beamed) |
+| 16, 17 | right / left pointer (menu cursor) |
+| 24, 25, 26, 27 | arrows up, down, right, left; 18 = up/down, 29 = left/right |
+| 30, 31 | triangles up, down (scroll indicators) |
+| 28 | right angle |
+| 174, 175 | `«` `»` |
+| 176, 177, 178 | light, medium, dark shade |
+| 179-218 | box drawing (single and double lines, all corners, tees and crosses; see below) |
+| 219-223 | full block, lower half, left half, right half, upper half |
+| 240-243 | `≡` `±` `≥` `≤` |
+| 246-250 | `÷` `≈` `°` small bullet, middle dot |
+| 253, 254 | `²`, filled square (checkbox) |
+
+Box drawing codes (the ones `ScreenBox` uses in bold):
+
+| | top-left | top-right | bottom-left | bottom-right | horizontal | vertical | cross |
+|---|---|---|---|---|---|---|---|
+| single | **218** | **191** | **192** | **217** | **196** | **179** | 197 |
+| double | **201** | **187** | **200** | **188** | **205** | **186** | 206 |
+
+Single-line tees: 195 `├`, 180 `┤`, 194 `┬`, 193 `┴`. Double-line tees:
+204 `╠`, 185 `╣`, 203 `╦`, 202 `╩`. The mixed single/double joins
+(181-184, 189, 190, 198, 199, 207-216) are at their CP437 codes too.
+Every other code is blank until a program defines it with
+`ScreenDefineTile`. Single lines are 2 px thick (matching the font's
+stems) on rows/columns 3-4; double lines are 1 px on rows/columns 2 and
+5, so adjacent cells join seamlessly.
 
 ## Sound and Music (Sound API)
 

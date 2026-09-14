@@ -1,7 +1,7 @@
 /* render.c — see render.h */
 #include "render.h"
 
-#include "font8x8_basic.h"
+#include "font8x8_rom.h"
 
 void render_line(const video_state_t *v, int ly, uint8_t *out) {
     int row = ly / 8;
@@ -30,7 +30,7 @@ void render_line(const video_state_t *v, int ly, uint8_t *out) {
             if (v->tile_defined[ch]) {
                 bits = v->tiles[ch][sub];
             } else {
-                bits = font8x8_basic[ch & 0x7f][sub];
+                bits = font8x8_rom[ch][sub];
             }
             int on = (bits >> bit) & 1;
 

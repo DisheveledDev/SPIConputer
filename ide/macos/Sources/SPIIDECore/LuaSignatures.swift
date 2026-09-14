@@ -70,6 +70,13 @@ public enum LuaSignatures {
         add("ScreenPalette", "i", "r", "g", "b")
         add("ScreenPaletteSet", "t")
         add("ScreenClear", "[char]")
+        add("ScreenBox", "x", "y", "w", "h", "[style]", "[attr]")
+        add("ScreenFill", "x", "y", "w", "h", "[char]", "[attr]")
+        add("OverlayOut", "x", "y", "char", "[attr]")
+        add("OverlayAttr", "x", "y", "flags")
+        add("OverlayClear", "[char]")
+        add("OverlayBox", "x", "y", "w", "h", "[style]", "[attr]")
+        add("OverlayFill", "x", "y", "w", "h", "[char]", "[attr]")
         add("ScreenPlot", "x", "y", "colour")
 
         // Sound and music

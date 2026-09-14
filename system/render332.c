@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "font8x8_basic.h"
+#include "font8x8_rom.h"
 
 /* Core 0's render pump calls this for every row, so on the product
  * board the code and every table it reads live in SRAM: the XIP cache is
@@ -23,12 +23,12 @@ static uint32_t s_expand2[4][256];
 static uint32_t s_rgb332[256];
 static bool s_palette_valid;
 
-/* SRAM copy of the ROM font: the compiler places the never-written
- * font8x8_basic table in flash. */
-static uint8_t s_font[128][8];
+/* SRAM copy of the ROM font: the const font8x8_rom table lives in
+ * flash, which core 0 must not read. */
+static uint8_t s_font[256][8];
 
 void render332_init(void) {
-    memcpy(s_font, font8x8_basic, sizeof(s_font));
+    memcpy(s_font, font8x8_rom, sizeof(s_font));
     memset(s_expand2, 0, sizeof(s_expand2));
     for (int bits = 0; bits < 256; bits++) {
         for (int word = 0; word < 4; word++) {
@@ -105,7 +105,7 @@ void RENDER_HOT(render_line_332)(const video_state_t *v, int ly,
             attr = oattr;
         }
         uint8_t bits = v->tile_defined[ch] ? v->tiles[ch][sub]
-                                           : s_font[ch & 0x7f][sub];
+                                           : s_font[ch][sub];
 
         uint8_t fg_idx, bg_idx;
         if (v->mode == VIDEO_MODE_TEXT40C) {
