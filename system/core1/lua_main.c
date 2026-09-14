@@ -165,6 +165,7 @@ void core1_entry(void)
      * the alarm pool (and its IRQ) for this core. */
     input_hw_init();
 
+    bool boot_failed = false;
 #if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
     /* Diagnostic build: the scanout draws a test pattern, so no program
      * is loaded (the SD mount above still reports the card). */
@@ -179,9 +180,11 @@ void core1_entry(void)
      * instead of a black screen, so a missing card and a dead display
      * look different on the bench. */
     if (!card_ok) {
+        boot_failed = true;
         video_hw_set_test_pattern(true);
         printf("no SD card: showing the chequerboard test pattern\n");
     } else if (!program_boot(BOOT_SCRIPT, NULL)) {
+        boot_failed = true;
         sd_log("boot: program_boot failed; error details should be in /logs/errors");
         video_hw_set_test_pattern(true);
         printf("Boot failed: showing the chequerboard test pattern\n");
@@ -215,13 +218,16 @@ void core1_entry(void)
         }
 
 #if defined(SPICOMPUTER_HAS_HDMI)
+        if (boot_failed) {
+            watchdog_update();
+        }
         /* Two liveness gates: this loop is running (a stuck VM or a
          * deadlock stops the scheduler step above) and the display is
          * producing frames. On boards without HSTX only the first
          * applies; the frame counter never moves there. */
         bool video_alive = (now - boot_us < VIDEO_BOOT_GRACE_US) ||
                            (now - last_frame_us < VIDEO_STALL_LIMIT_US);
-        if (video_alive) {
+        if (video_alive && !boot_failed) {
             watchdog_update();
         }
 #else
