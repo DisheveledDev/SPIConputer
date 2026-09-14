@@ -142,7 +142,7 @@ static uint32_t apply_sys_clock(void) {
     uint vco, postdiv1, postdiv2;
 
     if (!check_sys_clock_khz(want, &vco, &postdiv1, &postdiv2)) {
-        want = 126000; /* the exact 640x480@60 pixel clock source */
+        want = 126000; /* the exact 25.2 MHz pixel clock source */
         if (!check_sys_clock_khz(want, &vco, &postdiv1, &postdiv2)) {
             return clock_get_hz(clk_sys);
         }

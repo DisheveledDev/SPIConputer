@@ -31,6 +31,7 @@
 #include "input_hw.h"
 #include "program.h"
 #include "rpc.h"
+#include "scanout.h"
 #include "system_state.h"
 #include "video_hw.h"
 
@@ -152,9 +153,10 @@ static void print_boot_info(void) {
     printf("HSTX: clk_sys %u / %u = %u Hz (pixel clock %u Hz)\n",
            (unsigned)sys, (unsigned)div, (unsigned)hstx, (unsigned)pixel);
     if (warn) {
-        printf("HSTX: warning: clk_sys does not divide to a 640x480@60 "
+        printf("HSTX: warning: clk_sys does not divide to a 25.2 MHz "
                "pixel clock; expect ~%u Hz refresh\n",
-               (unsigned)(pixel / (800u * 525u)));
+               (unsigned)(pixel /
+                          (SCANOUT_H_TOTAL_PIXELS * SCANOUT_V_TOTAL_LINES)));
     }
 #endif
 }

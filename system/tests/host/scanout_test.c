@@ -46,6 +46,12 @@ static int g_failures = 0;
 #define TRACE_MAX 1400
 #define INFLIGHT_MAX 4
 
+/* One frame's DMA steps: two posts per active line plus one per blanking
+ * line (the frame is a full cycle of the sequencer, so the first active
+ * line of the next frame follows the last blanking post). */
+#define FRAME_STEPS \
+    (2 * SCANOUT_V_ACTIVE_LINES + SCANOUT_V_BLANK_LINES)
+
 enum {
     SRC_VSYNC_ON = -1,
     SRC_VSYNC_OFF = -2,
@@ -206,20 +212,20 @@ static void test_frame_structure(void) {
     g_inflight_failures = 0;
     g_inflight_used = 0;
 
-    /* One frame: 480 cmdlist posts, 480 pixel posts, 43 vsync-off and 2
-     * vsync-on blanking posts. */
-    for (int i = 0; i < 1005; i++) {
+    /* One frame: 480 cmdlist posts, 480 pixel posts and one blanking
+     * post per blanking line (45 at 60 Hz, 150 at 50 Hz). */
+    for (int i = 0; i < FRAME_STEPS; i++) {
         step();
     }
 
-    CHECK(g_trace_len == 1005, "one post per DMA completion");
+    CHECK(g_trace_len == FRAME_STEPS, "one post per DMA completion");
     CHECK(g_s.frame == 1, "one frame completed");
     CHECK(g_s.underruns == 0, "no underruns with a keeping-up producer");
     CHECK(g_cmdlist_posts == SCANOUT_V_ACTIVE_LINES,
           "one cmdlist per active line");
     CHECK(g_blank_posts == SCANOUT_V_FRONT_PORCH + SCANOUT_V_SYNC_WIDTH +
                                SCANOUT_V_BACK_PORCH,
-          "45 blanking posts per frame");
+          "one blanking post per blanking line");
     CHECK(g_data_failures == 0,
           "every pixel post carried the row the sequencer selected");
     CHECK(g_inflight_failures == 0,
@@ -238,7 +244,7 @@ static void test_prefetch_bound(void) {
 
     /* vblank: the producer may prefetch, but only SCANOUT_RING_AHEAD
      * rows, never a whole frame. */
-    for (int i = 0; i < 45; i++) {
+    for (int i = 0; i < (int)SCANOUT_V_BLANK_LINES; i++) {
         step();
     }
     CHECK(g_s.rows_published == SCANOUT_RING_AHEAD,

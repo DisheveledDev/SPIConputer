@@ -148,6 +148,14 @@ if (SPICOMPUTER_SYS_CLOCK_KHZ)
             SPICOMPUTER_SYS_CLOCK_KHZ=${SPICOMPUTER_SYS_CLOCK_KHZ})
 endif()
 
+# Display refresh: 50 (default) or 60 Hz. The pixel clock stays 25.2 MHz,
+# so this only changes the vertical blanking (800x630 vs 800x525 lines):
+# 50 Hz gives a 4.8 ms vblank for core 0 instead of 1.4 ms. See scanout.h.
+set(SPICOMPUTER_REFRESH_HZ 50 CACHE STRING
+        "Display refresh rate in Hz (50 or 60)")
+target_compile_definitions(SPIComputerOS PRIVATE
+        SPICOMPUTER_REFRESH_HZ=${SPICOMPUTER_REFRESH_HZ})
+
 target_compile_definitions(SPIComputerOS PRIVATE
         PICO_STACK_SIZE=4096
         # 0: no SDK core-1 stack in SCRATCH_X, we pass our own to

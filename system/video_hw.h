@@ -72,6 +72,6 @@ uint32_t video_hw_last_gap_underruns(void);
 /* HSTX clock information recorded by video_hw_init(), for the OS core to
  * print: the clk_hstx source divisor, the resulting peripheral clock and
  * the pixel clock (clk_hstx / 5). `*warn` is set when clk_sys did not
- * divide to a 640x480@60 pixel clock (an overclock off the exact list). */
+ * divide to the 25.2 MHz pixel clock (an overclock off the exact list). */
 void video_hw_clock_info(uint32_t *divisor, uint32_t *hstx_hz,
                          uint32_t *pixel_hz, bool *warn);

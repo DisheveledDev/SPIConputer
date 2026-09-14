@@ -25,9 +25,10 @@
  *
  * Pixel clock: the HSTX CSR divides clk_hstx by 5 and shifts 2 bits per
  * cycle, so the pixel clock is clk_hstx / 5. core0/main.c sets clk_sys
- * to 126 MHz, giving 25.2 MHz (640x480@60, 252 Mbps, the VESA 25.175
- * MHz spec). With the SDK default 150 MHz the pixel clock is 30 MHz and
- * the mode runs ~71 Hz: still locked by most monitors, but off-spec.
+ * to 126 MHz, giving 25.2 MHz (the 640x480 timing, 252 Mbps, VESA's
+ * 25.175 MHz spec). With the SDK default 150 MHz the pixel clock is
+ * 30 MHz and the mode runs ~71 Hz: still locked by most monitors, but
+ * off-spec.
  */
 #include "video_hw.h"
 
@@ -81,9 +82,10 @@
 _Static_assert(SCANOUT_H_ACTIVE_PIXELS == RENDER_OUT_WIDTH &&
                    SCANOUT_V_ACTIVE_LINES == RENDER_OUT_HEIGHT,
                "scanout and renderer geometry must match");
-_Static_assert(SCANOUT_V_FRONT_PORCH == 10 && SCANOUT_V_SYNC_WIDTH == 2 &&
-                   SCANOUT_V_BACK_PORCH == 33,
-               "scanout vertical constants are fixed for 640x480@60");
+_Static_assert(SCANOUT_H_TOTAL_PIXELS * SCANOUT_V_TOTAL_LINES *
+                       SPICOMPUTER_REFRESH_HZ ==
+                   25200000,
+               "vertical timing must give the 25.2 MHz pixel clock");
 
 static const uint32_t s_vblank_vsync_on[] = {
     HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
@@ -166,8 +168,9 @@ static uint32_t s_diag_evt_fifo;
 static uint32_t s_diag_evt_cmdlist;
 static uint32_t s_diag_evt_underruns;
 
-/* One frame is exactly 45 blanking steps + 480 lines * (cmdlist, pixels). */
-#define SCANOUT_STEPS_PER_FRAME (45u + SCANOUT_V_ACTIVE_LINES * 2u)
+/* One frame is exactly (blanking lines) + 480 lines * (cmdlist, pixels). */
+#define SCANOUT_STEPS_PER_FRAME \
+    (SCANOUT_V_BLANK_LINES + SCANOUT_V_ACTIVE_LINES * 2u)
 
 /* ------------------------------------------------------------------ */
 /* Hardware glue for scanout.c                                        */
@@ -484,7 +487,7 @@ _Static_assert(HSTX_D0_P_PIN >= 12 && HSTX_D1_N_PIN <= 19 &&
 
 /* Target HSTX clock. The pixel clock is clk_hstx / 5 and the TMDS bit
  * clock is 10x the pixel clock, so 126 MHz gives the 25.2 MHz pixels and
- * 252 Mbps the 640x480@60 spec calls for. */
+ * 252 Mbps the 640x480 timing calls for. */
 #define HSTX_CLK_HZ (126u * 1000u * 1000u)
 
 /* Recorded for the OS core to report (core 0 owns no stdio). */
