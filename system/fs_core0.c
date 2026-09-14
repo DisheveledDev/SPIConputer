@@ -15,6 +15,7 @@
  */
 #include "fs_core0.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -31,54 +32,12 @@ static FIL s_fil[FS_MAX_OPEN];
 static bool s_open[FS_MAX_OPEN];
 static bool s_mounted = false;
 
-/* Firmware log (bring-up diagnostics): a dedicated FIL so the Lua
- * handle pool is untouched, appended and flushed line by line so the
- * tail survives a reset. */
-static FIL s_log_fil;
-static bool s_log_open = false;
-
-static void log_close(void) {
-    if (s_log_open) {
-        f_close(&s_log_fil);
-        s_log_open = false;
-    }
-}
-
-bool fs_core0_log(const char *line) {
-    sd_card_t *sd = sd_get_by_num(0);
-    if (!s_mounted || !sd) {
-        return false;
-    }
-    if (!s_log_open) {
-        char path[32];
-        snprintf(path, sizeof(path), "%s/spilog.txt", sd->pcName);
-        if (f_open(&s_log_fil, path, FA_WRITE | FA_OPEN_APPEND) != FR_OK) {
-            return false;
-        }
-        s_log_open = true;
-    }
-    size_t len = strlen(line);
-    UINT written = 0;
-    bool ok = f_write(&s_log_fil, line, (UINT)len, &written) == FR_OK &&
-              written == (UINT)len &&
-              f_write(&s_log_fil, "\n", 1, &written) == FR_OK &&
-              written == 1;
-    if (ok) {
-        ok = f_sync(&s_log_fil) == FR_OK;
-    }
-    if (!ok) {
-        log_close();
-    }
-    return ok;
-}
-
 bool fs_core0_mount(void) {
     sd_card_t *sd = sd_get_by_num(0);
     if (!sd) {
         return false;
     }
     fs_core0_close_all();
-    log_close();
     if (!sd_init_driver()) {
         s_mounted = false;
         return false;
@@ -88,8 +47,38 @@ bool fs_core0_mount(void) {
     return s_mounted;
 }
 
-bool fs_core0_mounted(void) {
-    return s_mounted;
+bool fs_core0_write_error(const char *name, uint64_t timestamp,
+                          const char *text) {
+    sd_card_t *sd = sd_get_by_num(0);
+    if (!s_mounted || !sd || !name || !text) {
+        return false;
+    }
+    char logs[32];
+    char errors[48];
+    snprintf(logs, sizeof(logs), "%s/logs", sd->pcName);
+    snprintf(errors, sizeof(errors), "%s/logs/errors", sd->pcName);
+    FRESULT result = f_mkdir(logs);
+    if (result != FR_OK && result != FR_EXIST) {
+        return false;
+    }
+    result = f_mkdir(errors);
+    if (result != FR_OK && result != FR_EXIST) {
+        return false;
+    }
+    char path[128];
+    snprintf(path, sizeof(path), "%s/%s_%" PRIu64 ".txt", errors, name,
+             timestamp);
+    FIL file;
+    if (f_open(&file, path, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK) {
+        return false;
+    }
+    UINT written = 0;
+    result = f_write(&file, text, (UINT)strlen(text), &written);
+    bool ok = result == FR_OK && written == (UINT)strlen(text);
+    if (f_close(&file) != FR_OK) {
+        ok = false;
+    }
+    return ok;
 }
 
 void fs_core0_close_all(void) {

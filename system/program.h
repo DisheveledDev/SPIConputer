@@ -37,6 +37,7 @@ typedef struct program_s {
     /* -- lifetime -- */
     bool used;
     uint32_t pid;
+    char name[260];
     lua_State *L;
     int chunk_ref;     /* registry ref to the program chunk (kept alive) */
     int setup_ref;     /* LUA_NOREF when absent */

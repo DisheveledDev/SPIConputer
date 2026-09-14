@@ -15,6 +15,7 @@
 #include "ff.h"
 #include "f_util.h"
 
+#include "fs_core0.h"
 #include "fs_lua.h"
 #include "input.h"
 #include "os_time.h"
@@ -28,6 +29,38 @@ _Static_assert(PROGRAM_MAX <= VIDEO_SLOTS,
                "every program needs its own screen slot (video.h)");
 static program_t *s_top = NULL;
 static uint32_t s_next_pid = 0;
+
+static void program_log_error(const program_t *p, const char *phase,
+                              const char *message) {
+    const char *base = strrchr(p->name, '/');
+    base = base ? base + 1 : p->name;
+    char name[64];
+    size_t n = 0;
+    while (base[n] && base[n] != '.' && n + 1 < sizeof(name)) {
+        unsigned char c = (unsigned char)base[n];
+        name[n] = (c == '_' || (c >= '0' && c <= '9') ||
+                   (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+                      ? (char)c
+                      : '_';
+        n++;
+    }
+    name[n] = '\0';
+    if (n == 0) {
+        snprintf(name, sizeof(name), "program");
+    }
+    uint64_t timestamp = os_time_us();
+    luaL_traceback(p->L, p->L, message ? message : "unknown Lua error", 1);
+    const char *traceback = lua_tostring(p->L, -1);
+    char detail[2048];
+    snprintf(detail, sizeof(detail),
+             "program=%s\npid=%lu\nphase=%s\ntimestamp_us=%llu\n"
+             "source=%s\nerror=%s\ntraceback=%s\n",
+             name, (unsigned long)p->pid, phase,
+             (unsigned long long)timestamp, p->name,
+             message ? message : "unknown Lua error",
+             traceback ? traceback : "unavailable");
+    fs_core0_write_error(name, timestamp, detail);
+}
 
 /* Deferred audio state frees.
  *
@@ -249,6 +282,7 @@ static program_t *program_create(const char *name, const char *source,
         return NULL;
     }
 
+    snprintf(p->name, sizeof(p->name), "%s", name);
     p->heap_cap = PROGRAM_HEAP_CAP;
     p->L = lua_newstate(capped_alloc, p, 0);
     if (!p->L) {
@@ -292,9 +326,10 @@ static program_t *program_create(const char *name, const char *source,
     int st = luaL_loadbufferx(p->L, chunk, len, chunk_name, "bt");
     free(buf);
     if (st != LUA_OK) {
-        fprintf(stderr, "program_create: load error: %s\n",
-                lua_tostring(p->L, -1));
-        *err = lua_tostring(p->L, -1);
+        const char *message = lua_tostring(p->L, -1);
+        fprintf(stderr, "program_create: load error: %s\n", message);
+        program_log_error(p, "compile", message);
+        *err = message;
         lua_close(p->L);
         pool_free(p);
         return NULL;
@@ -343,9 +378,10 @@ static program_t *program_create(const char *name, const char *source,
     }
     st = lua_pcall(p->L, argc > 0 ? 1 : 0, 0, 0);
     if (st != LUA_OK) {
-        fprintf(stderr, "program_create: chunk error: %s\n",
-                lua_tostring(p->L, -1));
-        *err = lua_tostring(p->L, -1);
+        const char *message = lua_tostring(p->L, -1);
+        fprintf(stderr, "program_create: chunk error: %s\n", message);
+        program_log_error(p, "runtime", message);
+        *err = message;
         lua_close(p->L);
         pool_free(p);
         return NULL;
@@ -444,8 +480,10 @@ void program_terminate(program_t *p) {
     /* finish() runs for any program that completed setup(). */
     if (p->finish_ref != LUA_NOREF) {
         if (!program_pcall(p, p->finish_ref)) {
+            const char *message = lua_tostring(p->L, -1);
             fprintf(stderr, "program %u: finish error: %s\n", p->pid,
-                    lua_tostring(p->L, -1));
+                    message);
+            program_log_error(p, "finish", message);
         }
     }
     lua_close(p->L);
@@ -464,8 +502,10 @@ static void program_reap_replaced(void) {
         program_t *p = s_replaced[i];
         if (p->finish_ref != LUA_NOREF) {
             if (!program_pcall(p, p->finish_ref)) {
+                const char *message = lua_tostring(p->L, -1);
                 fprintf(stderr, "program %u: finish error: %s\n", p->pid,
-                        lua_tostring(p->L, -1));
+                        message);
+                program_log_error(p, "finish", message);
             }
         }
         lua_close(p->L);
@@ -480,9 +520,10 @@ static void run_setup(program_t *p, const char **err) {
         return;
     }
     if (!program_pcall(p, p->setup_ref)) {
-        fprintf(stderr, "program_create: setup error: %s\n",
-                lua_tostring(p->L, -1));
-        *err = lua_tostring(p->L, -1);
+        const char *message = lua_tostring(p->L, -1);
+        fprintf(stderr, "program_create: setup error: %s\n", message);
+        program_log_error(p, "setup", message);
+        *err = message;
     }
 }
 
@@ -681,8 +722,10 @@ bool program_timer_stop(program_t *p, int id) {
 /* Run one due timer callback. Returns false if the program died. */
 static bool run_timer(program_t *p, program_timer_t *t) {
     if (!program_pcall(p, t->fn_ref)) {
+        const char *message = lua_tostring(p->L, -1);
         fprintf(stderr, "program %u: timer error: %s\n", p->pid,
-                lua_tostring(p->L, -1));
+                message);
+        program_log_error(p, "timer", message);
         program_terminate(p);
         return false;
     }
@@ -694,8 +737,10 @@ static bool run_timer(program_t *p, program_timer_t *t) {
 /* ------------------------------------------------------------------ */
 
 static bool callback_failed(program_t *p, const char *what) {
+    const char *message = lua_tostring(p->L, -1);
     fprintf(stderr, "program %u: %s error: %s\n", p->pid, what,
-            lua_tostring(p->L, -1));
+            message);
+    program_log_error(p, what, message);
     program_terminate(p);
     return false;
 }
@@ -839,8 +884,10 @@ void program_scheduler_step(void) {
         return;
     }
     if (!program_pcall(p, p->tick_ref)) {
+        const char *message = lua_tostring(p->L, -1);
         fprintf(stderr, "program %u: tick error: %s\n", p->pid,
-                lua_tostring(p->L, -1));
+                message);
+        program_log_error(p, "tick", message);
         program_terminate(p);
         return;
     }
