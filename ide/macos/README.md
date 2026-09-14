@@ -106,6 +106,32 @@ assets are applied while the program's video/audio state is current.
 Components build top-to-bottom into one Lua chunk, so the locals declared
 in `main` are visible to `input` and `tick`.
 
+## Frameworks (SDKs)
+
+`Sources/SPIIDECore/Resources/sdk/*.lua` are read-only frameworks a project
+can select in Project Settings (new projects select them all): `screen`
+(`Screen.*`), `overlay` (`Overlay.*`), `sound` (`Sound.*`, `Music.*`) and
+`input` (`Input.Keyboard.*`, `Input.Joystick.*`). They are plain Lua over
+the OS API, injected into the built program after the `__spi_*` flags
+and before the components, so their namespaces exist when the program's
+chunk body runs.
+
+Only what the program uses is emitted. The builder reads each framework
+as a preamble (everything above the first column-0 `function`, always
+kept) plus `function Name.Sub(...)` … `end` blocks (both at column 0),
+keeps the blocks whose names the program's Lua/snippet components mention
+(strings and comments masked out), then the blocks those mention, and so
+on; `local function helper` blocks come along when a kept block uses
+them. A framework nothing uses emits only a banner. The `---` line above
+a block (`--- Screen.OutText(x, y, text [, attr])`) is its signature for
+completion and parameter help; the `--` lines after it describe it. Keep
+that format when editing a framework, and add a test in
+`SDKLibraryTests` for anything new the parser must understand.
+
+`software/demo` uses all four frameworks and writes a self-test file;
+running it headless in the simulator with `--type 'k'` is the frameworks'
+integration test.
+
 ## Compile checking and editing
 
 - The editor shows **line numbers** in a gutter per component file.

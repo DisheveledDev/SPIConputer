@@ -36,6 +36,48 @@ struct BuilderTests {
         #expect(product.componentCount == 4)
     }
 
+    @Test func injectsSelectedFrameworksStrippedToWhatIsUsed() throws {
+        var project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        let main = try #require(project.manifest.components.first { $0.name == "main" })
+        try ProjectStore.writeText(
+            "function setup()\n  Screen.CenterText(1, 'hi')\n  Overlay.Dialog('T', 'x')\nend\n",
+            to: project.fileURL(for: main))
+        project.manifest.sdks = ["screen", "overlay", "sound"]
+
+        let lua = try ProjectBuilder.build(project, writeToDisk: false).lua
+        #expect(lua.contains("-- ==== sdk: screen (read-only; unused functions stripped) ===="))
+        #expect(lua.contains("function Screen.CenterText("))
+        #expect(!lua.contains("function Screen.Box("), "unused Screen function stripped")
+        #expect(lua.contains("function Overlay.Dialog("))
+        #expect(lua.contains("function Overlay.Window("), "Dialog depends on Window")
+        #expect(!lua.contains("function Overlay.Scroll("))
+        #expect(lua.contains("sdk: sound (read-only; nothing used, nothing emitted)"))
+        #expect(!lua.contains("function Sound.Tone("))
+        // Frameworks precede the components and follow the flags.
+        let flags = try #require(lua.range(of: "__spi_requires_audio"))
+        let sdk = try #require(lua.range(of: "sdk: screen"))
+        let component = try #require(lua.range(of: "component: header"))
+        #expect(flags.lowerBound < sdk.lowerBound && sdk.lowerBound < component.lowerBound)
+    }
+
+    @Test func newProjectsSelectEveryFramework() throws {
+        let project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        #expect(project.manifest.sdks == SDKLibrary.available.map(\.id))
+        let reloaded = try ProjectStore.load(from: project.root)
+        #expect(reloaded.manifest.sdks == project.manifest.sdks)
+    }
+
+    @Test func unknownFrameworkFailsTheBuild() throws {
+        var project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        project.manifest.sdks = ["nosuch"]
+        #expect(throws: BuildError.unknownSDK("nosuch")) {
+            try ProjectBuilder.build(project, writeToDisk: false)
+        }
+    }
+
     @Test func lineMapResolvesComponentLines() throws {
         var project = try makeProject()
         defer { try? FileManager.default.removeItem(at: project.root) }

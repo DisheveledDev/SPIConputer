@@ -1,0 +1,241 @@
+-- SDK: Screen
+-- Summary: Text-mode drawing on the base layer: text, boxes, fills, block moves.
+-- Namespaces: Screen
+--
+-- A framework file the IDE injects, read-only, into programs that
+-- select it. Its format is a contract with the builder:
+--   * everything above the first top-level `function` is the preamble
+--     and is always emitted;
+--   * each `function Name.Sub(...)` ... `end` block (both at column 0)
+--     is emitted only when the program refers to Name.Sub, directly or
+--     from another emitted block;
+--   * a top-level `local function helper(...)` ... `end` block is
+--     emitted when an emitted block refers to `helper`;
+--   * the `--- Name.Sub(x, y [, attr])` line above a block is its
+--     signature for completion and parameter help; the `--` lines that
+--     follow describe it.
+--
+-- Conventions: coordinates are 0-based cells; region calls take the two
+-- inclusive corners (x1, y1, x2, y2), unlike the raw ScreenX calls,
+-- which take (x, y, w, h). Every call returns what the OS call returns
+-- (true, or nil and a message).
+
+Screen = Screen or {}
+Screen.COLS = 40
+Screen.ROWS = 30
+Screen.SINGLE = 1      -- box style: single line
+Screen.DOUBLE = 2      -- box style: double line
+Screen.INVERT = 0x80   -- attribute bit: swap foreground and background
+
+-- Inclusive corners to (x, y, w, h), in either corner order.
+local function region(x1, y1, x2, y2)
+    if x2 < x1 then x1, x2 = x2, x1 end
+    if y2 < y1 then y1, y2 = y2, y1 end
+    return x1, y1, x2 - x1 + 1, y2 - y1 + 1
+end
+
+--- Screen.Mode(mode)
+-- Selects a screen mode: 0 (40x30 B&W), 1 (40x30 colour), 10 (320x240
+-- pixels). Switching clears the screen.
+function Screen.Mode(mode)
+    return ScreenMode(mode)
+end
+
+--- Screen.Clear([char])
+-- Fills the whole base layer with `char` (default space) and attribute 0.
+function Screen.Clear(char)
+    return ScreenClear(char or 32)
+end
+
+--- Screen.Out(x, y, char [, attr])
+-- Writes one character code at a cell.
+function Screen.Out(x, y, char, attr)
+    return ScreenOut(x, y, char, attr or 0)
+end
+
+--- Screen.Attr(x, y, attr)
+-- Sets one cell's attribute, keeping its character.
+function Screen.Attr(x, y, attr)
+    return ScreenAttr(x, y, attr)
+end
+
+--- Screen.OutText(x, y, text [, attr])
+-- Writes a string from (x, y), wrapping at the right edge. One display
+-- op however long the text.
+function Screen.OutText(x, y, text, attr)
+    return ScreenWrite(x, y, tostring(text), attr)
+end
+
+--- Screen.CenterText(y, text [, attr])
+-- Writes a string centred on row `y`.
+function Screen.CenterText(y, text, attr)
+    text = tostring(text)
+    local x = (Screen.COLS - #text) // 2
+    if x < 0 then x = 0 end
+    return ScreenWrite(x, y, text, attr)
+end
+
+--- Screen.RightText(y, text [, attr])
+-- Writes a string ending at the right edge of row `y`.
+function Screen.RightText(y, text, attr)
+    text = tostring(text)
+    local x = Screen.COLS - #text
+    if x < 0 then x = 0 end
+    return ScreenWrite(x, y, text, attr)
+end
+
+--- Screen.Printf(x, y, format, ...)
+-- string.format, written at (x, y).
+function Screen.Printf(x, y, format, ...)
+    return ScreenWrite(x, y, string.format(format, ...))
+end
+
+--- Screen.Clean(x1, y1, x2, y2 [, char [, attr]])
+-- Blanks the cells between two corners (inclusive): `char` defaults to
+-- space and `attr` to 0.
+function Screen.Clean(x1, y1, x2, y2, char, attr)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    return ScreenFill(x, y, w, h, char or 32, attr or 0)
+end
+
+--- Screen.Fill(x1, y1, x2, y2, char [, attr])
+-- Fills the cells between two corners with a character and attribute.
+function Screen.Fill(x1, y1, x2, y2, char, attr)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    return ScreenFill(x, y, w, h, char, attr or 0)
+end
+
+--- Screen.FillAttr(x1, y1, x2, y2, attr)
+-- Sets the attribute of every cell between two corners; characters stay.
+function Screen.FillAttr(x1, y1, x2, y2, attr)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    return ScreenFillAttr(x, y, w, h, attr)
+end
+
+--- Screen.HLine(x1, x2, y [, char [, attr]])
+-- A horizontal line of `char` (default: the box-drawing horizontal).
+function Screen.HLine(x1, x2, y, char, attr)
+    local x, _, w = region(x1, y, x2, y)
+    return ScreenFill(x, y, w, 1, char or 196, attr or 0)
+end
+
+--- Screen.VLine(x, y1, y2 [, char [, attr]])
+-- A vertical line of `char` (default: the box-drawing vertical).
+function Screen.VLine(x, y1, y2, char, attr)
+    local _, y, _, h = region(x, y1, x, y2)
+    return ScreenFill(x, y, 1, h, char or 179, attr or 0)
+end
+
+--- Screen.Box(x1, y1, x2, y2 [, style [, attr]])
+-- A frame between two corners: style Screen.SINGLE (default) or
+-- Screen.DOUBLE. The inside is left alone.
+function Screen.Box(x1, y1, x2, y2, style, attr)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    return ScreenBox(x, y, w, h, style or 1, attr or 0)
+end
+
+--- Screen.Window(x1, y1, x2, y2 [, title [, style [, attr]]])
+-- A blank window: the inside cleared, a frame around it and an optional
+-- title on the top edge.
+function Screen.Window(x1, y1, x2, y2, title, style, attr)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    attr = attr or 0
+    ScreenFill(x, y, w, h, 32, attr)
+    local ok, err = ScreenBox(x, y, w, h, style or 1, attr)
+    if ok and title and #tostring(title) > 0 then
+        local label = " " .. tostring(title) .. " "
+        local tx = x + (w - #label) // 2
+        if tx < x + 1 then tx = x + 1 end
+        ScreenWrite(tx, y, label:sub(1, w - 2), attr)
+    end
+    return ok, err
+end
+
+--- Screen.Copy(x1, y1, x2, y2, x3, y3)
+-- Copies the block between two corners so its top-left lands at (x3, y3).
+function Screen.Copy(x1, y1, x2, y2, x3, y3)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    return ScreenCopy(x, y, w, h, x3, y3)
+end
+
+--- Screen.Move(x1, y1, x2, y2, x3, y3 [, char [, attr]])
+-- Moves the block between two corners so its top-left lands at (x3, y3),
+-- blanking what it uncovers with `char` (default space) and `attr`.
+function Screen.Move(x1, y1, x2, y2, x3, y3, char, attr)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    return ScreenMove(x, y, w, h, x3, y3, char or 32, attr or 0)
+end
+
+--- Screen.Scroll(x1, y1, x2, y2, dx, dy [, char [, attr]])
+-- Shifts the contents of a region by (dx, dy) cells; the cells it
+-- uncovers are filled with `char` (default space) and `attr`.
+function Screen.Scroll(x1, y1, x2, y2, dx, dy, char, attr)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    return ScreenScroll(x, y, w, h, dx, dy, char or 32, attr or 0)
+end
+
+--- Screen.ScrollUp([lines [, char [, attr]]])
+-- Scrolls the whole screen up by `lines` (default 1).
+function Screen.ScrollUp(lines, char, attr)
+    return ScreenScroll(0, 0, Screen.COLS, Screen.ROWS, 0, -(lines or 1), char or 32, attr or 0)
+end
+
+--- Screen.ScrollDown([lines [, char [, attr]]])
+-- Scrolls the whole screen down by `lines` (default 1).
+function Screen.ScrollDown(lines, char, attr)
+    return ScreenScroll(0, 0, Screen.COLS, Screen.ROWS, 0, lines or 1, char or 32, attr or 0)
+end
+
+--- Screen.ScrollLeft([cols [, char [, attr]]])
+-- Scrolls the whole screen left by `cols` (default 1).
+function Screen.ScrollLeft(cols, char, attr)
+    return ScreenScroll(0, 0, Screen.COLS, Screen.ROWS, -(cols or 1), 0, char or 32, attr or 0)
+end
+
+--- Screen.ScrollRight([cols [, char [, attr]]])
+-- Scrolls the whole screen right by `cols` (default 1).
+function Screen.ScrollRight(cols, char, attr)
+    return ScreenScroll(0, 0, Screen.COLS, Screen.ROWS, cols or 1, 0, char or 32, attr or 0)
+end
+
+--- Screen.Map(chars [, attrs])
+-- Replaces the whole character map from a 1200-byte string (row by
+-- row), and optionally the attribute map from a second one.
+function Screen.Map(chars, attrs)
+    local ok, err = ScreenWrite(0, 0, chars)
+    if ok and attrs then
+        ok, err = ScreenWriteAttr(0, 0, attrs)
+    end
+    return ok, err
+end
+
+--- Screen.Palette(index, r, g, b)
+-- Sets one palette entry (0 = background, 1 = default text colour).
+function Screen.Palette(index, r, g, b)
+    return ScreenPalette(index, r, g, b)
+end
+
+--- Screen.PaletteSet(colours)
+-- Sets palette entries from an array of {r, g, b} tables or 0xRRGGBB numbers.
+function Screen.PaletteSet(colours)
+    return ScreenPaletteSet(colours)
+end
+
+--- Screen.DefineTile(index, rows)
+-- Redefines a character's 8x8 tile from eight row bytes (table or string).
+function Screen.DefineTile(index, rows)
+    return ScreenDefineTile(index, rows)
+end
+
+--- Screen.Plot(x, y, colour)
+-- Sets one pixel in mode 10.
+function Screen.Plot(x, y, colour)
+    return ScreenPlot(x, y, colour)
+end
+
+--- Screen.LoadImage(path, x, y [, w, h])
+-- Draws an image file from the card at (x, y). Reserved: the OS loader
+-- is not available yet, so this returns nil and a message for now.
+function Screen.LoadImage(path, x, y, w, h)
+    return ScreenLoadImage(path, x, y, w, h)
+end

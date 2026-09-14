@@ -164,7 +164,9 @@ final class AppModel {
             projectFunctions = []
             return
         }
-        var signatures: [LuaSignature] = []
+        // The selected frameworks' functions complete and show parameter
+        // help like the program's own; components read later still win.
+        var signatures: [LuaSignature] = SDKLibrary.signatures(for: project.manifest.sdks)
         for component in project.manifest.components
         where component.kind == .lua || component.kind == .snippet {
             let text: String
@@ -242,7 +244,8 @@ final class AppModel {
         outputKind: ProjectOutputKind,
         requiresVideo: Bool,
         requiresAudio: Bool,
-        iconFile: String?
+        iconFile: String?,
+        sdks: [String]
     ) {
         guard var project else { return }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -250,6 +253,7 @@ final class AppModel {
         project.manifest.name = trimmedName
         project.manifest.version = version
         project.manifest.description = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        project.manifest.sdks = SDKLibrary.available.map(\.id).filter { sdks.contains($0) }
         project.manifest.interactive = interactive
         project.manifest.outputKind = outputKind
         project.manifest.requiresVideo = requiresVideo

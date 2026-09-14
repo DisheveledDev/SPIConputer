@@ -86,7 +86,10 @@ public enum ProjectStore {
         let fm = FileManager.default
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
 
-        var manifest = ProjectManifest(name: name, interactive: interactive)
+        // New projects get every framework: unused functions are stripped
+        // at build, so selecting them all costs nothing.
+        var manifest = ProjectManifest(
+            name: name, interactive: interactive, sdks: SDKLibrary.available.map(\.id))
         try writeTemplate(to: root, manifest: &manifest)
         let project = Project(root: root, manifest: manifest)
         try save(project)

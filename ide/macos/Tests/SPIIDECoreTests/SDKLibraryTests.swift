@@ -1,0 +1,126 @@
+import Foundation
+import Testing
+
+@testable import SPIIDECore
+
+@Suite("SDK library")
+struct SDKLibraryTests {
+    private let sample = """
+    -- SDK: Demo
+    -- Summary: A framework for the tests.
+    -- Namespaces: Demo, Demo.Sub
+
+    Demo = Demo or {}
+    Demo.Sub = Demo.Sub or {}
+    local counter = 0
+
+    local function helper(n)
+        counter = counter + n
+        return counter
+    end
+
+    --- Demo.One(x [, attr])
+    -- Uses the helper.
+    function Demo.One(x, attr)
+        return helper(x)
+    end
+
+    --- Demo.Two(a, b [, c [, d]])
+    -- Calls One.
+    function Demo.Two(a, b, c, d)
+        return Demo.One(a + b)
+    end
+
+    function Demo.Sub.Three()
+        return 3
+    end
+
+    """
+
+    @Test func parsesHeaderPreambleAndBlocks() {
+        let sdk = SDKLibrary.parse(id: "demo", text: sample)
+        #expect(sdk.title == "Demo")
+        #expect(sdk.summary == "A framework for the tests.")
+        #expect(sdk.namespaces == ["Demo", "Demo.Sub"])
+        #expect(sdk.preamble.contains("Demo = Demo or {}"))
+        #expect(sdk.preamble.contains("local counter = 0"))
+        #expect(!sdk.preamble.contains("function"))
+        #expect(sdk.blocks.map(\.name) == ["helper", "Demo.One", "Demo.Two", "Demo.Sub.Three"])
+        #expect(sdk.blocks[0].isLocal)
+        #expect(!sdk.blocks[1].isLocal)
+    }
+
+    @Test func signaturesComeFromDocLinesWithOptionalParameters() {
+        let sdk = SDKLibrary.parse(id: "demo", text: sample)
+        let signatures = sdk.signatures
+        #expect(signatures.map(\.name) == ["Demo.One", "Demo.Two", "Demo.Sub.Three"])
+        #expect(signatures[0].parameters == ["x", "[attr]"])
+        #expect(signatures[1].parameters == ["a", "b", "[c]", "[d]"])
+        // No doc line: the definition's own parameter list.
+        #expect(signatures[2].parameters == [])
+        #expect(sdk.blocks[1].summary == "Uses the helper.")
+    }
+
+    @Test func stripsUnusedFunctionsKeepingDependencies() throws {
+        let sdk = SDKLibrary.parse(id: "demo", text: sample)
+        let text = try #require(SDKLibrary.emit(sdk, usedBy: ["function setup() Demo.Two(1, 2) end"]))
+        #expect(text.contains("Demo = Demo or {}"))
+        #expect(text.contains("function Demo.Two("))
+        #expect(text.contains("function Demo.One("), "Two calls One")
+        #expect(text.contains("local function helper("), "One calls helper")
+        #expect(!text.contains("Demo.Sub.Three"))
+        // Blocks keep file order, so helpers are defined before use.
+        let helperIndex = try #require(text.range(of: "local function helper"))
+        let oneIndex = try #require(text.range(of: "function Demo.One"))
+        #expect(helperIndex.lowerBound < oneIndex.lowerBound)
+    }
+
+    @Test func emitsNothingWhenUnused() {
+        let sdk = SDKLibrary.parse(id: "demo", text: sample)
+        #expect(SDKLibrary.emit(sdk, usedBy: ["function setup() print('hi') end"]) == nil)
+        // A mention inside a comment or a string does not count.
+        #expect(SDKLibrary.emit(sdk, usedBy: ["-- Demo.One is nice\nlocal s = 'Demo.Two'"]) == nil)
+    }
+
+    @Test func nestedNamespacesAndLocalHelpersAreMatchedExactly() throws {
+        let sdk = SDKLibrary.parse(id: "demo", text: sample)
+        let text = try #require(SDKLibrary.emit(sdk, usedBy: ["x = Demo.Sub.Three()"]))
+        #expect(text.contains("function Demo.Sub.Three"))
+        #expect(!text.contains("function Demo.One"))
+        #expect(!text.contains("local function helper"))
+        // A user-defined `helper` does not pull in the SDK's local helper.
+        #expect(SDKLibrary.emit(sdk, usedBy: ["local function helper() end helper()"]) == nil)
+    }
+
+    @Test func bundledFrameworksLoadAndParse() throws {
+        let ids = SDKLibrary.available.map(\.id)
+        #expect(ids == ["screen", "overlay", "sound", "input"])
+        for sdk in SDKLibrary.available {
+            #expect(!sdk.blocks.isEmpty, "\(sdk.id) has functions")
+            #expect(!sdk.summary.isEmpty, "\(sdk.id) has a summary")
+            for block in sdk.blocks where !block.isLocal {
+                #expect(block.name.contains("."), "\(block.name) is namespaced")
+                #expect(block.signature.name == block.name, "\(block.name) doc line names the block")
+            }
+        }
+        let screen = try #require(SDKLibrary.sdk(id: "screen"))
+        let outText = try #require(screen.signatures.first { $0.name == "Screen.OutText" })
+        #expect(outText.parameters == ["x", "y", "text", "[attr]"])
+        let input = try #require(SDKLibrary.sdk(id: "input"))
+        #expect(input.signatures.contains { $0.name == "Input.Keyboard.Callback" })
+        #expect(input.signatures.contains { $0.name == "Input.Joystick.Callback" })
+    }
+
+    @Test func everyBundledBlockCompilesOnItsOwn() throws {
+        // Each stripped subset must be valid Lua: emit every framework
+        // with exactly one public function used, and check the syntax of
+        // the whole (preamble + closure) with the tokenizer-based checker.
+        for sdk in SDKLibrary.available {
+            for block in sdk.blocks where !block.isLocal {
+                let text = try #require(SDKLibrary.emit(sdk, referenced: [block.name]))
+                let issue = LuaStructureChecker.check(text)
+                #expect(issue == nil, "\(block.name): \(String(describing: issue))")
+            }
+        }
+    }
+}

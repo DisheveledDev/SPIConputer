@@ -60,6 +60,7 @@ public enum BuildError: Error, LocalizedError, Equatable {
     case noComponents
     case missingComponentFile(String)
     case unreadableComponent(String)
+    case unknownSDK(String)
 
     public var errorDescription: String? {
         switch self {
@@ -69,6 +70,8 @@ public enum BuildError: Error, LocalizedError, Equatable {
             "Component file not found: \(file)"
         case .unreadableComponent(let file):
             "Component file is not valid UTF-8: \(file)"
+        case .unknownSDK(let id):
+            "The project selects a framework this IDE does not have: \(id)"
         }
     }
 }
@@ -104,11 +107,10 @@ public enum ProjectBuilder {
             "__spi_requires_audio = \(project.manifest.requiresAudio ? "true" : "false")\n\n",
             component: nil)
 
-        var assetNames: [String] = []
+        // Read every component first: the frameworks are stripped against
+        // what the program's own code references.
+        var texts: [ComponentRef.ID: (data: Data, text: String)] = [:]
         for component in project.manifest.components {
-            emitter.append(
-                "\n-- ==== component: \(component.name) (\(component.kind.rawValue)) ====\n\n",
-                component: nil)
             let url = project.fileURL(for: component)
             guard FileManager.default.fileExists(atPath: url.path) else {
                 throw BuildError.missingComponentFile(component.file)
@@ -117,6 +119,39 @@ public enum ProjectBuilder {
                   let text = String(data: data, encoding: .utf8)
             else {
                 throw BuildError.unreadableComponent(component.file)
+            }
+            texts[component.id] = (data, text)
+        }
+        let luaSources = project.manifest.components
+            .filter { $0.kind == .lua || $0.kind == .snippet }
+            .compactMap { texts[$0.id]?.text }
+
+        // Selected frameworks, read-only and stripped to what is used,
+        // ahead of the components so their namespaces exist when the
+        // program's chunk body runs.
+        for id in project.manifest.sdks {
+            guard let sdk = SDKLibrary.sdk(id: id) else {
+                throw BuildError.unknownSDK(id)
+            }
+            guard let stripped = SDKLibrary.emit(sdk, usedBy: luaSources) else {
+                emitter.append(
+                    "\n-- ==== sdk: \(sdk.id) (read-only; nothing used, nothing emitted) ====\n",
+                    component: nil)
+                continue
+            }
+            emitter.append(
+                "\n-- ==== sdk: \(sdk.id) (read-only; unused functions stripped) ====\n\n",
+                component: nil)
+            emitter.append(stripped, component: nil)
+        }
+
+        var assetNames: [String] = []
+        for component in project.manifest.components {
+            emitter.append(
+                "\n-- ==== component: \(component.name) (\(component.kind.rawValue)) ====\n\n",
+                component: nil)
+            guard let (data, text) = texts[component.id] else {
+                throw BuildError.missingComponentFile(component.file)
             }
             switch component.kind {
             case .lua, .snippet:

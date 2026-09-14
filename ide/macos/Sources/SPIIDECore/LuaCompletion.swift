@@ -39,8 +39,11 @@ public enum LuaCompletion {
         // Display
         "ScreenMode", "ScreenZOrder", "ScreenOut", "ScreenAttr", "ScreenDefineTile",
         "ScreenPalette", "ScreenPaletteSet", "ScreenClear", "ScreenPlot",
-        "ScreenBox", "ScreenFill",
+        "ScreenBox", "ScreenFill", "ScreenFillAttr", "ScreenCopy", "ScreenMove",
+        "ScreenScroll", "ScreenWrite", "ScreenWriteAttr", "ScreenLoadImage",
         "OverlayOut", "OverlayAttr", "OverlayClear", "OverlayBox", "OverlayFill",
+        "OverlayFillAttr", "OverlayCopy", "OverlayMove", "OverlayScroll",
+        "OverlayWrite", "OverlayWriteAttr",
         // Sound
         "SoundDefine", "SoundLoad", "SoundPlay", "SoundStop", "SoundStopAll",
         "SoundVolume", "MusicDefine", "MusicPlay", "MusicStop", "MusicPlaying",

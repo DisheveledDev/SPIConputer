@@ -40,6 +40,10 @@ rm -rf "$APP"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES/simulator" "$APP_FRAMEWORKS"
 cp "$IDE_EXECUTABLE" "$APP_MACOS/SPIIDE"
 ditto "$RESOURCE_BUNDLE" "$APP/SPIIDE_SPIIDE.bundle"
+# The core library's bundle carries the SDK framework files (Resources/sdk).
+CORE_BUNDLE="$SWIFT_BIN_DIR/SPIIDE_SPIIDECore.bundle"
+[ -d "$CORE_BUNDLE" ] || { printf '%s\n' "missing resource bundle: $CORE_BUNDLE" >&2; exit 1; }
+ditto "$CORE_BUNDLE" "$APP/SPIIDE_SPIIDECore.bundle"
 cp "$RESOURCE_BUNDLE/AppIcon.png" "$APP_RESOURCES/AppIcon.png"
 cp "$SIMULATOR" "$APP_RESOURCES/simulator/spicomputer_sim"
 chmod 755 "$APP_MACOS/SPIIDE" "$APP_RESOURCES/simulator/spicomputer_sim"

@@ -7,7 +7,10 @@ let package = Package(
         .macOS(.v14)
     ],
     targets: [
-        .target(name: "SPIIDECore"),
+        .target(
+            name: "SPIIDECore",
+            resources: [.copy("Resources/sdk")]
+        ),
         .executableTarget(
             name: "SPIIDE",
             dependencies: ["SPIIDECore"],

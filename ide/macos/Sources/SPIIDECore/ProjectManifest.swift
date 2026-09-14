@@ -29,6 +29,9 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
     /// One line shown by the shell's APPS picker next to the name.
     public var description: String
     public var iconFile: String?
+    /// Frameworks (SDKLibrary ids such as "screen") injected, read-only,
+    /// ahead of the components; unused functions are stripped at build.
+    public var sdks: [String]
     public var components: [ComponentRef]
 
     public init(
@@ -42,6 +45,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         version: String = "1.0",
         description: String = "",
         iconFile: String? = nil,
+        sdks: [String] = [],
         components: [ComponentRef] = []
     ) {
         self.formatVersion = formatVersion
@@ -54,6 +58,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         self.version = version
         self.description = description
         self.iconFile = iconFile
+        self.sdks = sdks
         self.components = components
     }
 
@@ -68,6 +73,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         case version
         case description
         case iconFile = "icon_file"
+        case sdks
         case components
     }
 
@@ -85,6 +91,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         version = try c.decodeIfPresent(String.self, forKey: .version) ?? "1.0"
         description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
         iconFile = try c.decodeIfPresent(String.self, forKey: .iconFile)
+        sdks = try c.decodeIfPresent([String].self, forKey: .sdks) ?? []
         components = try c.decodeIfPresent([ComponentRef].self, forKey: .components) ?? []
     }
 }

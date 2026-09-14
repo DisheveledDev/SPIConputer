@@ -12,6 +12,7 @@ struct ProjectSettingsView: View {
     @State private var video = true
     @State private var audio = true
     @State private var iconFile = ""
+    @State private var sdks: Set<String> = []
 
     var body: some View {
         Form {
@@ -22,6 +23,24 @@ struct ProjectSettingsView: View {
                     .help("One line shown by the shell's APPS picker (about 34 characters fit)")
                 TextField("Icon file", text: $iconFile)
                     .help("Optional project-relative icon file")
+            }
+            Section("Frameworks") {
+                ForEach(SDKLibrary.available) { sdk in
+                    Toggle(isOn: Binding(
+                        get: { sdks.contains(sdk.id) },
+                        set: { on in if on { sdks.insert(sdk.id) } else { sdks.remove(sdk.id) } }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(sdk.title)  (\(sdk.namespaces.joined(separator: ", ")))")
+                            Text(sdk.summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Text("Selected frameworks are injected read-only ahead of your components; only the functions your code uses are kept in the built program.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section("Runtime") {
                 Picker("Output", selection: $outputKind) {
@@ -55,7 +74,8 @@ struct ProjectSettingsView: View {
                         outputKind: outputKind,
                         requiresVideo: video,
                         requiresAudio: audio,
-                        iconFile: iconFile)
+                        iconFile: iconFile,
+                        sdks: Array(sdks))
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -77,5 +97,6 @@ struct ProjectSettingsView: View {
         video = manifest.requiresVideo
         audio = manifest.requiresAudio
         iconFile = manifest.iconFile ?? ""
+        sdks = Set(manifest.sdks)
     }
 }
