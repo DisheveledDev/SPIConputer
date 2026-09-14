@@ -1,14 +1,10 @@
 -- boot.lua — the first program the OS runs.
 --
--- Shows a short animated startup screen, then hands the machine over to
--- the shell with Launch(..., replace): boot leaves the program stack and
--- its Lua state is released, so only the shell stays resident. If
--- neither compiled nor source OS image can be loaded, the failure is
--- displayed on screen.
---
--- The startup screen is driven by a 150 ms timer rather than tick(): the
--- scheduler idles between fires instead of running this program
--- thousands of times a second.
+-- Shows a static startup screen for two seconds, then hands the machine
+-- over to the shell with Launch(..., replace): boot leaves the program
+-- stack and its Lua state is released, so only the shell stays resident.
+-- If neither compiled nor source OS image can be loaded, the failure is
+-- displayed on screen and this program remains running.
 --
 -- Built from the SPIEdit project in this folder: edit the components
 -- here and Build, or run `swift run --package-path ide/macos spibuild
