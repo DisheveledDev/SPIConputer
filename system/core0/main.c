@@ -59,9 +59,9 @@ static uint32_t __attribute__((aligned(8)))
 #if defined(PICO_RP2350)
 
 /* 150 MHz is the stock clock, so any overclock needs more core voltage.
- * 1.25 V is comfortable for 252 MHz and keeps the regulator well inside
- * its limits; raise this if SPICOMPUTER_SYS_CLOCK_KHZ is raised (378 MHz
- * wants 1.30 V, the SDK's maximum). */
+ * 1.25 V is comfortable for 252 MHz; the default 378 MHz (and anything
+ * above 300 MHz) gets 1.30 V, the highest setting the SDK allows without
+ * unlocking the regulator. */
 #if SPICOMPUTER_SYS_CLOCK_KHZ > 300000
 #define SPICOMPUTER_OC_VOLTAGE VREG_VOLTAGE_1_30
 #else
