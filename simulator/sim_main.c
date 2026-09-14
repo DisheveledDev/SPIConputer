@@ -48,6 +48,7 @@ typedef struct {
     const char *check_file;
     const char *compile_in;
     const char *compile_out;
+    const char *type_text;
     int ticks_per_frame;
     int exit_after_ms;
     bool headless;
@@ -194,6 +195,31 @@ static void push_key(int key, bool down) {
     ev.mods = sim_mods();
     ev.pressed = down ? 1 : 0;
     input_queue_push(&g_system_state.input, &ev);
+}
+
+/* --type: scripted keystrokes, one per frame, starting half a second
+ * after boot so the program has drawn its first screen. Escapes: \n
+ * Return, \e Escape, \u \d \l \r cursor keys, \\ backslash. Returns the
+ * next key and advances, or 0 at the end of the text. */
+static int typed_key(const char **text) {
+    const char *p = *text;
+    if (!p || !*p) {
+        return 0;
+    }
+    int key = (unsigned char)*p++;
+    if (key == '\\' && *p) {
+        switch (*p++) {
+        case 'n': key = 13; break;
+        case 'e': key = 27; break;
+        case 'u': key = INPUT_KEY_UP; break;
+        case 'd': key = INPUT_KEY_DOWN; break;
+        case 'l': key = INPUT_KEY_LEFT; break;
+        case 'r': key = INPUT_KEY_RIGHT; break;
+        default: key = '\\'; p--; break;
+        }
+    }
+    *text = p;
+    return key;
 }
 
 static void push_control(int ctrl, uint8_t dirs, bool down) {
@@ -462,7 +488,9 @@ static void usage(const char *argv0) {
         "  --check FILE        compile FILE with the OS Lua and exit\n"
         "  --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit\n"
         "  --headless          no window/audio (smoke tests)\n"
-        "  --exit-after-ms N   quit automatically after N ms\n",
+        "  --exit-after-ms N   quit automatically after N ms\n"
+        "  --type TEXT         type TEXT one key per frame after boot\n"
+        "                      (\\n Return, \\e Escape, \\u \\d \\l \\r cursor keys)\n",
         argv0);
 }
 
@@ -531,6 +559,8 @@ int main(int argc, char **argv) {
             o.compile_out = argv[++i];
         } else if (strcmp(argv[i], "--exit-after-ms") == 0 && i + 1 < argc) {
             o.exit_after_ms = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--type") == 0 && i + 1 < argc) {
+            o.type_text = argv[++i];
         } else if (strcmp(argv[i], "--headless") == 0) {
             o.headless = true;
         } else if (strcmp(argv[i], "--help") == 0) {
@@ -575,8 +605,13 @@ int main(int argc, char **argv) {
                 o.boot_file, sim_fs_root_abs());
         return 1;
     }
-    printf("[sim] booted %s (pid 0), %d ticks/frame\n", o.boot_file,
-           o.ticks_per_frame);
+    /* The heap figure is the Lua allocation right after load + setup,
+     * against the per-program cap (inflated on a 64-bit host: pointers
+     * and Lua's internal structs are larger than on the device). */
+    printf("[sim] booted %s (pid 0), %d ticks/frame, heap %zu/%zu KB\n",
+           o.boot_file, o.ticks_per_frame,
+           program_top() ? program_top()->heap_used / 1024 : 0,
+           program_top() ? program_top()->heap_cap / 1024 : 0);
 
     SDL_Window *win = NULL;
     SDL_Renderer *ren = NULL;
@@ -667,6 +702,16 @@ int main(int argc, char **argv) {
                 default:
                     break;
                 }
+            }
+        }
+
+        /* Scripted input: one key per frame once the program has had
+         * half a second to draw its first screen. */
+        if (o.type_text && os_time_us() - started_us >= 500000u) {
+            int key = typed_key(&o.type_text);
+            if (key) {
+                push_key(key, true);
+                push_key(key, false);
             }
         }
 
