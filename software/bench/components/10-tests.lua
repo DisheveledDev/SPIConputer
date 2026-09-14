@@ -9,7 +9,7 @@
 local N_INT = 200000
 local N_FLOAT = 200000
 local N_CALL = 200000
--- Live-set sizes are held well under the 64 KB heap cap: an array grows
+-- Live-set sizes are held well under the per-program heap cap: an array grows
 -- by doubling (old and new blocks coexist during the realloc) and the
 -- previous rep's table is still garbage while the next one fills.
 local N_ARRAY = 1000       -- 1000 numbers = 16 KB of TValues at 16 B
@@ -62,7 +62,7 @@ add("lua call", N_CALL, function()
 end)
 
 -- Array part: fill and read back; each rep allocates a fresh table so
--- the collector has to work (this is what a 64 KB cap makes expensive).
+-- the collector has to work (this is what a small heap cap makes expensive).
 add("table array", N_ARRAY * N_ARRAY_REPS * 2, function()
     local s = 0
     for _ = 1, N_ARRAY_REPS do

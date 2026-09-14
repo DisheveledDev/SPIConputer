@@ -9,6 +9,7 @@ local prompt_row = 0      -- screen row the input line sits on
 local cursor_on = true
 local last_blink = 0
 local needs_repaint = false -- a program ran; redraw on the next tick
+local dialog_open = false   -- the APPS picker owns the overlay and the keys
 
 local function cursor_cell()
     local ch = 32

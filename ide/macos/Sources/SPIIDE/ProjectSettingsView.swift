@@ -6,6 +6,7 @@ struct ProjectSettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var name = ""
     @State private var version = ""
+    @State private var description = ""
     @State private var interactive = true
     @State private var outputKind: ProjectOutputKind = .app
     @State private var video = true
@@ -17,6 +18,8 @@ struct ProjectSettingsView: View {
             Section("Application") {
                 TextField("Name", text: $name)
                 TextField("Version", text: $version)
+                TextField("Description", text: $description)
+                    .help("One line shown by the shell's APPS picker (about 34 characters fit)")
                 TextField("Icon file", text: $iconFile)
                     .help("Optional project-relative icon file")
             }
@@ -47,6 +50,7 @@ struct ProjectSettingsView: View {
                     model.updateProjectSettings(
                         name: name,
                         version: version,
+                        description: description,
                         interactive: interactive,
                         outputKind: outputKind,
                         requiresVideo: video,
@@ -67,6 +71,7 @@ struct ProjectSettingsView: View {
         guard let manifest = model.project?.manifest else { return }
         name = manifest.name
         version = manifest.version
+        description = manifest.description
         interactive = manifest.interactive
         outputKind = manifest.outputKind
         video = manifest.requiresVideo

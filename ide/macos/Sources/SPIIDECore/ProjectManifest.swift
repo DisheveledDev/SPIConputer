@@ -26,6 +26,8 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
     public var requiresVideo: Bool
     public var requiresAudio: Bool
     public var version: String
+    /// One line shown by the shell's APPS picker next to the name.
+    public var description: String
     public var iconFile: String?
     public var components: [ComponentRef]
 
@@ -38,6 +40,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         requiresVideo: Bool = true,
         requiresAudio: Bool = true,
         version: String = "1.0",
+        description: String = "",
         iconFile: String? = nil,
         components: [ComponentRef] = []
     ) {
@@ -49,6 +52,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         self.requiresVideo = requiresVideo
         self.requiresAudio = requiresAudio
         self.version = version
+        self.description = description
         self.iconFile = iconFile
         self.components = components
     }
@@ -62,6 +66,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         case requiresVideo = "requires_video"
         case requiresAudio = "requires_audio"
         case version
+        case description
         case iconFile = "icon_file"
         case components
     }
@@ -78,6 +83,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         requiresVideo = try c.decodeIfPresent(Bool.self, forKey: .requiresVideo) ?? interactive
         requiresAudio = try c.decodeIfPresent(Bool.self, forKey: .requiresAudio) ?? interactive
         version = try c.decodeIfPresent(String.self, forKey: .version) ?? "1.0"
+        description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
         iconFile = try c.decodeIfPresent(String.self, forKey: .iconFile)
         components = try c.decodeIfPresent([ComponentRef].self, forKey: .components) ?? []
     }

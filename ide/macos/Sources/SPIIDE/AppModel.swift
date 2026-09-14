@@ -237,6 +237,7 @@ final class AppModel {
     func updateProjectSettings(
         name: String,
         version: String,
+        description: String,
         interactive: Bool,
         outputKind: ProjectOutputKind,
         requiresVideo: Bool,
@@ -248,6 +249,7 @@ final class AppModel {
         guard !trimmedName.isEmpty else { return }
         project.manifest.name = trimmedName
         project.manifest.version = version
+        project.manifest.description = description.trimmingCharacters(in: .whitespacesAndNewlines)
         project.manifest.interactive = interactive
         project.manifest.outputKind = outputKind
         project.manifest.requiresVideo = requiresVideo

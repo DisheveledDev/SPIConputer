@@ -7,7 +7,7 @@
 -- Commands (HELP lists them too):
 --   HELP                 this list
 --   DIR                  list files in data
---   APPS                 list installed applications
+--   APPS                 pick an installed application from a list
 --   RUN <prog> [args]    run a program from apps or data
 --   <prog> [args]        run a program by name
 --   COMPILE <file.lua>   build a .prg next to a data program

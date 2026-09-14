@@ -450,7 +450,7 @@ resources are addressed relative to its bundle root, for example
 | Limit | Value |
 |---|---|
 | Program stack depth | 4 programs (including the shell) |
-| Lua heap per program | 64 KB (allocation failure raises a Lua memory error, which terminates the program) |
+| Lua heap per program | 96 KB (allocation failure raises a Lua memory error, which terminates the program) |
 | Script size | 128 KB |
 | Timers per program | 8 |
 | Pending input events per program | 128 (older events dropped) |
@@ -493,8 +493,12 @@ The card layout separates protected system files from user data:
   system-installed programs. The shell cannot manipulate this directory.
 - `apps/` contains installed applications as `.app` directories. Each app
   contains `app.prg`, `app.json`, an optional `icon.*`, and a `resources/`
-  directory. `APPS` lists app directories while hiding implementation files.
-  Programs can be launched by app name or explicit `app.prg` path.
+  directory. `app.json` carries `name`, `version`, `description` (one
+  line, set in the IDE's project settings), `type`, `interactive`,
+  `video`, `audio`, `entry` and `icon`. The shell's `APPS` command opens a
+  picker listing every app's name and description; RETURN runs the
+  selected one. Programs can also be launched by app name or explicit
+  `app.prg` path.
 - `data/` is the user area. `DIR`, `CD`, `MD`, `RD`, `DEL`, `REN`, `MOVE`,
   `COPY`, `TYPE`, and `STAT` are restricted to this directory.
 

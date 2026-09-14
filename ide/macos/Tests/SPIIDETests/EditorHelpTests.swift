@@ -86,14 +86,15 @@ struct EditorHelpTests {
         type("n", into: editor.textView)
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         #expect(coordinator.completionPanel.isVisible)
-        #expect(coordinator.completionPanel.selectedMatch == "ScreenOut")
+        // Shorter names first, then alphabetical: ScreenBox, ScreenOut, ...
+        #expect(coordinator.completionPanel.selectedMatch == "ScreenBox")
 
         editor.textView.doCommand(by: #selector(NSResponder.moveDown(_:)))
-        #expect(coordinator.completionPanel.selectedMatch == "ScreenAttr")
+        #expect(coordinator.completionPanel.selectedMatch == "ScreenOut")
 
         editor.textView.doCommand(by: #selector(NSResponder.insertTab(_:)))
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        #expect(editor.textView.string == "ScreenAttr")
+        #expect(editor.textView.string == "ScreenOut")
         #expect(!coordinator.completionPanel.isVisible)
     }
 

@@ -20,7 +20,13 @@
 #include "video.h"
 
 #define PROGRAM_MAX 4
-#define PROGRAM_HEAP_CAP (64u * 1024u)
+/* Per-program Lua heap cap. The shell alone needs ~45 KB on the device
+ * once loaded (79 KB on a 64-bit host, where Lua's structs are larger),
+ * so 64 KB left no room for its APPS picker; 96 KB keeps a shell + one
+ * app well inside the ~290 KB heap. Overridable per build. */
+#ifndef PROGRAM_HEAP_CAP
+#define PROGRAM_HEAP_CAP (96u * 1024u)
+#endif
 #define PROGRAM_TIMER_MAX 8
 #define PROGRAM_EVENT_DEPTH 128
 #define PROGRAM_ARG_MAX 16 /* Execute/ExecuteString argument cap */

@@ -21,6 +21,7 @@
   ],
   "format_version" : 1,
   "name" : "bench",
+  "description" : "Lua speed test, writes bench.txt",
   "output_directory" : "../apps",
   "requires_audio" : false
 }

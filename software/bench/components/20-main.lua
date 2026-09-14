@@ -32,7 +32,7 @@ local function draw()
     if finished then
         text(0, 5 + #results, string.format("gc full stall  %6dms", gc_stall_ms or 0), 0)
         text(0, 6 + #results, "saved to /data/bench.txt", 0x02)
-        text(0, 7 + #results, "! = out of heap (see file)", 0x02)
+        text(0, 7 + #results, "! = hit the heap cap (see file)", 0x02)
         text(0, 9 + #results, "press any key to exit", 0x80)
     elseif next_test <= #tests then
         text(0, 4 + #results, "running " .. tests[next_test].name .. "...", 0x02)

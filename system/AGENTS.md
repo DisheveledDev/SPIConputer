@@ -25,8 +25,8 @@ or new detail is captured.
 | SD-backed loading | `dofile`/`loadfile` globals and `require()` searcher read through the fs layer; source is compiled on the OS core and `.prg` bytecode is loaded directly |
 | Filesystem call layer | `rpc.c`/`rpc.h` define the op codes, request/response shapes and the 4 KB staging buffer. Both sides run on the OS core, so `rpc_call` normally dispatches straight into `fs_core0_execute`; the original two-core slot transport survives only for builds that split them (host harness, desktop simulator) |
 | Boot flow | Core 0 (video) brings up HSTX and launches core 1 (OS). Core 1 owns stdio, mounts SD, starts the input tick, boots `core/boot.lua` (a timer-driven screen that hands the machine to `core/os.lua` with `Launch(..., replace)`, so boot's Lua state is released) and runs the scheduler, feeding the watchdog |
-| Process model | `program.c` — 4-program stack, per-program Lua state (64 KB heap cap), optional heap-allocated audio state, timers, per-program event rings; `Launch(..., replace)` hands the stack over and releases the replaced state; noninteractive utilities keep their isolated Lua state but return `UtilityResult` text to the parent via `UtilityPoll`; `sys_lua.c` exposes TimeNow/Pid/ExitProgram/Launch/Execute/ExecuteString/UtilityResult/UtilityPoll/TimerCreate/TimerStop/InputPoll/InputControl/WaitVSync/Compile (Compile builds a `.prg` from a `.lua` on the card in a scratch `lua_State` on the system heap, same output as the IDE; the shell's `COMPILE` command wraps it) |
-| Shell / card programs | **Not in this repo.** `core/boot.lua`/`core/boot.prg`, the shell (`core/os.lua`/`core/os.prg`), installed apps, and other programs are SPIEdit projects developed outside the OS source tree (this workspace builds system outputs into `software/core/`, apps into `software/apps/`, and reserves `data/` for user files). The shell protects `core/`, lists apps with `APPS`, restricts file operations to `data/`, and launches programs from `apps/` or `data/`. It has no exit command: the shell is the OS. The OS only provides the runtime, `lua.md` the contract |
+| Process model | `program.c` — 4-program stack, per-program Lua state (96 KB heap cap, `PROGRAM_HEAP_CAP`), optional heap-allocated audio state, timers, per-program event rings; `Launch(..., replace)` hands the stack over and releases the replaced state; noninteractive utilities keep their isolated Lua state but return `UtilityResult` text to the parent via `UtilityPoll`; `sys_lua.c` exposes TimeNow/Pid/ExitProgram/Launch/Execute/ExecuteString/UtilityResult/UtilityPoll/TimerCreate/TimerStop/InputPoll/InputControl/WaitVSync/Compile (Compile builds a `.prg` from a `.lua` on the card in a scratch `lua_State` on the system heap, same output as the IDE; the shell's `COMPILE` command wraps it) |
+| Shell / card programs | **Not in this repo.** `core/boot.lua`/`core/boot.prg`, the shell (`core/os.lua`/`core/os.prg`), installed apps, and other programs are SPIEdit projects developed outside the OS source tree (this workspace builds system outputs into `software/core/`, apps into `software/apps/`, and reserves `data/` for user files). The shell protects `core/`, offers the installed apps in a picker dialog (`APPS`: name and description from each `app.json`, cursor keys, RETURN runs), restricts file operations to `data/`, and launches programs from `apps/` or `data/`. It has no exit command: the shell is the OS. The OS only provides the runtime, `lua.md` the contract |
 | Lua API reference | `lua.md` — the developer contract (entry points, OS/functions/fs/input, limits); keep in sync with the implementation and use as the basis for the future IDE |
 | Display | `render.c` (scanline renderer, host-tested golden output) + `screen_lua.c` (ScreenMode/Out/Attr/OverlayOut/OverlayAttr/DefineTile/Palette/Clear/Plot) with a base layer plus one overlay. Product-board scanout: `render332.c` (RGB332 fast path, host-tested against `render.c`) + `scanout.c` (HSTX scanline sequencer, host-tested) + `core0/video_hw.c` (TMDS expander, ping/pong DMA, render pump into an 8-line ring) |
 | Audio | `audio.c` (8-voice stereo synth, score scheduler, WAV sample voices) + `sound_lua.c` (Sound*/Music* API); per-program state like video; host-tested. HDMI data-island feed deferred to Phase 7 |
@@ -302,7 +302,7 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   hash churn, strings, OS API calls, `ScreenOut`, a full GC) and writes
   `data/bench.txt` (build line, then `test,ms,ops_per_ms`). Results are
   comparable across firmware builds; a `!` suffix marks a test that hit
-  the 64 KB heap cap. The simulator is single-threaded, so a tick that
+  the heap cap. The simulator is single-threaded, so a tick that
   queues more than 1024 display ops hangs it (the board just blocks
   until the next frame); the benchmark stays under that.
 - `scanout_frame_begin` must set `rows_total` to `VIDEO_FB_ROWS` (240
@@ -435,7 +435,10 @@ developed and driven on the dev board before HDMI hardware exists.
 **Implemented mechanics (Phase 5):**
 - Fixed pool of `PROGRAM_MAX` (4) `program_t` slots; allocation failure =
   "can't launch" (clean Lua error).
-- Per-program Lua heap cap (64 KB, `capped_alloc` in `program.c`);
+- Per-program Lua heap cap (96 KB, `capped_alloc` in `program.c`; it was
+  64 KB until the shell's APPS picker needed ~45 KB on the device for the
+  shell alone. The cap is a limit, not a reservation: four programs at
+  the cap would not fit the ~290 KB heap, but the shell plus one app do);
   allocation failure raises a Lua memory error, caught by the tick pcall.
   The allocator follows Lua 5.5's contract: for a new block `osize` is a
   *tag*, not a size (only `nsize` is accounted), otherwise the byte
@@ -531,13 +534,13 @@ are the core patch type, samples are the later addition):
 - **Song files**: pre-rendered audio is not the plan (a 3 minute tune as
   22 kHz 8-bit mono PCM is ~4 MB — no RAM for it); tunes are score files,
   i.e. a Lua file returning the `MusicDefine` spec, loaded with
-  `dofile`/`require`. If tunes ever outgrow the 64 KB Lua heap (large
+  `dofile`/`require`. If tunes ever outgrow the Lua heap cap (large
   table literals), add a line-oriented tracker text format parsed
   incrementally in C. MOD/XM are out: float-heavy decoders and a
   sample-instrument model that does not fit this engine.
 
 **Realtime split.** Lua (core 1) only authors: `*Define` compiles Lua
-tables into flat per-program buffers (outside the 64 KB Lua heap) that
+tables into flat per-program buffers (outside the capped Lua heap) that
 core 0 reads; publication is a pointer swap, same as video maps. The
 platform-neutral producer (`audio_mix` in `audio.c`) owns the mixer and
 the score cursor at 44.1 kHz: per audio block it walks the event
@@ -788,7 +791,7 @@ bridge logic stays testable without hardware.
     the current tick/timer callback) or a throwing `tick()`/timer callback
     terminates the program; `finish()` runs either way (when `setup()`
     completed); errors print to stderr and the parent resumes.
-14. ~~Stack limits~~ settled: fixed pool of 4 programs, 64 KB Lua heap cap
+14. ~~Stack limits~~ settled: fixed pool of 4 programs, 96 KB Lua heap cap
     each, heap-allocated 28 KB video state per program (outside the Lua
     budget). GC tuning per state remains TBD if tick consistency suffers.
 15. ~~Watchdog liveness~~ settled: the OS core feeds the watchdog while

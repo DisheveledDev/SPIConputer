@@ -116,7 +116,7 @@ local function cmd_help()
     out("COMMANDS:")
     out("  HELP              THIS LIST")
     out("  DIR [PATH]        LIST DATA FILES")
-    out("  APPS              LIST INSTALLED APPS")
+    out("  APPS              CHOOSE AN APP TO RUN")
     out("  CD [PATH]         CHANGE DATA DIRECTORY")
     out("  PWD               SHOW DATA DIRECTORY")
     out("  MD <DIR>          CREATE A DIRECTORY")
@@ -151,19 +151,13 @@ local function cmd_dir(path)
     end
 end
 
+-- APPS opens the picker dialog (assigned in 35-apps.lua, which follows
+-- this component); the shell's prompt waits until it closes or an app
+-- is launched.
+local open_apps_dialog
+
 local function cmd_apps()
-    local entries, err = fs.ls("/apps")
-    if not entries then
-        command_error(err)
-        return
-    end
-    out("INSTALLED APPS:")
-    for _, entry in ipairs(entries) do
-        if entry.dir or not entry.name:lower():match("%.prg$") then
-            out(string.format("  %-22s %7d %s", entry.name, entry.size,
-                              entry.dir and "<DIR>" or "     "))
-        end
-    end
+    open_apps_dialog()
 end
 
 local function cmd_cd(path)
@@ -394,7 +388,7 @@ local function submit()
     caret_col = 0
     paint()
     execute(command_line)
-    if not needs_repaint then
+    if not needs_repaint and not dialog_open then
         out("READY.")
     end
 end

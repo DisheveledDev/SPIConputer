@@ -25,6 +25,12 @@
       "name" : "commands"
     },
     {
+      "file" : "components/35-apps.lua",
+      "id" : "5D9E4C73-CF60-4B85-BEAD-3A4B8C9DAEBF",
+      "kind" : "lua",
+      "name" : "apps"
+    },
+    {
       "file" : "components/40-main.lua",
       "id" : "4475DD5B-A076-4A6F-AB21-630EB828A9B2",
       "kind" : "lua",

@@ -13,6 +13,24 @@ function tick()
         out("READY.")
     end
 
+    -- The APPS picker takes every key while it is open; the prompt and
+    -- its cursor blink wait (a blink would clear the overlay it lives on).
+    if dialog_open then
+        while true do
+            local event = InputPoll()
+            if not event then
+                break
+            end
+            if event.type == "key" and event.pressed == 1 then
+                dialog_key(event.key)
+                if not dialog_open then
+                    break
+                end
+            end
+        end
+        return
+    end
+
     local now = TimeNow()
     if now - last_blink >= 500 then
         last_blink = now
@@ -35,7 +53,8 @@ function tick()
             changed = true
         end
     end
-    if changed then
+    -- A command may have opened the APPS picker: leave its overlay alone.
+    if changed and not dialog_open then
         cursor_on = true
         paint()
     end
