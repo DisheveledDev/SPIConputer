@@ -16,7 +16,7 @@ final class SignatureHelpPanel {
 
     init() {
         label = NSTextField(labelWithString: "")
-        label.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        label.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         label.lineBreakMode = .byClipping
         label.translatesAutoresizingMaskIntoConstraints = false
 
@@ -29,10 +29,10 @@ final class SignatureHelpPanel {
         effect.layer?.masksToBounds = true
         effect.addSubview(label)
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: effect.leadingAnchor, constant: 8),
-            label.trailingAnchor.constraint(equalTo: effect.trailingAnchor, constant: -8),
-            label.topAnchor.constraint(equalTo: effect.topAnchor, constant: 4),
-            label.bottomAnchor.constraint(equalTo: effect.bottomAnchor, constant: -4),
+            label.leadingAnchor.constraint(equalTo: effect.leadingAnchor, constant: 10),
+            label.trailingAnchor.constraint(equalTo: effect.trailingAnchor, constant: -10),
+            label.topAnchor.constraint(equalTo: effect.topAnchor, constant: 6),
+            label.bottomAnchor.constraint(equalTo: effect.bottomAnchor, constant: -6),
         ])
 
         panel = NSPanel(
@@ -57,8 +57,8 @@ final class SignatureHelpPanel {
         label.attributedStringValue = Self.attributedText(
             signature: context.signature, active: context.activeParameter)
         let size = NSSize(
-            width: ceil(label.intrinsicContentSize.width) + 16,
-            height: ceil(label.intrinsicContentSize.height) + 8)
+            width: ceil(label.intrinsicContentSize.width) + 20,
+            height: ceil(label.intrinsicContentSize.height) + 12)
         panel.setContentSize(size)
 
         var origin = NSPoint(x: caretRect.minX, y: caretRect.minY - size.height - 4)
@@ -82,8 +82,8 @@ final class SignatureHelpPanel {
     static func attributedText(
         signature: LuaSignature, active: Int?
     ) -> NSAttributedString {
-        let regular = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        let emphasised = NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
+        let regular = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        let emphasised = NSFont.monospacedSystemFont(ofSize: 12, weight: .semibold)
         let plain: [NSAttributedString.Key: Any] = [
             .font: regular, .foregroundColor: NSColor.secondaryLabelColor,
         ]

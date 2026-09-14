@@ -169,16 +169,90 @@ static func make(
 
     // MARK: Auto-indent
 
-    /// Indentation for a new line inserted at the caret: the current line's
-    /// leading whitespace, plus one level after block openers.
-    static func indentationForNewline(in textView: NSTextView) -> String {
-        let ns = textView.string as NSString
-        let caret = min(textView.selectedRange().location, ns.length)
-        let lineRange = ns.lineRange(for: NSRange(location: caret, length: 0))
+    /// What Return inserts at the caret: the newline plus the next line's
+    /// indentation, and, after a block opener, a closing line below it.
+    /// `caretOffset` moves the caret back from the end of the inserted
+    /// text so it sits on the body line, above the closer.
+    struct NewlineInsertion: Equatable {
+        let text: String
+        let caretOffset: Int
+    }
+
+    /// Newline insertion for a caret in `text`: the current line's leading
+    /// whitespace, plus one level after block openers. When the caret is at
+    /// the end of a line that opens a block (`function`, `if`/`then`,
+    /// `for`/`do`, `while`/`do`, `{`, `(`), the matching closer (`end`,
+    /// `}`, `)`) is added on its own line at the opener's indentation and
+    /// the caret is left above it. Pure so it can be unit tested.
+    static func newlineInsertion(text: String, caret: Int) -> NewlineInsertion {
+        let ns = text as NSString
+        let location = min(max(caret, 0), ns.length)
+        let lineRange = ns.lineRange(for: NSRange(location: location, length: 0))
         let line = ns.substring(with: lineRange).trimmingCharacters(in: .newlines)
         let leading = String(line.prefix { $0 == " " || $0 == "\t" })
-        let body = line.trimmingCharacters(in: .whitespaces)
-        return opensBlock(body) ? leading + indentUnit : leading
+        let body = masked(
+            line, at: lineRange.location, tokens: LuaTokenizer.tokenize(text))
+            .trimmingCharacters(in: .whitespaces)
+        let indent = opensBlock(body) ? leading + indentUnit : leading
+
+        // Auto-close only when Return splits the line at its end.
+        let lineEnd = lineRange.location + (line as NSString).length
+        let trailing = location < lineEnd
+            ? ns.substring(with: NSRange(location: location, length: lineEnd - location))
+            : ""
+        guard trailing.trimmingCharacters(in: .whitespaces).isEmpty,
+              let closer = closingStatement(for: body)
+        else {
+            return NewlineInsertion(text: "\n" + indent, caretOffset: 0)
+        }
+        let tail = "\n" + leading + closer
+        return NewlineInsertion(
+            text: "\n" + indent + tail, caretOffset: (tail as NSString).length)
+    }
+
+    /// Blanks comments and strings out of the line so words inside them
+    /// cannot trigger auto-indent or auto-close.
+    private static func masked(
+        _ line: String, at lineStart: Int, tokens: [LuaTokenizer.Token]
+    ) -> String {
+        let masked = NSMutableString(string: line)
+        let lineRange = NSRange(location: lineStart, length: masked.length)
+        for token in tokens where token.kind == .comment || token.kind == .string {
+            let range = NSIntersectionRange(token.range, lineRange)
+            guard range.length > 0 else { continue }
+            masked.replaceCharacters(
+                in: NSRange(location: range.location - lineStart, length: range.length),
+                with: String(repeating: " ", count: range.length))
+        }
+        return masked as String
+    }
+
+    /// The closer to put on its own line when Return follows an opener, or
+    /// nil when there is none to add: branches (`else`, `elseif … then`)
+    /// share the block's closer, `repeat` needs its `until` condition, and
+    /// an unfinished `function …(` header gets only the indent.
+    private static func closingStatement(for line: String) -> String? {
+        if containsWord(line, "function") {
+            return line.hasSuffix(")") ? "end" : nil
+        }
+        if line.hasSuffix("{") { return "}" }
+        if line.hasSuffix("(") { return ")" }
+        if starts(withWord: line, "else") || starts(withWord: line, "elseif") {
+            return nil
+        }
+        if endsWithWord(line, "repeat") { return nil }
+        if endsWithWord(line, "then") || endsWithWord(line, "do") { return "end" }
+        return nil
+    }
+
+    private static func containsWord(_ line: String, _ word: String) -> Bool {
+        line.range(of: "\\b\(word)\\b", options: .regularExpression) != nil
+    }
+
+    private static func starts(withWord line: String, _ word: String) -> Bool {
+        guard line.hasPrefix(word) else { return false }
+        guard let after = line.dropFirst(word.count).first else { return true }
+        return !(after.isLetter || after.isNumber || after == "_")
     }
 
     /// After typing a closer (`end`, `until`, `else`, `elseif`, `}`, `)`),

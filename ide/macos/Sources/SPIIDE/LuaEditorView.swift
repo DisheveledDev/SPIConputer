@@ -18,18 +18,21 @@ struct LuaEditorView: View {
     var body: some View {
         @Bindable var model = model
 
-        if experimentalEditor {
-            CodeEditorView(
-                text: $model.luaText,
-                diagnosticLine: diagnosticLine,
-                syntaxHighlighting: syntaxHighlighting,
-                gutter: editorGutter)
-        } else {
-            TextEditor(text: $model.luaText)
-                .font(.system(.body, design: .monospaced))
-                .onChange(of: model.luaText) {
-                    model.scheduleSave()
-                }
+        Group {
+            if experimentalEditor {
+                CodeEditorView(
+                    text: $model.luaText,
+                    diagnosticLine: diagnosticLine,
+                    definedFunctions: model.projectFunctions,
+                    syntaxHighlighting: syntaxHighlighting,
+                    gutter: editorGutter)
+            } else {
+                TextEditor(text: $model.luaText)
+                    .font(.system(.body, design: .monospaced))
+            }
+        }
+        .onChange(of: model.luaText) {
+            model.scheduleSave()
         }
     }
 }

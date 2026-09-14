@@ -125,6 +125,46 @@ struct EditorHelpTests {
         #expect(coordinator.completionPanel.selectedMatch != first)
     }
 
+    @Test func returnInsertsCloserAndKeepsCaretAboveIt() {
+        let (coordinator, editor, window) = makeCoordinator(text: "function f()")
+        defer { window.orderOut(nil) }
+        _ = coordinator
+
+        putCaretAtEnd(editor.textView)
+        editor.textView.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        #expect(editor.textView.string == "function f()\n    \nend")
+        // The caret sits at the end of the indented body line.
+        #expect(editor.textView.selectedRange().location == 17)
+    }
+
+    @Test func returnKeepsPlainIndentAfterClosers() {
+        let (coordinator, editor, window) = makeCoordinator(text: "function f()\nend")
+        defer { window.orderOut(nil) }
+        _ = coordinator
+
+        putCaretAtEnd(editor.textView)
+        editor.textView.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        #expect(editor.textView.string == "function f()\nend\n")
+        #expect(editor.textView.selectedRange().location == 17)
+    }
+
+    @Test func completionOffersFunctionsDefinedInTheEditor() {
+        let (coordinator, editor, window) = makeCoordinator(
+            text: "function DrawShip(x, y)\nend\n")
+        defer { window.orderOut(nil) }
+
+        putCaretAtEnd(editor.textView)
+        type("Draw", into: editor.textView)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        #expect(coordinator.completionPanel.isVisible)
+        #expect(coordinator.completionPanel.selectedMatch == "DrawShip")
+        #expect(coordinator.completionPanel.selectedDetail == "(x, y)")
+
+        editor.textView.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        #expect(editor.textView.string == "function DrawShip(x, y)\nend\nDrawShip")
+    }
+
     @Test func parameterHelpShowsForOpenCalls() {
         let (coordinator, editor, window) = makeCoordinator(text: "")
         defer { window.orderOut(nil) }
@@ -141,16 +181,19 @@ struct EditorHelpTests {
         #expect(!coordinator.signatureHelp.isVisible)
     }
 
-    @Test func parameterHelpTracksTheActiveParameter() {
+    @Test func parameterHelpTracksTheActiveParameter() throws {
         let signature = LuaSignatures.signature(for: "ScreenOut")!
         let text = SignatureHelpPanel.attributedText(signature: signature, active: 2)
         let ns = text.string as NSString
         let activeRange = ns.range(of: "char")
         let inactiveRange = ns.range(of: "y")
 
-        let regular = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        let activeFont = text.attribute(.font, at: activeRange.location, effectiveRange: nil) as? NSFont
-        let inactiveFont = text.attribute(.font, at: inactiveRange.location, effectiveRange: nil) as? NSFont
+        let activeFont = try #require(
+            text.attribute(.font, at: activeRange.location, effectiveRange: nil) as? NSFont)
+        let inactiveFont = try #require(
+            text.attribute(.font, at: inactiveRange.location, effectiveRange: nil) as? NSFont)
+        let regular = NSFont.monospacedSystemFont(
+            ofSize: inactiveFont.pointSize, weight: .regular)
         #expect(activeFont != regular)
         #expect(inactiveFont == regular)
     }

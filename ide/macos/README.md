@@ -112,6 +112,10 @@ in `main` are visible to `input` and `tick`.
 - After a short debounce, the IDE builds the project in memory and
   compiles it with the OS's own Lua build (`spicomputer_sim --check`), so
   what you see is exactly what the OS will load.
+- Two seconds after you stop typing, the file being edited is also
+  syntax-checked on its own, so errors show up without waiting for a
+  build. The project navigator marks every component with a known
+  syntax error (red icon and message) until the program compiles.
 - Compile errors are mapped back through the build's line map: Lua's
   "line 41" in the generated file is shown as e.g. `main:13`, the error
   line is highlighted in the editor and its number turns red in the
@@ -129,22 +133,27 @@ in `main` are visible to `input` and `tick`.
 - **Run** refuses to start while a compile error is outstanding.
 - **Autocompletion** covers Lua keywords and standard library plus the
   SPIComputer globals (`Screen*`, `Sound*`, `Music*`, `Timer*`, `Input*`,
-  `fs.*`, `TimeNow`, `Launch`, `ApplyAssets`, ...). The list appears
-  shortly after you type (two or more characters), or on demand with
-  Ctrl-Esc / **Edit ▸ Complete** (⌃Space), which also steps through the
-  list once open. Up/Down choose, Tab or Return insert, Esc dismisses.
-  Backspace only dismisses and always deletes, and deleting never
-  reopens the list; the inline macOS "automatic text completion" is
-  disabled so this list is what appears.
+  `fs.*`, `TimeNow`, `Launch`, `ApplyAssets`, ...). Functions defined in
+  the file being edited, and in the project's other components, join the
+  list, and known functions show their expected parameters beside the
+  name. The list appears shortly after you type (two or more characters),
+  or on demand with Ctrl-Esc / **Edit ▸ Complete** (⌃Space), which also
+  steps through the list once open. Up/Down choose, Tab or Return insert,
+  Esc dismisses. Backspace only dismisses and always deletes, and
+  deleting never reopens the list; the inline macOS "automatic text
+  completion" is disabled so this list is what appears.
 - **Parameter help**: while the caret is inside a call's argument list
   (`ScreenOut(1, `), a strip under the caret shows the signature with
   the current parameter emphasised, following the caret until the call
-  is closed. It covers the SPIComputer API, the Lua standard library and
-  the `fs` file methods.
+  is closed. It covers the SPIComputer API, the Lua standard library,
+  the `fs` file methods, and functions defined in the project.
 - **Auto-indent**: Return keeps the current indentation and adds a level
   after block openers (`then`, `do`, `function`, `else`, `repeat`, `{`,
-  `(`, function headers); typing `end`, `until`, `else`, `elseif`, `}` or
-  `)` at the start of a line removes one level.
+  `(`, function headers). After an opener that needs a closer
+  (`function`, `if`/`for`/`while`, `{`, `(`), Return also puts the
+  matching `end`/`}`/`)` on its own line at the opener's indentation and
+  leaves the caret on the body line above it. Typing `end`, `until`,
+  `else`, `elseif`, `}` or `)` at the start of a line removes one level.
 - **Syntax highlighting** colours comments, strings, numbers, keywords
   and known functions (temporary attributes, so undo and the text buffer
   are untouched).

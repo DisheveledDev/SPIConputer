@@ -17,6 +17,9 @@ struct CodeEditorView: NSViewRepresentable {
     @Binding var text: String
     /// 1-based line in this component to highlight as an error.
     var diagnosticLine: Int?
+    /// Function definitions from elsewhere in the project (other
+    /// components), offered alongside the functions found in the text.
+    var definedFunctions: [LuaSignature] = []
     /// When off, no foreground attributes are written at all.
     var syntaxHighlighting = true
     /// When off, the line-number gutter is not shown at all.
@@ -214,8 +217,15 @@ struct CodeEditorView: NSViewRepresentable {
             guard commandSelector == #selector(NSResponder.insertNewline(_:)) else {
                 return false
             }
-            let indent = CodeEditorFactory.indentationForNewline(in: textView)
-            textView.insertText("\n" + indent, replacementRange: textView.selectedRange())
+            let insertion = CodeEditorFactory.newlineInsertion(
+                text: textView.string, caret: textView.selectedRange().location)
+            let target = textView.selectedRange()
+            textView.insertText(insertion.text, replacementRange: target)
+            if insertion.caretOffset > 0 {
+                let end = target.location + (insertion.text as NSString).length
+                textView.setSelectedRange(
+                    NSRange(location: end - insertion.caretOffset, length: 0))
+            }
             return true
         }
 
@@ -269,7 +279,7 @@ struct CodeEditorView: NSViewRepresentable {
                 return
             }
             let prefix = (textView.string as NSString).substring(with: range)
-            let matches = LuaCompletion.matches(prefix).filter { $0 != prefix }
+            let matches = completionItems(prefix: prefix, in: textView)
             guard prefix.count >= 2, !matches.isEmpty else {
                 hideCompletion()
                 return
@@ -280,10 +290,20 @@ struct CodeEditorView: NSViewRepresentable {
                 return
             }
             if completionPanel.isVisible {
-                completionPanel.update(matches: matches, near: rect)
+                completionPanel.update(items: matches, near: rect)
             } else {
                 scheduleCompletion(in: textView)
             }
+        }
+
+        /// Completion candidates for the word being typed: built-ins plus
+        /// functions defined locally and elsewhere in the project.
+        private func completionItems(
+            prefix: String, in textView: NSTextView
+        ) -> [CompletionItem] {
+            LuaCompletion.items(
+                prefix, in: textView.string, including: parent.definedFunctions)
+                .filter { $0.name != prefix }
         }
 
         private func scheduleCompletion(in textView: NSTextView) {
@@ -291,8 +311,7 @@ struct CodeEditorView: NSViewRepresentable {
             guard let range = currentWordRange(in: textView) else { return }
             let prefix = (textView.string as NSString).substring(with: range)
             guard prefix.count >= 2 else { return }
-            let matches = LuaCompletion.matches(prefix).filter { $0 != prefix }
-            guard !matches.isEmpty else { return }
+            guard !completionItems(prefix: prefix, in: textView).isEmpty else { return }
             pendingCompletionPrefix = prefix
             perform(
                 #selector(showScheduledCompletion(_:)), with: nil,
@@ -317,10 +336,10 @@ struct CodeEditorView: NSViewRepresentable {
         private func showCompletion(
             prefix: String, range: NSRange, in textView: NSTextView
         ) {
-            let matches = LuaCompletion.matches(prefix).filter { $0 != prefix }
+            let matches = completionItems(prefix: prefix, in: textView)
             guard !matches.isEmpty, let rect = caretScreenRect(in: textView) else { return }
             completionPrefixRange = range
-            completionPanel.show(matches: matches, near: rect)
+            completionPanel.show(items: matches, near: rect)
             signatureHelp.hide() // the list owns the space below
         }
 
@@ -379,7 +398,8 @@ struct CodeEditorView: NSViewRepresentable {
                 return
             }
             let caret = textView.selectedRange().location
-            guard let context = LuaSignatureHelp.context(at: caret, in: textView.string),
+            guard let context = LuaSignatureHelp.context(
+                at: caret, in: textView.string, including: parent.definedFunctions),
                   let rect = caretScreenRect(in: textView)
             else {
                 signatureHelp.hide()

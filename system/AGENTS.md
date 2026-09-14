@@ -28,12 +28,12 @@ or new detail is captured.
 | Process model | `program.c` — 4-program stack, per-program Lua state (64 KB heap cap), optional heap-allocated video/audio state, timers, per-program event rings; noninteractive utilities keep their isolated Lua state but return `UtilityResult` text to the parent via `UtilityPoll`; `sys_lua.c` exposes TimeNow/Pid/ExitProgram/Launch/Execute/ExecuteString/UtilityResult/UtilityPoll/TimerCreate/TimerStop/InputPoll/InputControl |
 | Shell / card programs | **Not in this repo.** `core/boot.lua`/`core/boot.prg`, the shell (`core/os.lua`/`core/os.prg`), installed apps, and other programs are SPIEdit projects developed outside the OS source tree (this workspace builds system outputs into `software/core/`, apps into `software/apps/`, and reserves `data/` for user files). The shell protects `core/`, lists apps with `APPS`, restricts file operations to `data/`, and launches programs from `apps/` or `data/`. It has no exit command: the shell is the OS. The OS only provides the runtime, `lua.md` the contract |
 | Lua API reference | `lua.md` — the developer contract (entry points, OS/functions/fs/input, limits); keep in sync with the implementation and use as the basis for the future IDE |
-| Display | `render.c` (scanline renderer, host-tested golden output) + `screen_lua.c` (ScreenMode/ZOrder/Out/Attr/DefineTile/Palette/Clear/Plot) with three composited text layers. Product-board scanout: `render332.c` (RGB332 fast path, host-tested against `render.c`) + `scanout.c` (HSTX scanline sequencer, host-tested) + `core0/video_hw.c` (TMDS expander, ping/pong DMA, render ISR into an 8-line ring) |
+| Display | `render.c` (scanline renderer, host-tested golden output) + `screen_lua.c` (ScreenMode/ZOrder/Out/Attr/DefineTile/Palette/Clear/Plot) with three composited text layers. Product-board scanout: `render332.c` (RGB332 fast path, host-tested against `render.c`) + `scanout.c` (HSTX scanline sequencer, host-tested) + `core0/video_hw.c` (TMDS expander, ping/pong DMA, render pump into an 8-line ring) |
 | Audio | `audio.c` (8-voice stereo synth, score scheduler, WAV sample voices) + `sound_lua.c` (Sound*/Music* API); per-program state like video; host-tested. HDMI data-island feed deferred to Phase 7 |
 | Input | `input.c` + `core1/input_hw.c` — 1 kHz matrix scan + joystick poll into the event queue (`system_state.input`); the scheduler drains it between ticks. Producer and consumer are both on the OS core, so the ring indices are plain words |
 | Desktop terminal interface | Removed; display and input development now use the simulator |
 | Desktop simulator | `../simulator/` — sibling folder, not part of the OS. SDL2 app (macOS) running the real OS sources with `sdcard/` as the virtual SD card, an SDL window for video, queued audio, and keyboard/controller input; hardware files replaced by `sim_fs.c`/`sim_main.c` |
-| Desktop IDE | `../ide/macos` — sibling folder, not part of the OS. SwiftUI app managing component projects (manifest + Lua/tile/audio/snippet components) and building them into `.lua` source plus `.prg` Lua bytecode; new projects start with header/main/input/tick components. Editors show line numbers, syntax highlighting and autocomplete for Lua + SPIComputer APIs; a debounced compile check runs the OS's own Lua via `simulator --check` and maps errors back to component lines. Run writes both outputs into a run-folder SD card and boots the `.prg` directly with `simulator --boot` |
+| Desktop IDE | `../ide/macos` — sibling folder, not part of the OS. SwiftUI app managing component projects (manifest + Lua/tile/audio/snippet components) and building them into `.lua` source plus `.prg` Lua bytecode; new projects start with header/main/input/tick components. Editors show line numbers, syntax highlighting and autocomplete for Lua, the SPIComputer APIs and the project's own functions (with parameter hints); a debounced compile check runs the OS's own Lua via `simulator --check` and maps errors back to component lines, the edited file is syntax-checked two seconds after typing stops and components with errors are flagged in the sidebar, and Return after a block opener auto-inserts the matching `end`. Run writes both outputs into a run-folder SD card and boots the `.prg` directly with `simulator --boot` |
 | Host tests | `tests/host` — fs bridge (both the direct firmware path and the two-core slot transport) over mock SD (incl. ejected-card errors), scanout sequencer + RGB332 renderer, layered renderer, input engine, process model (retire queue, WaitVSync), audio engine/API, editor |
 
 Build (VS Code Pico extension or CLI):
@@ -107,17 +107,22 @@ Changing screen mode frees any previous display buffer memory.
 
 **Core split (video core / OS core).** Core 0 does one thing: the HSTX
 scanout. `core0/main.c` sets the clock, brings the display up (`video_hw_init`),
-launches core 1 and then idles in WFI while the video DMA IRQ and the
-render ISR feed the display from `g_current_video`. Core 1
+launches core 1, then alternately pumps the render (`video_hw_poll`)
+and idles in WFI while the video DMA IRQ feeds the display from
+`g_current_video`. Rendering runs in that loop, never in an ISR: the DMA
+completion must be able to preempt it, or the 8-word HSTX FIFO starves
+while a row is drawn. Core 1
 (`core1/lua_main.c`) runs everything else: stdio, FatFs + the SD SPI,
 the 1 kHz input tick, the watchdog and the Lua scheduler. Consequences
 worth remembering:
 
-- The only cross-core object is `g_system_state.video_frame_count`
-  (written by core 0 at each vertical blank, read by core 1). No RPC, no
+- The cross-core objects are `g_system_state.video_frame_count`
+  (written by core 0 at each vertical blank, read by core 1) and the
+  video test pattern request (raised once by core 1 when boot finds no
+  program, latched by core 0 at each frame boundary). No RPC, no
   queues, no locks elsewhere.
 - IRQ affinity: each IRQ is enabled on the core that should take it.
-  Video IRQs (DMA_IRQ_2, the render ISR's spare IRQ) on core 0; the SD
+  The video DMA IRQ (DMA_IRQ_2) on core 0; the SD
   SPI's DMA_IRQ_0, the input timer and USB on core 1. The SDK keeps one
   handler table but per-core enables, so no IRQ may be enabled on both.
 - The alarm pool/timer IRQ belongs to whichever core first uses it, so
@@ -212,9 +217,10 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   prints the divisor and pixel clock, and warns if no divisor is close).
 - Scanout pipeline: `scanout.c` sequences the ping/pong DMA (43 vblank
   lines, a command list plus a pixel line per active line) into an 8-row
-  ring; `core0/video_hw.c` renders ahead in `SPARE_IRQ_0` (priority 0x40,
-  below `DMA_IRQ_2` at 0). The DMA IRQ never renders, so a scanline reload
-  has the whole blanking interval as slack.
+  ring; `core0/video_hw.c` renders ahead from core 0's main loop
+  (`video_hw_poll`), so the DMA IRQ never renders and can always preempt
+  the renderer: a render ISR would block the post long enough to starve
+  the 8-word HSTX FIFO.
 - Ring protocol (the failure mode this is built around): the ring holds
   *rows of the current frame* in `row % SCANOUT_RING_LINES`; the producer
   publishes rows only while `rows_published - rows_consumed <
@@ -235,6 +241,14 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   vertical blank; `WaitVSync([ms])` in `sys_lua.c` reports frames elapsed
   since the program's previous call. HSTX audio data islands remain the
   only deferred Phase 7 piece.
+- Test pattern fallback: when boot finds no program to run (SD card not
+  mounted, or `core/boot.lua` missing) core 1 raises
+  `g_system_state.video_pattern_request` and core 0 draws the bring-up
+  pattern instead of a black screen: colour bars, stripes, ramps and a
+  moving bar at full 640x480 (layout in `core0/video_hw.c`), so a bare
+  board still shows something that exercises every HSTX lane for wiring
+  checks. Diagnostic builds (`SPICOMPUTER_VIDEO_TEST_PATTERN`) start
+  with the request set and skip SD/Lua entirely.
 - Video states are freed two frame boundaries after a program terminates
   (the `program.c` retire queue), so a scanline in flight cannot touch
   freed memory; `video_set_mode` publishes the framebuffer before the mode
@@ -486,8 +500,8 @@ RP2350 has two Hazard3 (RISC-V) cores. The split is by *real-time
 criticality*, not by hardware vs software:
 
 - **Core 0 (video core):** the HSTX scanout and nothing else. It sets the
-  clock, brings up the display, launches core 1, and then idles in WFI
-  while the video DMA IRQ and the render ISR keep the display fed. No
+  clock, brings up the display, launches core 1, and then runs the render
+  pump around WFI while the video DMA IRQ keeps the display fed. No
   stdio, no SD, no input, no watchdog, no alarm pool - nothing that could
   delay a scanline or thrash the XIP cache under it.
 - **Core 1 (OS core):** everything else - stdio, FatFs and the SD SPI,

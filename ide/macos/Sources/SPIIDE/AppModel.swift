@@ -22,6 +22,9 @@ final class AppModel {
     var luaText = ""
     var tilesAsset = TilesAsset()
     var audioAsset = AudioAsset()
+    /// Function definitions across the project's Lua components, offered
+    /// by the editor's completion list and parameter help.
+    var projectFunctions: [LuaSignature] = []
 
     // Console / run state
     var console = ""
@@ -31,9 +34,13 @@ final class AppModel {
     // Compile checking
     var compileDiagnostic: CompileDiagnostic?
     var runtimeDiagnostic: CompileDiagnostic?
+    /// Known syntax errors per component (from the live per-file check or
+    /// the merged-program check). Drives the sidebar warning icons.
+    var componentDiagnostics: [ComponentRef.ID: CompileDiagnostic] = [:]
     /// Non-nil when checks cannot run (shown in the editor banner).
     var compileCheckUnavailableReason: String?
     private var checkTask: Task<Void, Never>?
+    private var componentCheckTask: Task<Void, Never>?
     private var lastReportedDiagnostic: CompileDiagnostic?
 
     // Simulator
@@ -84,6 +91,7 @@ final class AppModel {
 
     private func loadSelectedComponent() {
         fileWatchTask?.cancel()
+        componentCheckTask?.cancel()
         observedLuaData = nil
         guard let project, let component = selectedComponent else {
             editingComponent = nil
@@ -105,6 +113,7 @@ final class AppModel {
         } catch {
             errorMessage = "Cannot read \(component.file): \(error.localizedDescription)"
         }
+        refreshProjectFunctions()
     }
 
     // MARK: Editing / saving
@@ -121,6 +130,7 @@ final class AppModel {
             self.save(component: component, in: project)
         }
         scheduleCheck()
+        scheduleComponentCheck()
     }
 
     func saveNow() {
@@ -140,9 +150,35 @@ final class AppModel {
             case .audio:
                 try ProjectStore.writeAudio(audioAsset, for: component, in: project)
             }
+            refreshProjectFunctions()
         } catch {
             errorMessage = "Cannot save \(component.file): \(error.localizedDescription)"
         }
+    }
+
+    /// Indexes the functions defined in the project's Lua components. The
+    /// buffer being edited is read from memory, so definitions appear in
+    /// the completion list as they are typed.
+    private func refreshProjectFunctions() {
+        guard let project else {
+            projectFunctions = []
+            return
+        }
+        var signatures: [LuaSignature] = []
+        for component in project.manifest.components
+        where component.kind == .lua || component.kind == .snippet {
+            let text: String
+            if editingComponent?.id == component.id {
+                text = luaText
+            } else if let data = try? Data(contentsOf: project.fileURL(for: component)),
+                      let loaded = String(data: data, encoding: .utf8) {
+                text = loaded
+            } else {
+                continue
+            }
+            signatures.append(contentsOf: LuaFunctionIndex.functions(in: text))
+        }
+        projectFunctions = signatures
     }
 
     private func restartFileWatch() {
@@ -176,7 +212,9 @@ final class AppModel {
         if Data(luaText.utf8) == previousData {
             luaText = text
             appendConsole("Reloaded \(component.file) after an external change\n")
+            refreshProjectFunctions()
             scheduleCheck()
+            scheduleComponentCheck()
         } else {
             errorMessage = "\(component.file) changed outside the IDE while it has unsaved edits"
             appendConsole("External change detected in \(component.file); keeping editor text\n")
@@ -236,6 +274,7 @@ final class AppModel {
         saveTask?.cancel()
         fileWatchTask?.cancel()
         checkTask?.cancel()
+        componentCheckTask?.cancel()
         editingComponent = nil // never save the previous project's buffer here
         self.project = project
         showingProjectSettings = true
@@ -243,6 +282,7 @@ final class AppModel {
         loadSelectedComponent()
         lastBuildURL = project.buildProductURL
         compileDiagnostic = nil
+        componentDiagnostics = [:]
         scheduleCheck()
     }
 
@@ -268,6 +308,8 @@ final class AppModel {
         ProjectStore.removeComponent(component, from: &project)
         try? ProjectStore.save(project)
         self.project = project
+        componentDiagnostics[id] = nil
+        refreshProjectFunctions()
         if selectedComponentID == id {
             // Drop the buffer first so the selection change does not save
             // the removed file back to disk.
@@ -325,6 +367,64 @@ final class AppModel {
         }
     }
 
+    /// Debounced syntax check of the component being edited: two seconds
+    /// after the last keystroke its text is compiled on its own (with the
+    /// same OS Lua as the merged check), so errors show up in the sidebar
+    /// while typing rather than only after a build.
+    func scheduleComponentCheck() {
+        componentCheckTask?.cancel()
+        guard let component = editingComponent,
+              component.kind == .lua || component.kind == .snippet
+        else { return }
+        let text = luaText
+        componentCheckTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            await self.performComponentCheck(component: component, text: text)
+        }
+    }
+
+    private func performComponentCheck(component: ComponentRef, text: String) async {
+        guard editingComponent?.id == component.id, luaText == text else { return }
+        if let simulator = simulatorURL {
+            let outcome = await Task.detached(priority: .utility) {
+                LuaChecker.check(source: text, simulator: simulator)
+            }.value
+            guard editingComponent?.id == component.id, luaText == text else { return }
+            if outcome.unavailableReason == nil {
+                if let error = outcome.error {
+                    let attributed = LuaChecker.attribute(error, in: text)
+                    componentDiagnostics[component.id] = CompileDiagnostic(
+                        message: attributed.message, generatedLine: nil,
+                        location: attributed.line.map {
+                            SourceLocation(componentID: component.id, line: $0)
+                        })
+                } else {
+                    componentDiagnostics[component.id] = nil
+                }
+                return
+            }
+        }
+        // Without the simulator the in-process structure check still
+        // catches (and clears) unclosed blocks.
+        let issue = LuaStructureChecker.check(text)
+        componentDiagnostics[component.id] = issue.map {
+            CompileDiagnostic(
+                message: $0.message, generatedLine: nil,
+                location: SourceLocation(componentID: component.id, line: $0.line))
+        }
+    }
+
+    /// Known syntax error for a component: its own live check first, then
+    /// the error the merged-program check attributed to it.
+    func diagnostic(for componentID: ComponentRef.ID) -> CompileDiagnostic? {
+        if let live = componentDiagnostics[componentID] { return live }
+        guard let diagnostic = compileDiagnostic,
+              diagnostic.location?.componentID == componentID
+        else { return nil }
+        return diagnostic
+    }
+
     /// Builds in memory, compiles with the OS's own Lua (via the
     /// simulator's --check mode) and maps any error back to a component.
     func performCompileCheck() async {
@@ -367,6 +467,7 @@ final class AppModel {
                 appendConsole("Compile ok\n")
             }
             compileDiagnostic = nil
+            componentDiagnostics.removeAll()
             lastReportedDiagnostic = nil
             return
         }

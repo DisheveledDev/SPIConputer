@@ -21,7 +21,9 @@ struct ComponentListView: View {
                 .listRowBackground(model.showingProjectSettings ? Color.accentColor.opacity(0.15) : nil)
             }
             ForEach(model.project?.manifest.components ?? []) { component in
-                ComponentRow(component: component)
+                ComponentRow(
+                    component: component,
+                    diagnostic: model.diagnostic(for: component.id))
                     .tag(component.id)
                     .contextMenu {
                         Button("Rename…") {
@@ -64,17 +66,35 @@ struct ComponentListView: View {
 
 private struct ComponentRow: View {
     let component: ComponentRef
+    let diagnostic: CompileDiagnostic?
 
     var body: some View {
         Label {
             VStack(alignment: .leading, spacing: 1) {
                 Text(component.name)
-                Text(component.kind.displayName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(diagnostic == nil ? Color.primary : Color.red)
+                if let diagnostic {
+                    Text(errorText(diagnostic))
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                } else {
+                    Text(component.kind.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         } icon: {
-            Image(systemName: component.kind.symbolName)
+            Image(systemName: diagnostic == nil
+                ? component.kind.symbolName
+                : "exclamationmark.triangle.fill")
+                .foregroundStyle(diagnostic == nil ? Color.secondary : Color.red)
         }
+        .help(diagnostic.map(errorText) ?? component.kind.displayName)
+    }
+
+    private func errorText(_ diagnostic: CompileDiagnostic) -> String {
+        guard let line = diagnostic.location?.line else { return diagnostic.message }
+        return "Line \(line): \(diagnostic.message)"
     }
 }

@@ -1,31 +1,46 @@
 import AppKit
 
-/// Completion list shown under the caret while typing. The panel never
-/// becomes key and ignores the mouse, so every key press, including
-/// Backspace, stays with the editor; the coordinator drives the selection
-/// and acceptance from `doCommandBy`.
+import SPIIDECore
+
+/// Completion list shown under the caret while typing, with the expected
+/// parameters beside each function name. The panel never becomes key and
+/// ignores the mouse, so every key press, including Backspace, stays with
+/// the editor; the coordinator drives the selection and acceptance from
+/// `doCommandBy`.
 @MainActor
 final class CompletionPanel: NSObject {
     private let panel: NSPanel
     private let effect: NSVisualEffectView
     private let scrollView: NSScrollView
     private let tableView: NSTableView
-    private var matches: [String] = []
+    private var items: [CompletionItem] = []
     private var selectedIndex = 0
 
-    private static let rowHeight: CGFloat = 18
-    private static let maxVisibleRows = 8
-    private static let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+    private static let rowHeight: CGFloat = 20
+    private static let maxVisibleRows = 10
+    private static let maxWidth: CGFloat = 480
+    private static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 
     var isVisible: Bool { panel.isVisible }
 
+    /// The row list, for layout tests that verify the panel fits its rows.
+    var rowsView: NSTableView { tableView }
+
     var selectedMatch: String? {
-        matches.indices.contains(selectedIndex) ? matches[selectedIndex] : nil
+        items.indices.contains(selectedIndex) ? items[selectedIndex].name : nil
+    }
+
+    /// Parameters of the selected entry, when it declares any.
+    var selectedDetail: String? {
+        items.indices.contains(selectedIndex) ? items[selectedIndex].detail : nil
     }
 
     override init() {
         tableView = NSTableView()
         tableView.headerView = nil
+        // `.plain` avoids the styled-table inset that leaves the first row
+        // half-hidden when the panel only shows one or two rows.
+        tableView.style = .plain
         tableView.rowHeight = Self.rowHeight
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
         tableView.selectionHighlightStyle = .regular
@@ -36,6 +51,9 @@ final class CompletionPanel: NSObject {
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
+        // Overlay scrollers float over the rows instead of taking width
+        // (and, with a legacy scroller, clipping the text) from them.
+        scrollView.scrollerStyle = .overlay
         scrollView.documentView = tableView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -49,7 +67,7 @@ final class CompletionPanel: NSObject {
         effect.addSubview(scrollView)
 
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 160, height: 40),
+            contentRect: NSRect(x: 0, y: 0, width: 180, height: 48),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: true)
         panel.isFloatingPanel = true
@@ -68,20 +86,20 @@ final class CompletionPanel: NSObject {
         tableView.dataSource = self
         tableView.delegate = self
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: effect.leadingAnchor, constant: 3),
-            scrollView.trailingAnchor.constraint(equalTo: effect.trailingAnchor, constant: -3),
-            scrollView.topAnchor.constraint(equalTo: effect.topAnchor, constant: 3),
-            scrollView.bottomAnchor.constraint(equalTo: effect.bottomAnchor, constant: -3),
+            scrollView.leadingAnchor.constraint(equalTo: effect.leadingAnchor, constant: 4),
+            scrollView.trailingAnchor.constraint(equalTo: effect.trailingAnchor, constant: -4),
+            scrollView.topAnchor.constraint(equalTo: effect.topAnchor, constant: 4),
+            scrollView.bottomAnchor.constraint(equalTo: effect.bottomAnchor, constant: -4),
         ])
     }
 
-    func show(matches: [String], near caretRect: NSRect) {
-        update(matches: matches, near: caretRect)
+    func show(items: [CompletionItem], near caretRect: NSRect) {
+        update(items: items, near: caretRect)
         panel.orderFront(nil)
     }
 
-    func update(matches: [String], near caretRect: NSRect?) {
-        self.matches = matches
+    func update(items: [CompletionItem], near caretRect: NSRect?) {
+        self.items = items
         selectedIndex = 0
         tableView.reloadData()
         tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -97,8 +115,8 @@ final class CompletionPanel: NSObject {
     }
 
     func moveSelection(by delta: Int) {
-        guard !matches.isEmpty else { return }
-        selectedIndex = min(max(selectedIndex + delta, 0), matches.count - 1)
+        guard !items.isEmpty else { return }
+        selectedIndex = min(max(selectedIndex + delta, 0), items.count - 1)
         tableView.selectRowIndexes(
             IndexSet(integer: selectedIndex), byExtendingSelection: false)
         tableView.scrollRowToVisible(selectedIndex)
@@ -109,13 +127,13 @@ final class CompletionPanel: NSObject {
     }
 
     private func resize() {
-        let rows = min(matches.count, Self.maxVisibleRows)
-        let widest = matches
-            .map { ($0 as NSString).size(withAttributes: [.font: Self.font]).width }
-            .max() ?? 80
+        let rows = min(items.count, Self.maxVisibleRows)
+        let widest = items
+            .map { Self.attributedText(for: $0).size().width }
+            .max() ?? 120
         panel.setContentSize(NSSize(
-            width: min(max(widest + 24, 100), 320),
-            height: CGFloat(rows) * Self.rowHeight + 6))
+            width: min(max(widest + 28, 140), Self.maxWidth),
+            height: CGFloat(rows) * Self.rowHeight + 8))
     }
 
     private func position(near caretRect: NSRect) {
@@ -132,11 +150,23 @@ final class CompletionPanel: NSObject {
         }
         panel.setFrameOrigin(origin)
     }
+
+    private static func attributedText(for item: CompletionItem) -> NSAttributedString {
+        let result = NSMutableAttributedString(
+            string: item.name,
+            attributes: [.font: font, .foregroundColor: NSColor.labelColor])
+        if let detail = item.detail {
+            result.append(NSAttributedString(
+                string: "  " + detail,
+                attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor]))
+        }
+        return result
+    }
 }
 
 extension CompletionPanel: NSTableViewDataSource, NSTableViewDelegate {
     func numberOfRows(in tableView: NSTableView) -> Int {
-        matches.count
+        items.count
     }
 
     func tableView(
@@ -160,7 +190,7 @@ extension CompletionPanel: NSTableViewDataSource, NSTableViewDelegate {
                 ])
                 return cell
             }()
-        cell.textField?.stringValue = matches[row]
+        cell.textField?.attributedStringValue = Self.attributedText(for: items[row])
         return cell
     }
 }

@@ -52,15 +52,46 @@ public enum LuaCompletion {
 
     public static let all: [String] = keywords + builtins + spiComputer
 
-    /// Completions whose text starts with `prefix` (case-sensitive, as Lua
-    /// is). Shorter names sort first so plain names win over members.
-    public static func matches(_ prefix: String) -> [String] {
-        guard !prefix.isEmpty else { return all }
-        return all
-            .filter { $0.hasPrefix(prefix) }
+    /// Completions whose text starts with `prefix`, including functions
+    /// defined in `source` (the file being edited) and anywhere else in
+    /// the project via `definedFunctions`. Locally defined signatures win
+    /// over the built-in tables, each name appears once, and shorter
+    /// names sort first so plain names win over members.
+    public static func items(
+        _ prefix: String,
+        in source: String,
+        including definedFunctions: [LuaSignature] = []
+    ) -> [CompletionItem] {
+        var signatures: [String: LuaSignature] = [:]
+        for signature in definedFunctions {
+            signatures[signature.name] = signature
+        }
+        // The edited file's own definitions are read last and win.
+        for signature in LuaFunctionIndex.functions(in: source) {
+            signatures[signature.name] = signature
+        }
+
+        var names = all
+        var known = Set(all)
+        for name in signatures.keys.sorted() where known.insert(name).inserted {
+            names.append(name)
+        }
+        let matched = prefix.isEmpty ? names : names.filter { $0.hasPrefix(prefix) }
+        return matched
             .sorted {
                 if $0.count != $1.count { return $0.count < $1.count }
                 return $0 < $1
             }
+            .map { name in
+                let signature = signatures[name] ?? LuaSignatures.signature(for: name)
+                return CompletionItem(
+                    name: name,
+                    detail: signature.map { "(\($0.parameters.joined(separator: ", ")))" })
+            }
+    }
+
+    /// Completion names only, for callers that just filter names.
+    public static func matches(_ prefix: String) -> [String] {
+        items(prefix, in: "").map(\.name)
     }
 }

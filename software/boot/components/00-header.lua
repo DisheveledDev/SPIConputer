@@ -8,3 +8,7 @@
 -- here and Build, or run `swift run --package-path ide/macos spibuild
 -- software/boot` from the workspace root. The generated files are written
 -- to software/core/.
+
+function hello()
+	math.sqrt(5)
+end

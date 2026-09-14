@@ -41,21 +41,48 @@ struct CodeEditorFactoryTests {
         #expect(editor.textView.frame.height > 300) // 50 lines exceed the viewport
     }
 
-    @Test func newlineIndentAfterOpeners() {
-        let editor = CodeEditorFactory.make(text: "", delegate: nil)
-        let textView = editor.textView
+    @Test func newlineInsertsIndentAfterOpeners() {
+        #expect(CodeEditorFactory.newlineInsertion(text: "function f()", caret: 12)
+            == .init(text: "\n    \nend", caretOffset: 4))
+        #expect(CodeEditorFactory.newlineInsertion(text: "    if x then", caret: 13)
+            == .init(text: "\n        \n    end", caretOffset: 8))
+        #expect(CodeEditorFactory.newlineInsertion(text: "    end", caret: 7)
+            == .init(text: "\n    ", caretOffset: 0))
+    }
 
-        textView.string = "function f()"
-        textView.setSelectedRange(NSRange(location: 12, length: 0))
-        #expect(CodeEditorFactory.indentationForNewline(in: textView) == "    ")
+    @Test func newlineAutoClosesBlocksAndBrackets() {
+        // for/while/do and bare do share the `end` closer.
+        #expect(CodeEditorFactory.newlineInsertion(text: "for i = 1, 3 do", caret: 15)
+            == .init(text: "\n    \nend", caretOffset: 4))
+        // A function header is closed by `end`, not by `)`.
+        #expect(CodeEditorFactory.newlineInsertion(text: "local f = function(a)", caret: 21)
+            == .init(text: "\n    \nend", caretOffset: 4))
+        // Tables and calls close with } and ).
+        #expect(CodeEditorFactory.newlineInsertion(text: "local t = {", caret: 11)
+            == .init(text: "\n    \n}", caretOffset: 2))
+        #expect(CodeEditorFactory.newlineInsertion(text: "print(", caret: 6)
+            == .init(text: "\n    \n)", caretOffset: 2))
+        // else/elseif/repeat branches share or need their own closer.
+        #expect(CodeEditorFactory.newlineInsertion(text: "    else", caret: 8)
+            == .init(text: "\n        ", caretOffset: 0))
+        #expect(CodeEditorFactory.newlineInsertion(text: "    elseif y then", caret: 17)
+            == .init(text: "\n        ", caretOffset: 0))
+        #expect(CodeEditorFactory.newlineInsertion(text: "repeat", caret: 6)
+            == .init(text: "\n    ", caretOffset: 0))
+    }
 
-        textView.string = "    if x then"
-        textView.setSelectedRange(NSRange(location: 13, length: 0))
-        #expect(CodeEditorFactory.indentationForNewline(in: textView) == "        ")
-
-        textView.string = "    end"
-        textView.setSelectedRange(NSRange(location: 7, length: 0))
-        #expect(CodeEditorFactory.indentationForNewline(in: textView) == "    ")
+    @Test func newlineOnlyAutoClosesAtTheEndOfTheLine() {
+        // Return in the middle of a statement only splits the line.
+        #expect(CodeEditorFactory.newlineInsertion(
+            text: "function f() return 1", caret: 12)
+            == .init(text: "\n", caretOffset: 0))
+        // Words inside strings and comments do not open blocks.
+        #expect(CodeEditorFactory.newlineInsertion(
+            text: "print(\"function\")", caret: 17)
+            == .init(text: "\n", caretOffset: 0))
+        #expect(CodeEditorFactory.newlineInsertion(
+            text: "local t = { -- function", caret: 23)
+            == .init(text: "\n    \n}", caretOffset: 2))
     }
 
     @Test func dedentRangeDetection() {

@@ -129,6 +129,12 @@ FRESULT f_open(FIL *fp, const TCHAR *path, BYTE mode) {
     const char *content; size_t len; int is_dir;
     if (g_ejected) return FR_NOT_READY;
     FRESULT r = resolve(path, &content, &len, &is_dir);
+    if (r == FR_NO_FILE &&
+        (mode & (FA_CREATE_ALWAYS | FA_OPEN_ALWAYS | FA_OPEN_APPEND))) {
+        /* Like FatFs: a create/open-always open creates the file. */
+        mock_set_file_bytes(path, "", 0);
+        r = resolve(path, &content, &len, &is_dir);
+    }
     if (r != FR_OK || is_dir) return r == FR_OK ? FR_DENIED : r;
     memset(fp, 0, sizeof(*fp));
     fp->obj.fs = &g_fatfs;

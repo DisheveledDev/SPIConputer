@@ -132,4 +132,34 @@ struct DiagnosticsTests {
         #expect(issue?.line == 3)
         #expect(issue?.message.contains("'until'") == true)
     }
+
+    @Test func attributeMovesUnclosedConstructToOpener() {
+        let attributed = LuaChecker.attribute(
+            LuaCheckResult(
+                line: 120, contextLine: 41,
+                message: "'end' expected (to close 'function' at line 41) near '<eof>'"),
+            in: "")
+        #expect(attributed.line == 41)
+        #expect(attributed.message.contains("at line 41") == true)
+    }
+
+    @Test func attributeUsesStructureCheckWithoutALine() {
+        let attributed = LuaChecker.attribute(
+            LuaCheckResult(
+                line: nil, contextLine: nil,
+                message: "'end' expected near '<eof>'"),
+            in: "function f()\n")
+        #expect(attributed.line == 1)
+        #expect(attributed.message.contains("missing 'end'") == true)
+    }
+
+    @Test func attributeKeepsPlainErrors() {
+        let attributed = LuaChecker.attribute(
+            LuaCheckResult(
+                line: 7, contextLine: nil,
+                message: "unexpected symbol near ')'"),
+            in: "foo()")
+        #expect(attributed.line == 7)
+        #expect(attributed.message == "unexpected symbol near ')'")
+    }
 }

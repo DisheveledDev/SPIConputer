@@ -123,13 +123,24 @@ target_include_directories(SPIComputerOS PRIVATE
 # Core 1's stack is not set here: the SDK's stack lives in SCRATCH_X,
 # which is only 4 KB, so core1_entry gets a stack in main SRAM instead
 # (see core0/main.c).
-# Diagnostic build: draw a test pattern on the scanout instead of running
-# the boot program (no SD card or Lua involved), so the video path can be
-# judged on its own. See core0/video_hw.c for the pattern layout.
+# Diagnostic build: draw the test pattern on the scanout from the first
+# frame and run no SD/Lua at all, so the video path can be judged on its
+# own. Normal builds show the same pattern automatically when boot finds
+# no program (no card, or no boot script): see core1/lua_main.c and
+# core0/video_hw.c for the pattern layout.
 if (SPICOMPUTER_VIDEO_TEST_PATTERN)
     target_compile_definitions(SPIComputerOS PRIVATE
             SPICOMPUTER_VIDEO_TEST_PATTERN=1)
 endif()
+
+# Bring-up logging period, in milliseconds (see core1/lua_main.c): a
+# status line per period goes to USB stdio and spilog.txt on the card.
+# Build with -DSPICOMPUTER_LOG_PERIOD_MS=5000 to space the writes out
+# (tests whether the SD/stdio writes themselves disturb the display).
+set(SPICOMPUTER_LOG_PERIOD_MS 1000 CACHE STRING
+        "Bring-up status/log period in ms")
+target_compile_definitions(SPIComputerOS PRIVATE
+        SPICOMPUTER_LOG_PERIOD_MS=${SPICOMPUTER_LOG_PERIOD_MS})
 
 # Optional CPU clock override for experiments:
 #   cmake -DSPICOMPUTER_SYS_CLOCK_KHZ=126000 ...

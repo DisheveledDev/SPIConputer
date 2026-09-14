@@ -28,7 +28,7 @@ struct ComponentEditorView: View {
                    diagnostic.location?.componentID == component.id {
                     RuntimeErrorBanner(diagnostic: diagnostic)
                     Divider()
-                } else if let diagnostic = diagnostic(for: component) {
+                } else if let diagnostic = model.diagnostic(for: component.id) {
                     CompileErrorBanner(diagnostic: diagnostic)
                     Divider()
                 } else if let reason = model.compileCheckUnavailableReason {
@@ -44,19 +44,11 @@ struct ComponentEditorView: View {
         }
     }
 
-    /// The current diagnostic when it belongs to this component.
-    private func diagnostic(for component: ComponentRef) -> CompileDiagnostic? {
-        guard let diagnostic = model.compileDiagnostic,
-              diagnostic.location?.componentID == component.id
-        else { return nil }
-        return diagnostic
-    }
-
     @ViewBuilder
     private func editor(for component: ComponentRef) -> some View {
         switch component.kind {
         case .lua, .snippet:
-            LuaEditorView(diagnosticLine: diagnostic(for: component)?.location?.line)
+            LuaEditorView(diagnosticLine: model.diagnostic(for: component.id)?.location?.line)
         case .tiles:
             TilesEditorView()
         case .audio:

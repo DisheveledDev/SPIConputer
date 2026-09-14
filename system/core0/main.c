@@ -200,11 +200,13 @@ int main(void)
                                       sizeof(s_core1_stack));
     boot_signal(4); /* OS core launched */
 
-    /* Nothing left to do here: the scanout runs entirely from its IRQs.
-     * WFI (rather than a spin) keeps this core out of the way of the DMA
-     * and the XIP cache - and keeps the overclocked core cool - while
-     * the OS core does the work. Any enabled IRQ wakes it. */
+    /* Nothing else to do here: the scanout's DMA IRQ posts the next
+     * buffer and raises a flag; rendering happens in this loop so the
+     * IRQ can always preempt it. WFI (rather than a spin) keeps this
+     * core out of the way of the DMA and the XIP cache - and keeps the
+     * overclocked core cool - while the OS core does the work. */
     for (;;) {
+        video_hw_poll();
         __wfi();
     }
 }

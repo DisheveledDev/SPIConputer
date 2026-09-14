@@ -22,6 +22,13 @@ void fs_core0_execute(const rpc_request_t *req, rpc_response_t *resp);
 /* Mount the SD card (logical drive "0:"). */
 bool fs_core0_mount(void);
 
+/* Append one line (a trailing newline is added) to spilog.txt on the
+ * mounted card, creating the file if needed. Returns false when the card
+ * is not mounted or the write failed. Intended for the once-per-second
+ * bring-up log: there is no output buffering, the line is flushed with
+ * f_sync() so it survives a reset. */
+bool fs_core0_log(const char *line);
+
 /* True if the SD card is mounted (core 0 side). */
 bool fs_core0_mounted(void);
 

@@ -31,8 +31,11 @@ void render332_init(void);
 void render_line_332(const video_state_t *v, int y, uint32_t *out);
 
 /* Output lines that repeat a logical row (2x-scaled modes), so a
- * scanout can render each row once and show it twice. */
-bool render332_is_2x(const video_state_t *v);
+ * scanout can render each row once and show it twice. Inline so the
+ * video core's DMA IRQ never fetches this from flash. */
+static inline bool render332_is_2x(const video_state_t *v) {
+    return v->mode != VIDEO_MODE_TEXT80 && v->mode != VIDEO_MODE_TEXT80C;
+}
 
 /* RGB332 value for an RGB888 colour, exposed for palette building and
  * the host colour-order test. R in bits 7:5, G in 4:2, B in 1:0. */

@@ -47,10 +47,6 @@ function setup()
 end
 
 function tick()
-    
-end
-
-function tick2()
     if started or failed then
         return
     end

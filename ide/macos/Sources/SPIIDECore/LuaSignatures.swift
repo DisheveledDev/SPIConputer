@@ -203,20 +203,41 @@ public enum LuaSignatureHelp {
     }
 
     /// The call context at `caret` (a UTF-16 offset into `text`), or nil
-    /// when the caret is not inside a known function call's argument
-    /// list. Strings and comments are ignored.
-    public static func context(at caret: Int, in text: String) -> Context? {
+    /// when the caret is not inside a call to a known function: the
+    /// built-in tables, a function defined in `text` itself, or one from
+    /// `definedFunctions` (other components in the project). Strings and
+    /// comments are ignored.
+    public static func context(
+        at caret: Int, in text: String, including definedFunctions: [LuaSignature] = []
+    ) -> Context? {
         let ns = text as NSString
         guard caret >= 0, caret <= ns.length else { return nil }
         let masked = maskedText(text)
         guard let open = openParenthesis(before: caret, in: masked),
               let name = functionName(before: open, in: masked),
-              let signature = LuaSignatures.signature(for: name)
+              let signature = signature(named: name, in: text, including: definedFunctions)
         else { return nil }
         let arguments = argumentIndex(from: open + 1, to: caret, in: masked)
         return Context(
             signature: signature,
             activeParameter: signature.parameterIndex(forArgument: arguments))
+    }
+
+    /// Call-site name to signature: the edited file's definitions shadow
+    /// the rest of the project, which shadows the built-in tables.
+    private static func signature(
+        named name: String, in text: String, including definedFunctions: [LuaSignature]
+    ) -> LuaSignature? {
+        if let local = LuaFunctionIndex.signature(named: name, in: text) {
+            return local
+        }
+        if let defined = definedFunctions.last(where: { definition in
+            definition.name == name
+                || (name.hasPrefix(":") && definition.name.hasSuffix(name))
+        }) {
+            return defined
+        }
+        return LuaSignatures.signature(for: name)
     }
 
     /// Replaces strings and comments with spaces (same length, so offsets

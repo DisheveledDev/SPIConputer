@@ -42,6 +42,20 @@
  * not moved for this long, stop feeding the watchdog. */
 #define VIDEO_STALL_LIMIT_US 250000
 
+/* Bring-up logging period (SPICOMPUTER_LOG_PERIOD_MS, default 1000).
+ * The status line goes to USB stdio and to spilog.txt on the card; a
+ * longer period is used to test whether the SD card / stdio writes
+ * themselves disturb the display (the dropouts should then space out
+ * with it), and 0 disables logging. */
+#ifndef SPICOMPUTER_LOG_PERIOD_MS
+#define SPICOMPUTER_LOG_PERIOD_MS 1000
+#endif
+#if SPICOMPUTER_LOG_PERIOD_MS < 1
+#undef SPICOMPUTER_LOG_PERIOD_MS
+#define SPICOMPUTER_LOG_PERIOD_MS 1
+#endif
+#define LOG_PERIOD_US ((uint64_t)SPICOMPUTER_LOG_PERIOD_MS * 1000u)
+
 /* ... but give the display time to come up before enforcing that. */
 #define VIDEO_BOOT_GRACE_US 5000000
 
@@ -56,6 +70,82 @@ static void fs_service(const rpc_request_t *req, rpc_response_t *resp) {
     watchdog_update();
     fs_core0_execute(req, resp);
     watchdog_update();
+}
+
+/* Once-per-second status line, written to spilog.txt on the mounted card
+ * so bring-up runs can be inspected without a serial console (the USB
+ * CDC port is not always reachable behind hubs). The counters come from
+ * video_hw.c; they read zero on builds without HDMI. */
+static void log_status(uint64_t now_us, uint32_t frames) {
+    static uint32_t last_long_gaps;
+    char line[224];
+
+    snprintf(line, sizeof(line),
+             "t=%lus frame=%lu underruns=%lu black=%lu snapfail=%lu "
+             "skew=%lu(%lu) gap=%luus long=%lu empty=%lu wof=%lu pattern=%d",
+             (unsigned long)(now_us / 1000000u), (unsigned long)frames,
+             (unsigned long)video_hw_underruns(),
+             (unsigned long)video_hw_black_rows(),
+             (unsigned long)video_hw_snapshot_fails(),
+             (unsigned long)video_hw_skews(),
+             (unsigned long)video_hw_last_frame_steps(),
+             (unsigned long)video_hw_gap_max_us(),
+             (unsigned long)video_hw_long_gaps(),
+             (unsigned long)video_hw_fifo_empty(),
+             (unsigned long)video_hw_fifo_wofs(),
+             g_system_state.video_pattern_request ? 1 : 0);
+    fs_core0_log(line);
+
+    /* New stream stalls: log where in the frame the most recent one
+     * ended, and what the FIFO looked like when it did. */
+    uint32_t gaps = video_hw_long_gaps();
+    if (gaps != last_long_gaps) {
+        snprintf(line, sizeof(line),
+                 "stall: n=%lu gap=%luus frame=%lu line=%lu fifo=%lu "
+                 "cmdlist=%lu underruns=%lu",
+                 (unsigned long)gaps, (unsigned long)video_hw_last_gap_us(),
+                 (unsigned long)video_hw_last_gap_frame(),
+                 (unsigned long)video_hw_last_gap_line(),
+                 (unsigned long)video_hw_last_gap_fifo_level(),
+                 (unsigned long)video_hw_last_gap_cmdlist(),
+                 (unsigned long)video_hw_last_gap_underruns());
+        fs_core0_log(line);
+        last_long_gaps = gaps;
+    }
+}
+
+/* One line per boot, so the log shows whether the board restarted (and
+ * why) between status lines. */
+static void log_boot(uint32_t sys_khz, bool was_watchdog) {
+    char line[160];
+#if defined(SPICOMPUTER_HAS_HDMI)
+    uint32_t div, hstx, pixel;
+    bool warn;
+    video_hw_clock_info(&div, &hstx, &pixel, &warn);
+    snprintf(line, sizeof(line),
+             "boot: sys=%lu kHz hstx=%lu Hz pixel=%lu Hz warn=%d "
+             "watchdog=%d",
+             (unsigned long)sys_khz, (unsigned long)hstx,
+             (unsigned long)pixel, warn ? 1 : 0, was_watchdog ? 1 : 0);
+#else
+    (void)sys_khz;
+    snprintf(line, sizeof(line), "boot: watchdog=%d", was_watchdog ? 1 : 0);
+#endif
+    fs_core0_log(line);
+}
+
+/* Boot found no program to run (no card, or the boot script missing):
+ * ask core 0 for the bring-up test pattern. A bare board then shows the
+ * colour bars/stripes instead of a black screen, so the HSTX wiring can
+ * be checked with a monitor alone (see core0/video_hw.c for the layout).
+ * The request is a plain shared flag; core 0 latches it at the next
+ * frame boundary. */
+static void request_test_pattern(const char *why) {
+    if (g_system_state.video_pattern_request) {
+        return;
+    }
+    printf("%s: showing the video test pattern\n", why);
+    g_system_state.video_pattern_request = true;
 }
 
 static void print_boot_info(void) {
@@ -117,9 +207,12 @@ void core1_entry(void)
     printf("test pattern build: SD mount skipped\n");
 #else
     if (!fs_core0_mount()) {
-        printf("SD card not mounted\n");
+        request_test_pattern("SD card not mounted");
     }
 #endif
+    /* Record the clock/display setup and whether this run followed a
+     * watchdog reset; the log is appended, so it survives resets. */
+    log_boot(clock_get_hz(clk_sys) / 1000, was_watchdog);
     boot_signal(6); /* card stage complete */
 
     /* Input subsystem: 1 kHz matrix and joystick scanning. This claims
@@ -127,12 +220,12 @@ void core1_entry(void)
     input_hw_init();
 
 #if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
-    /* Diagnostic build: the scanout draws a test pattern, so no program
-     * is loaded (the SD mount above still reports the card). */
+    /* Diagnostic build: the scanout draws the test pattern from the
+     * first frame, so no program is loaded (and no SD work was done). */
     printf("test pattern build: boot program not loaded\n");
 #else
     if (!program_boot(BOOT_SCRIPT, NULL)) {
-        printf("Boot failed (no SD card?)\n");
+        request_test_pattern("Boot failed (no boot program on the card?)");
     }
 #endif
     boot_signal(7); /* boot program attempted; scheduler loop next */
@@ -176,16 +269,29 @@ void core1_entry(void)
         watchdog_update();
 #endif
 
-        if (now - stats_us >= 1000000) {
+        if (now - stats_us >= LOG_PERIOD_US) {
             stats_us = now;
-            boot_signal_tick(); /* alive: 1 Hz blink */
+            boot_signal_tick(); /* alive: status-LED blink */
+            log_status(now, frames);
 #if defined(SPICOMPUTER_HAS_HDMI)
             uint32_t underruns = video_hw_underruns();
-            printf("video: frame %lu scanline %lu underruns %lu (+%lu)\n",
+            printf("video: frame %lu scanline %lu underruns %lu (+%lu) "
+                   "pattern %d\n",
                    (unsigned long)frames,
                    (unsigned long)video_hw_scanline(),
                    (unsigned long)underruns,
-                   (unsigned long)(underruns - last_underruns));
+                   (unsigned long)(underruns - last_underruns),
+                   g_system_state.video_pattern_request ? 1 : 0);
+            printf("video: black %lu snapfail %lu skew %lu(%lu) gap %lu us "
+                   "long %lu empty %lu wof %lu\n",
+                   (unsigned long)video_hw_black_rows(),
+                   (unsigned long)video_hw_snapshot_fails(),
+                   (unsigned long)video_hw_skews(),
+                   (unsigned long)video_hw_last_frame_steps(),
+                   (unsigned long)video_hw_gap_max_us(),
+                   (unsigned long)video_hw_long_gaps(),
+                   (unsigned long)video_hw_fifo_empty(),
+                   (unsigned long)video_hw_fifo_wofs());
             last_underruns = underruns;
 #endif
         }

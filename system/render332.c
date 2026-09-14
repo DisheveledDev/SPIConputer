@@ -40,10 +40,6 @@ void render332_init(void) {
     }
 }
 
-bool render332_is_2x(const video_state_t *v) {
-    return v->mode != VIDEO_MODE_TEXT80 && v->mode != VIDEO_MODE_TEXT80C;
-}
-
 /* Refresh the palette LUT from the state's RGB888 palette. Cached by
  * the state version so the 256-entry conversion runs only when the
  * palette actually changes, not once per rendered line. */
@@ -90,7 +86,9 @@ void render_line_332(const video_state_t *v, int y, uint32_t *out) {
     int sub = ly % 8;
 
     if (mode == VIDEO_MODE_PIXEL) {
-        const uint8_t *fb = v->framebuf ? v->framebuf + row * VIDEO_FB_COLS : NULL;
+        /* Direct pixels: the logical line is the framebuffer row (the
+         * 2x scaling only repeats it horizontally and vertically). */
+        const uint8_t *fb = v->framebuf ? v->framebuf + ly * VIDEO_FB_COLS : NULL;
         for (int x = 0; x < VIDEO_FB_COLS; x += 2) {
             uint8_t a = fb ? fb[x] : 0;
             uint8_t b = fb ? fb[x + 1] : 0;

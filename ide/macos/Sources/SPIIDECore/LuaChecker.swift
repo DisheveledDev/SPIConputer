@@ -66,4 +66,21 @@ public enum LuaChecker {
                 message: parsed.message),
             unavailableReason: nil)
     }
+
+    /// Points an unclosed-construct error at the opener the user has to
+    /// fix: Lua reports those at `<eof>`, but names the opener in an
+    /// "at line N" context. Without any line, the block-structure check
+    /// supplies the opener; other errors are returned unchanged.
+    public static func attribute(_ error: LuaCheckResult, in source: String) -> LuaCheckResult {
+        if let context = error.contextLine {
+            return LuaCheckResult(
+                line: context, contextLine: context, message: error.message)
+        }
+        if error.line == nil, let issue = LuaStructureChecker.check(source) {
+            return LuaCheckResult(
+                line: issue.line, contextLine: nil,
+                message: "\(issue.message); Lua: \(error.message)")
+        }
+        return error
+    }
 }

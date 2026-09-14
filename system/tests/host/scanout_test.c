@@ -364,12 +364,16 @@ static void test_render332_matches_reference(void) {
             v.palette[i] = (uint32_t)(i * 0x010101) | 0x001020u;
         }
         if (v.mode == VIDEO_MODE_PIXEL) {
+            /* Vary by column *and* row: patterns that repeat every
+             * 256 bytes can hide a wrong framebuffer row. */
             for (int i = 0; i < VIDEO_FB_COLS * VIDEO_FB_ROWS; i++) {
-                v.framebuf[i] = (uint8_t)(i * 5);
+                int col = i % VIDEO_FB_COLS;
+                int line = i / VIDEO_FB_COLS;
+                v.framebuf[i] = (uint8_t)(col * 3 + line * 11);
             }
         }
 
-        for (int y = 0; y < RENDER_OUT_HEIGHT; y += 137) {
+        for (int y = 0; y < RENDER_OUT_HEIGHT; y += 29) {
             render_line(&v, y, ref);
             render_line_332(&v, y, words);
 
