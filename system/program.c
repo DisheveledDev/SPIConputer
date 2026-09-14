@@ -913,7 +913,6 @@ void program_scheduler_step(void) {
         program_terminate(p);
         return;
     }
-    program_log_event(p, "tick-return", NULL);
     if (p != s_top) {
         return; /* tick launched a program or replaced this one */
     }
