@@ -1,0 +1,19 @@
+-- demo.lua — the frameworks (Screen, Overlay, Sound, Input) in action.
+--
+-- Launch from the shell:  demo
+--
+-- Draws a window with the Screen framework, moves and scrolls blocks,
+-- pops an Overlay dialog, beeps, and waits for a key through
+-- Input.Keyboard.Callback. Every call's result is recorded and written
+-- to /data/demo-selftest.txt ("ok name" per line), so the same program
+-- doubles as the frameworks' integration test in the simulator:
+--
+--   spicomputer_sim --boot apps/demo.app/app.prg --headless --type 'k'
+--
+-- The built program keeps only the framework functions this code uses;
+-- compare the generated demo.lua with the framework files to see the
+-- stripping at work.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/demo` from the workspace root.
