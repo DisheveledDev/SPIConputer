@@ -22,6 +22,17 @@ void video_hw_init(void);
  * pixels and drop the monitor's sync. */
 void video_hw_poll(void);
 
+/* Colour chequerboard test pattern. While enabled the scanout ignores
+ * the program screen slots and draws a fixed 8x6 board of saturated
+ * colours (at the 320x240 logical geometry, 2x scaled like every mode),
+ * so the HDMI path can be judged with no card, no Lua and no op queue
+ * involved. Callable from either core: the flag is latched at the next
+ * frame boundary, so the switch never tears a frame. The OS core turns
+ * it on when the card is missing or the boot program cannot start; the
+ * SPICOMPUTER_CHEQUERBOARD build forces it on and skips the card. */
+void video_hw_set_test_pattern(bool on);
+bool video_hw_test_pattern(void);
+
 /* Frame counter (incremented by the scanout at the end of each active
  * region). Exposed for WaitVSync and diagnostics. */
 uint32_t video_hw_frame_count(void);

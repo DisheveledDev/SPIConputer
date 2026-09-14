@@ -205,8 +205,9 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   mode 10 program fails.
 
 **Implemented (Phase 7, video):**
-- CPU clock: `core0/main.c` overclocks `clk_sys` to 378 MHz (3x the stock
-  126 MHz; core voltage 1.30 V) before stdio comes up, because a scanline
+- CPU clock: `core0/main.c` overclocks `clk_sys` to 378 MHz (the
+  `board_config.h` default; 3x the 126 MHz baseline; core voltage
+  1.30 V) before stdio comes up, because a scanline
   must never be missed and the display core still shares the clock (and
   the bus) with the OS core. 378 MHz is chosen so `clk_hstx` can be
   `clk_sys / 3 = 126 MHz`
@@ -214,7 +215,8 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   by 1..3). `SPICOMPUTER_SYS_CLOCK_KHZ` overrides the target; 400 MHz is
   achievable but then `clk_hstx` is 133.3 MHz, i.e. a ~26.7 MHz pixel
   clock and ~63.5 Hz refresh (off DVI spec but usually still locked),
-  while 252 MHz (2x) stays exact.
+  while 252 MHz (2x) stays exact. `clk_hstx` cannot be moved to
+  `pll_usb` to decouple it: USB stdio pins that PLL to 48/96/144 MHz.
   The QSPI flash is clocked from `clk_sys / PICO_FLASH_SPI_CLKDIV` (75 MHz
   at boot), so `flash_scale_clock()` (SRAM-resident, before the jump)
   scales the QMI divider and RX sampling delay to keep the flash clock and
@@ -255,6 +257,21 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   slot (its pool index), selected by a queued op on launch and on exit,
   so returning to the shell restores its screen with no copy.
 - Attribute bit 6 is reserved for transparent overlay cells.
+- Chequerboard test pattern: `video_hw_set_test_pattern(true)` makes
+  core 0 draw a fixed 8x6 board of saturated colours (40x40 logical px
+  squares, white 1 px border) instead of the program slots; the flag is
+  latched at the frame boundary. Core 1 turns it on when the card fails
+  to mount or the boot program cannot start (a missing card and a dead
+  display then look different), and the CMake option
+  `-DSPICOMPUTER_CHEQUERBOARD=ON` forces it: no SD access, no Lua, so
+  what the monitor shows is the HDMI path alone. (The older
+  `SPICOMPUTER_VIDEO_TEST_PATTERN` build keeps the 640x480 band pattern
+  with the underrun bar.)
+- `scanout_frame_begin` must set `rows_total` to `VIDEO_FB_ROWS` (240
+  logical pixel rows). Setting it to `VIDEO_ROWS` (30 tile rows) made
+  the sequencer rebase the frame every 60 output lines: most of the
+  picture was underruns (frozen on the last row), the op drain ran
+  eight times per frame and the frame-step diagnostic skewed.
 
 **Implementation notes to resolve during planning:**
 - HDMI over HSTX; fixed 640x480 with a 25.2 MHz pixel clock (VESA's

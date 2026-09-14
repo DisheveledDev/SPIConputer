@@ -131,6 +131,18 @@ if (SPICOMPUTER_VIDEO_TEST_PATTERN)
             SPICOMPUTER_VIDEO_TEST_PATTERN=1)
 endif()
 
+# Simple toggle for HDMI bring-up: show the colour chequerboard and never
+# touch the SD card or run any Lua. The same pattern also appears
+# automatically (without this option) when no card is present or the
+# boot program cannot start. Toggle with
+#   cmake -DSPICOMPUTER_CHEQUERBOARD=ON ..   /  -DSPICOMPUTER_CHEQUERBOARD=OFF ..
+option(SPICOMPUTER_CHEQUERBOARD
+        "Force the chequerboard test pattern; skip the SD card and Lua" OFF)
+if (SPICOMPUTER_CHEQUERBOARD)
+    target_compile_definitions(SPIComputerOS PRIVATE
+            SPICOMPUTER_CHEQUERBOARD=1)
+endif()
+
 # Bring-up logging period, in milliseconds (see core1/lua_main.c): a
 # status line per period goes to USB stdio and spilog.txt on the card.
 # Build with -DSPICOMPUTER_LOG_PERIOD_MS=5000 to space the writes out

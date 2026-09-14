@@ -186,12 +186,14 @@ void core1_entry(void)
      * The video core claimed its DMA channels and DMA_IRQ_2 before this
      * core started, so the SD driver gets its own. */
     rpc_set_local_handler(fs_service);
-#if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
-    /* The pattern build deliberately performs no SD work: this isolates
+    bool card_ok = false;
+#if defined(SPICOMPUTER_VIDEO_TEST_PATTERN) || defined(SPICOMPUTER_CHEQUERBOARD)
+    /* Test pattern builds deliberately perform no SD work: this isolates
      * the video core from card-init traffic, DMA and XIP activity. */
     printf("test pattern build: SD mount skipped\n");
 #else
-    if (!fs_core0_mount()) {
+    card_ok = fs_core0_mount();
+    if (!card_ok) {
         printf("SD card not mounted\n");
     }
 #endif
@@ -208,9 +210,21 @@ void core1_entry(void)
     /* Diagnostic build: the scanout draws a test pattern, so no program
      * is loaded (the SD mount above still reports the card). */
     printf("test pattern build: boot program not loaded\n");
+#elif defined(SPICOMPUTER_CHEQUERBOARD)
+    /* Forced chequerboard: the card is never read and no Lua runs, so
+     * whatever the monitor shows is the HDMI path alone. */
+    video_hw_set_test_pattern(true);
+    printf("chequerboard build: boot program not loaded\n");
 #else
-    if (!program_boot(BOOT_SCRIPT, NULL)) {
-        printf("Boot failed (no SD card?)\n");
+    /* No card, or a card without a boot program: show the chequerboard
+     * instead of a black screen, so a missing card and a dead display
+     * look different on the bench. */
+    if (!card_ok) {
+        video_hw_set_test_pattern(true);
+        printf("no SD card: showing the chequerboard test pattern\n");
+    } else if (!program_boot(BOOT_SCRIPT, NULL)) {
+        video_hw_set_test_pattern(true);
+        printf("Boot failed: showing the chequerboard test pattern\n");
     }
 #endif
     boot_signal(7); /* boot program attempted; scheduler loop next */

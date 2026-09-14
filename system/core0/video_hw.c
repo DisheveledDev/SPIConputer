@@ -142,6 +142,12 @@ static int s_dma_ping;
 static int s_dma_pong;
 static bool s_started;
 
+/* Chequerboard request (either core) and the copy latched at the frame
+ * boundary that the render pump uses, so a frame is never half and
+ * half. The request is a plain word write, so no lock is needed. */
+static volatile bool s_chequer_request;
+static volatile bool s_chequer_active;
+
 /* Bring-up diagnostics (read by core 1 once per second; see
  * video_hw.h). Counters are cumulative since boot. */
 static uint32_t s_diag_fifo_empty;
@@ -243,13 +249,67 @@ void __not_in_flash_func(scanout_frame_begin)(scanout_t *s) {
     s->rows_total = RENDER_OUT_HEIGHT;
     s->row_2x = false;
 #else
-    /* Logical geometry is fixed: 240 rows, every row scanned twice.
-     * Core 1's queued ops are collected at this boundary (see
-     * video_hw_poll) before the next frame is rendered. */
-    s->rows_total = VIDEO_ROWS;
+    /* Logical geometry is fixed: 240 pixel rows, every row scanned
+     * twice. (Not VIDEO_ROWS, the 30 tile rows: with that the sequencer
+     * rebased the frame every 60 output lines, so most of the picture
+     * was underruns and the op drain ran mid-frame.) Core 1's queued
+     * ops are collected at this boundary (see video_hw_poll) before the
+     * next frame is rendered. */
+    s->rows_total = VIDEO_FB_ROWS;
     s->row_2x = true;
 #endif
+    s_chequer_active = s_chequer_request;
     s_drain_pending = true;
+}
+
+void video_hw_set_test_pattern(bool on) {
+    s_chequer_request = on;
+}
+
+bool video_hw_test_pattern(void) {
+    return s_chequer_active;
+}
+
+/* Colour chequerboard: an 8 wide x 6 high board of 40x40 logical pixel
+ * squares, colour (column + row) mod 8 through the eight saturated
+ * RGB332 corners (black, blue, red, magenta, green, cyan, yellow,
+ * white), so every square has a different colour from its four
+ * neighbours and the primaries can be checked lane by lane. One packed
+ * word covers two logical pixels, so a row is 160 table lookups; the
+ * outermost logical pixel ring is white so the monitor's edges are
+ * visible too. */
+#define CHEQUER_SQUARE_PX 40
+#define CHEQUER_COLS (VIDEO_FB_COLS / CHEQUER_SQUARE_PX)
+_Static_assert(VIDEO_FB_COLS % CHEQUER_SQUARE_PX == 0 &&
+                   VIDEO_FB_ROWS % CHEQUER_SQUARE_PX == 0,
+               "chequerboard squares must tile the logical screen");
+
+static void __not_in_flash_func(render_chequer_line)(uint32_t row,
+                                                     uint32_t *out) {
+    static const uint32_t rgb[8] = {
+        0x000000, 0x0000ff, 0xff0000, 0xff00ff,
+        0x00ff00, 0x00ffff, 0xffff00, 0xffffff,
+    };
+    uint32_t white = render332_rgb(0xffffff) * 0x01010101u;
+    if (row == 0 || row == VIDEO_FB_ROWS - 1) {
+        for (uint32_t w = 0; w < SCANOUT_WORDS_PER_LINE; w++) {
+            out[w] = white;
+        }
+        return;
+    }
+    uint32_t cy = row / CHEQUER_SQUARE_PX;
+    uint32_t words_per_square = (CHEQUER_SQUARE_PX * 2u) / 4u;
+    uint32_t w = 0;
+    for (uint32_t cx = 0; cx < CHEQUER_COLS; cx++) {
+        uint32_t px = render332_rgb(rgb[(cx + cy) & 7u]) * 0x01010101u;
+        for (uint32_t i = 0; i < words_per_square; i++) {
+            out[w++] = px;
+        }
+    }
+    out[0] = (out[0] & 0xffff0000u) | (white & 0x0000ffffu);
+    out[SCANOUT_WORDS_PER_LINE - 1] =
+        (out[SCANOUT_WORDS_PER_LINE - 1] & 0x0000ffffu) |
+        (white & 0xffff0000u);
 }
 
 #if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
@@ -416,7 +476,11 @@ static void __not_in_flash_func(render_rows)(void) {
         /* One pattern row per output line (geometry forced above). */
         render_test_line(row, dst);
 #else
-        render_line_332(video, (int)row, dst);
+        if (s_chequer_active) {
+            render_chequer_line(row, dst);
+        } else {
+            render_line_332(video, (int)row, dst);
+        }
 #endif
         if (!scanout_ring_publish(&s_scanout, row)) {
             break; /* a frame boundary passed: re-read the geometry */
@@ -677,6 +741,8 @@ uint32_t video_hw_last_gap_underruns(void) {
 
 void video_hw_init(void) {}
 void video_hw_poll(void) {}
+void video_hw_set_test_pattern(bool on) { (void)on; }
+bool video_hw_test_pattern(void) { return false; }
 uint32_t video_hw_frame_count(void) { return 0; }
 uint32_t video_hw_scanline(void) { return 0; }
 uint32_t video_hw_underruns(void) { return 0; }
