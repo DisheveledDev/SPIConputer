@@ -78,9 +78,10 @@
 /* Ring depth must stay a power of two. */
 #define SCANOUT_RING_LINES 8
 
-/* Keep one row of producer slack beyond the two rows that can be in the
- * HSTX DMA pipeline, plus one row for IRQ/render jitter. */
-#define SCANOUT_RING_AHEAD 3
+/* Use every ring row except the two that can still be in the HSTX DMA
+ * pipeline. The extra three rows materially increase tolerance of a slow
+ * text renderer without allowing the producer to overwrite in-flight DMA. */
+#define SCANOUT_RING_AHEAD (SCANOUT_RING_LINES - 2)
 
 typedef struct {
     const uint32_t *vblank_on;  /* 7 words, set once by the driver */
