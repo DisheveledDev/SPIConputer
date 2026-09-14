@@ -55,6 +55,17 @@ uint32_t video_hw_underruns(void);
  *   long_gaps     - completions more than 64 us after the previous one
  *   fifo_empty    - completions that found the HSTX FIFO empty
  *   fifo_wofs     - HSTX FIFO write-overflow events (a dropped word)
+ *   late_posts    - buffers posted after the chain had already
+ *                   re-triggered the channel, which then replayed stale
+ *                   data into HSTX: a corrupt line, and the one way the
+ *                   IRQ being slow breaks the TMDS stream
+ *   fifo_min      - lowest HSTX FIFO level (0..8) seen at a completion
+ *                   IRQ since boot; 0 means the DMA fell behind the
+ *                   serialiser
+ *
+ * If the monitor drops sync while every one of these stays flat and the
+ * frame counter keeps counting, the bitstream left the chip intact and
+ * the fault is in the electrical link.
  */
 uint32_t video_hw_skews(void);
 uint32_t video_hw_last_frame_steps(void);
@@ -62,6 +73,8 @@ uint32_t video_hw_gap_max_us(void);
 uint32_t video_hw_long_gaps(void);
 uint32_t video_hw_fifo_empty(void);
 uint32_t video_hw_fifo_wofs(void);
+uint32_t video_hw_late_posts(void);
+uint32_t video_hw_fifo_min(void);
 
 /* Details of the most recent >64 us gap: its length, the frame and
  * output scanline it ended on, the HSTX FIFO level seen then (0 = the

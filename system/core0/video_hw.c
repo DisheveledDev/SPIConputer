@@ -159,6 +159,8 @@ static volatile bool s_chequer_active;
  * video_hw.h). Counters are cumulative since boot. */
 static uint32_t s_diag_fifo_empty;
 static uint32_t s_diag_fifo_wofs;
+static uint32_t s_diag_late_posts;
+static uint32_t s_diag_fifo_min = UINT32_MAX;
 static uint32_t s_diag_gap_max_us;
 static uint32_t s_diag_long_gaps;
 static uint32_t s_diag_steps;       /* scanout_step calls this frame */
@@ -189,6 +191,13 @@ void __not_in_flash_func(scanout_hw_post)(unsigned channel,
                                           uint32_t words) {
     uint ch = (channel == 0) ? (uint)s_dma_ping : (uint)s_dma_pong;
     dma_channel_hw_t *dma = &dma_hw->ch[ch];
+    /* This channel just finished, so it stays idle until the other one
+     * completes and chains back to it. Busy here means that has already
+     * happened: the channel is replaying its old buffer from where it
+     * ended, and this post is too late to save the line. */
+    if (dma->ctrl_trig & DMA_CH0_CTRL_TRIG_BUSY_BITS) {
+        s_diag_late_posts++;
+    }
     dma->read_addr = (uintptr_t)src;
     dma->transfer_count = words;
     dma_hw->ints2 = 1u << ch;
@@ -227,6 +236,10 @@ static void __not_in_flash_func(hstx_dma_irq)(void) {
     s_diag_first_irq = false;
     s_diag_last_irq_us = now;
     uint32_t fifo_stat = hstx_fifo_hw->stat;
+    uint32_t fifo_level = fifo_stat & HSTX_FIFO_STAT_LEVEL_BITS;
+    if (fifo_level < s_diag_fifo_min) {
+        s_diag_fifo_min = fifo_level;
+    }
     if (fifo_stat & HSTX_FIFO_STAT_EMPTY_BITS) {
         s_diag_fifo_empty++;
     }
@@ -726,6 +739,14 @@ uint32_t video_hw_fifo_wofs(void) {
     return s_diag_fifo_wofs;
 }
 
+uint32_t video_hw_late_posts(void) {
+    return s_diag_late_posts;
+}
+
+uint32_t video_hw_fifo_min(void) {
+    return s_diag_fifo_min;
+}
+
 uint32_t video_hw_last_gap_us(void) {
     return s_diag_evt_gap_us;
 }
@@ -767,6 +788,8 @@ uint32_t video_hw_gap_max_us(void) { return 0; }
 uint32_t video_hw_long_gaps(void) { return 0; }
 uint32_t video_hw_fifo_empty(void) { return 0; }
 uint32_t video_hw_fifo_wofs(void) { return 0; }
+uint32_t video_hw_late_posts(void) { return 0; }
+uint32_t video_hw_fifo_min(void) { return 0; }
 uint32_t video_hw_last_gap_us(void) { return 0; }
 uint32_t video_hw_last_gap_frame(void) { return 0; }
 uint32_t video_hw_last_gap_line(void) { return 0; }

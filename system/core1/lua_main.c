@@ -220,19 +220,25 @@ void core1_entry(void)
             boot_signal_tick(); /* alive: status-LED blink */
 #if defined(SPICOMPUTER_HAS_HDMI)
             uint32_t underruns = video_hw_underruns();
-            printf("video: frame %lu scanline %lu underruns %lu (+%lu)\n",
+            /* Uptime makes a reset obvious in the log: it drops back to 0
+             * (and "Rebooted by Watchdog!" appears above it). */
+            printf("video: up %lus frame %lu scanline %lu underruns %lu "
+                   "(+%lu)\n",
+                   (unsigned long)((now - boot_us) / 1000000u),
                    (unsigned long)frames,
                    (unsigned long)video_hw_scanline(),
                    (unsigned long)underruns,
                    (unsigned long)(underruns - last_underruns));
             printf("video: skew %lu(%lu) gap %lu us long %lu empty %lu "
-                   "wof %lu\n",
+                   "wof %lu late %lu fifo_min %lu\n",
                    (unsigned long)video_hw_skews(),
                    (unsigned long)video_hw_last_frame_steps(),
                    (unsigned long)video_hw_gap_max_us(),
                    (unsigned long)video_hw_long_gaps(),
                    (unsigned long)video_hw_fifo_empty(),
-                   (unsigned long)video_hw_fifo_wofs());
+                   (unsigned long)video_hw_fifo_wofs(),
+                   (unsigned long)video_hw_late_posts(),
+                   (unsigned long)video_hw_fifo_min());
             last_underruns = underruns;
 #endif
         }
