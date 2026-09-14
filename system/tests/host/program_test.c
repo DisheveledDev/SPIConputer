@@ -106,7 +106,7 @@ static void test_launch_resume_video(void) {
     video_op_put(&out);
     video_ops_drain();
     CHECK(video_screen()->mode == VIDEO_MODE_TEXT40C &&
-              video_screen()->char_map[0][0] == 42,
+              video_screen()->base_char[0] == 42,
           "A screen content set");
 
     /* Step 1: A tick 1. */
@@ -121,7 +121,7 @@ static void test_launch_resume_video(void) {
     video_ops_drain();
     CHECK(video_screen_index() == 1, "B selected its own screen slot");
     CHECK(video_screen()->mode == VIDEO_MODE_TEXT40 &&
-              video_screen()->char_map[0][0] == 0,
+              video_screen()->base_char[0] == 0,
           "B screen is fresh");
     CHECK(program_top()->next == a, "B stacked on A");
 
@@ -131,7 +131,7 @@ static void test_launch_resume_video(void) {
     video_ops_drain();
     CHECK(video_screen_index() == 0, "A's screen slot restored");
     CHECK(video_screen()->mode == VIDEO_MODE_TEXT40C &&
-              video_screen()->char_map[0][0] == 42,
+              video_screen()->base_char[0] == 42,
           "A screen content intact");
     CHECK(strcmp(mock_boot_log(),
                  "A-setup\nA-tick1\nA-tick2\nB-setup\nB-tick1\nB-finish\n") == 0,

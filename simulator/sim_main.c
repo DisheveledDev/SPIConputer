@@ -707,8 +707,8 @@ int main(int argc, char **argv) {
         int n = video_mode_cols(screen->mode) *
                 video_mode_rows(screen->mode);
         for (int i = 0; i < n; i++) {
-            if (screen->char_map[0][i] != ' ' &&
-                screen->char_map[0][i] != 0) {
+            if (screen->base_char[i] != ' ' &&
+                screen->base_char[i] != 0) {
                 painted++;
             }
         }

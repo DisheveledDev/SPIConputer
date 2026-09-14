@@ -361,11 +361,10 @@ static void test_render332_matches_reference(void) {
         v.framebuf = (v.mode == VIDEO_MODE_PIXEL) ? fb : NULL;
 
         for (int i = 0; i < VIDEO_COLS * VIDEO_ROWS; i++) {
-            v.char_map[0][i] = (uint8_t)('A' + (i * 7) % 26);
-            v.attr_map[0][i] = (uint8_t)(i % 2 ? 0x85 : 0x03);
-            v.attr_map[1][i] = (uint8_t)(i % 5 == 0 ? 0 : 0x40);
-            v.char_map[1][i] = (uint8_t)('!' + (i * 3) % 20);
-            v.attr_map[2][i] = 0x40; /* transparent */
+            v.base_char[i] = (uint8_t)('A' + (i * 7) % 26);
+            v.base_attr[i] = (uint8_t)(i % 2 ? 0x85 : 0x03);
+            v.overlay_attr[i] = (uint8_t)(i % 5 == 0 ? 0 : 0x40);
+            v.overlay_char[i] = (uint8_t)('!' + (i * 3) % 20);
         }
         for (int i = 0; i < 256; i++) {
             v.palette[i] = (uint32_t)(i * 0x010101) | 0x001020u;
@@ -404,7 +403,7 @@ static void test_text_cell_masks(void) {
 
     render332_init();
     video_state_init(&v);
-    v.char_map[0][0] = '#';
+    v.base_char[0] = '#';
     v.palette[1] = 0xff0000;
     render332_invalidate_palette();
     render_line_332(&v, 0, words);
@@ -422,8 +421,8 @@ static void test_palette_cache(void) {
 
     render332_init();
     video_state_init(&v);
-    v.char_map[0][0] = '#';
-    v.attr_map[0][0] = 0x00;
+    v.base_char[0] = '#';
+    v.base_attr[0] = 0x00;
 
     v.palette[1] = 0xff0000;
     render332_invalidate_palette();

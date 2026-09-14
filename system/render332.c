@@ -79,18 +79,13 @@ void render_line_332(const video_state_t *v, int ly, uint32_t *out) {
     }
 
     for (int col = 0; col < VIDEO_COLS; col++) {
-        uint8_t ch = v->char_map[0][row * VIDEO_COLS + col];
-        uint8_t attr = v->attr_map[0][row * VIDEO_COLS + col];
-        for (int layer = VIDEO_LAYERS - 1; layer > 0; layer--) {
-            if (!v->layer_active[layer]) {
-                continue;
-            }
-            uint8_t candidate = v->attr_map[layer][row * VIDEO_COLS + col];
-            if ((candidate & VIDEO_ATTR_TRANSPARENT) == 0) {
-                ch = v->char_map[layer][row * VIDEO_COLS + col];
-                attr = candidate;
-                break;
-            }
+        int idx = row * VIDEO_COLS + col;
+        uint8_t ch = v->base_char[idx];
+        uint8_t attr = v->base_attr[idx];
+        uint8_t oattr = v->overlay_attr[idx];
+        if ((oattr & VIDEO_ATTR_TRANSPARENT) == 0) {
+            ch = v->overlay_char[idx];
+            attr = oattr;
         }
         uint8_t bits = v->tile_defined[ch] ? v->tiles[ch][sub]
                                            : (uint8_t)font8x8_basic[ch & 0x7f][sub];

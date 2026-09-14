@@ -13,11 +13,16 @@
  *   ScreenPalette(i, r, g, b)        -> true | nil, err
  *   ScreenPaletteSet(t)              -> true | nil, err
  *   ScreenClear([char])              -> true
+ *   OverlayOut(x, y, char [, attr])  -> true | nil, err
+ *   OverlayAttr(x, y, flags)         -> true | nil, err
+ *   OverlayClear([char])             -> true
  *   ScreenPlot(x, y, colour)         -> true | nil, err (mode 10)
  *
- * Mode table: 0 = 40x30 B&W, 1 = 40x30 colour, 10 = 320x240 pixels.
- * The 80-column modes 2 and 3 are retired for now. The RP2040 dev board
- * supports modes 0 and 1 only (no pixel buffer memory there).
+ * Screen* calls draw on the base layer; Overlay* calls draw on the
+ * single overlay layer, whose untouched cells show the base. Mode table:
+ * 0 = 40x30 B&W, 1 = 40x30 colour, 10 = 320x240 pixels. The 80-column
+ * modes 2 and 3 are retired for now. The RP2040 dev board supports modes
+ * 0 and 1 only (no pixel buffer memory there).
  */
 #include "screen_lua.h"
 
@@ -47,19 +52,6 @@ static void put(uint8_t op, int a, int b, int c, uint32_t d, uint32_t e) {
         .e = e,
     };
     video_op_put(&vop);
-}
-
-static int screen_z_order(lua_State *L) {
-    check_program(L);
-    int layer = (int)luaL_checkinteger(L, 1);
-    if (layer < 0 || layer >= VIDEO_LAYERS) {
-        lua_pushnil(L);
-        lua_pushliteral(L, "z-order is only available for text modes 0/1 and layers 0-2");
-        return 2;
-    }
-    put(VIDEO_OP_ZORDER, layer, 0, 0, 0, 0);
-    lua_pushboolean(L, true);
-    return 1;
 }
 
 static int screen_mode(lua_State *L) {
@@ -208,6 +200,49 @@ static int screen_clear(lua_State *L) {
     return 1;
 }
 
+static int overlay_out(lua_State *L) {
+    check_program(L);
+    int x = (int)luaL_checkinteger(L, 1);
+    int y = (int)luaL_checkinteger(L, 2);
+    int ch = (int)luaL_checkinteger(L, 3);
+    int attr = (int)luaL_optinteger(L, 4, 0);
+    if (video_lua_mode() == VIDEO_MODE_PIXEL) {
+        return luaL_error(L, "OverlayOut needs a text mode (call ScreenMode first)");
+    }
+    if (x < 0 || x >= VIDEO_COLS || y < 0 || y >= VIDEO_ROWS ||
+        ch < 0 || ch > 255) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "out of range");
+        return 2;
+    }
+    put(VIDEO_OP_OVER_OUT, x, y, ch, (uint32_t)(attr & 0xff), 0);
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+static int overlay_attr(lua_State *L) {
+    check_program(L);
+    int x = (int)luaL_checkinteger(L, 1);
+    int y = (int)luaL_checkinteger(L, 2);
+    int flags = (int)luaL_checkinteger(L, 3);
+    if (x < 0 || x >= VIDEO_COLS || y < 0 || y >= VIDEO_ROWS) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "out of range");
+        return 2;
+    }
+    put(VIDEO_OP_OVER_ATTR, x, y, 0, (uint32_t)(flags & 0xff), 0);
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+static int overlay_clear(lua_State *L) {
+    check_program(L);
+    int ch = (int)luaL_optinteger(L, 1, ' ');
+    put(VIDEO_OP_OVER_CLEAR, ch & 0xff, 0, 0, 0, 0);
+    lua_pushboolean(L, true);
+    return 1;
+}
+
 static int screen_plot(lua_State *L) {
     check_program(L);
     int x = (int)luaL_checkinteger(L, 1);
@@ -231,13 +266,15 @@ static int screen_plot(lua_State *L) {
 
 static const luaL_Reg screen_funcs[] = {
     {"ScreenMode", screen_mode},
-    {"ScreenZOrder", screen_z_order},
     {"ScreenOut", screen_out},
     {"ScreenAttr", screen_attr},
     {"ScreenDefineTile", screen_define_tile},
     {"ScreenPalette", screen_palette},
     {"ScreenPaletteSet", screen_palette_set},
     {"ScreenClear", screen_clear},
+    {"OverlayOut", overlay_out},
+    {"OverlayAttr", overlay_attr},
+    {"OverlayClear", overlay_clear},
     {"ScreenPlot", screen_plot},
     {NULL, NULL},
 };

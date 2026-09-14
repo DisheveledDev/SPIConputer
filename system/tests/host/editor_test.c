@@ -99,45 +99,45 @@ static void test_editor(const char *editor_path) {
     CHECK(ed()->mode == VIDEO_MODE_TEXT40C, "back in 40 columns");
 
     /* Initial render: first line 'hello', second 'world' on line 1. */
-    CHECK(ed()->char_map[0][0] == 'h' && ed()->char_map[0][4] == 'o',
+    CHECK(ed()->base_char[0] == 'h' && ed()->base_char[4] == 'o',
           "file content rendered (line 1)");
-    CHECK(ed()->char_map[0][40] == 'w' && ed()->char_map[0][44] == 'd',
+    CHECK(ed()->base_char[40] == 'w' && ed()->base_char[44] == 'd',
           "file content rendered (line 2)");
     /* Status line (row 29) inverted, starts with the filename. */
-    CHECK(ed()->attr_map[0][29 * 40] == 0x80, "status line inverted");
-    CHECK(ed()->char_map[0][29 * 40] == '/' && ed()->char_map[0][29 * 40 + 3] == 't',
+    CHECK(ed()->base_attr[29 * 40] == 0x80, "status line inverted");
+    CHECK(ed()->base_char[29 * 40] == '/' && ed()->base_char[29 * 40 + 3] == 't',
           "status line shows filename");
 
     type(133);
-    CHECK(ed()->attr_map[1][0] == 0x80, "F2 opens file menu");
+    CHECK(ed()->overlay_attr[0] == 0x80, "F2 opens file menu");
     type(129);
     type(13);
-    CHECK(ed()->char_map[2][11 * 40 + 9] == 'G',
+    CHECK(ed()->overlay_char[11 * 40 + 9] == 'G',
           "file menu opens go-to-line dialog");
     type(27);
 
     /* Type 'X' at the cursor (start of line 1). */
     type('X');
-    CHECK(ed()->char_map[0][0] == 'X' && ed()->char_map[0][1] == 'h',
+    CHECK(ed()->base_char[0] == 'X' && ed()->base_char[1] == 'h',
           "typed char inserted");
 
     /* Cursor right, then type 'Z'. Cursor was at col 1 (after the 'X'),
      * so 'Z' lands at col 2. */
     type(131);
     type('Z');
-    CHECK(ed()->char_map[0][0] == 'X' && ed()->char_map[0][1] == 'h' &&
-              ed()->char_map[0][2] == 'Z' && ed()->char_map[0][3] == 'e',
+    CHECK(ed()->base_char[0] == 'X' && ed()->base_char[1] == 'h' &&
+              ed()->base_char[2] == 'Z' && ed()->base_char[3] == 'e',
           "right + insert at cursor");
 
     /* Backspace deletes the 'Z'. */
     type(8);
-    CHECK(ed()->char_map[0][0] == 'X' && ed()->char_map[0][1] == 'h',
+    CHECK(ed()->base_char[0] == 'X' && ed()->base_char[1] == 'h',
           "backspace deletes before cursor");
 
     /* Ctrl+Q with a dirty buffer -> save confirmation. */
     type(17);
     CHECK(program_top() != NULL, "editor still running (confirm mode)");
-    CHECK(ed()->char_map[0][29 * 40] == 's', "status asks to save");
+    CHECK(ed()->base_char[29 * 40] == 's', "status asks to save");
 
     /* 'y' -> save and quit. */
     type('y');

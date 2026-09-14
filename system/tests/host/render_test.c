@@ -49,7 +49,7 @@ static void test_render_mode0(void) {
      * font8x8 'A': rows 0x0C,0x1E,0x33,0x33,0x3F,0x33,0x33,0x00.
      * Logical row 0: subline 0 = 0x0C = 0b00001100 -> pixels 2,3 on
      * (bit 0 is the leftmost pixel), 2x scaled -> outputs 4-7 white. */
-    v.char_map[0][0] = 'A';
+    v.base_char[0] = 'A';
     render_line(&v, 0, line);
     for (int x = 0; x < RENDER_OUT_WIDTH; x++) {
         int on = (x >= 4 && x <= 7);
@@ -85,44 +85,40 @@ static void test_render_attrs(void) {
 
     video_state_init(&v);
     v.mode = VIDEO_MODE_TEXT40C;
-    v.char_map[0][0] = 'A';
+    v.base_char[0] = 'A';
     /* 'A' subline 4 = 0x3F: pixels 0..5 on -> outputs 0..11. */
-    v.attr_map[0][0] = 0x00; /* colour 0 -> palette[1] = white */
+    v.base_attr[0] = 0x00; /* colour 0 -> palette[1] = white */
     render_line(&v, 4, line);
     CHECK(line[0] == 0xff && line[1] == 0xff && line[2] == 0xff,
           "colour 0 is default white");
 
-    v.attr_map[0][0] = 0x02; /* colour 2 -> palette[3] = cyan 0xaaffee */
+    v.base_attr[0] = 0x02; /* colour 2 -> palette[3] = cyan 0xaaffee */
     render_line(&v, 4, line);
     CHECK(line[0] == 0xaa && line[1] == 0xff && line[2] == 0xee,
           "colour 2 is cyan");
 
-    v.attr_map[0][0] = 0x80; /* invert: on pixels become background (black) */
+    v.base_attr[0] = 0x80; /* invert: on pixels become background (black) */
     render_line(&v, 4, line);
     CHECK(line[0] == 0x00 && line[1] == 0x00 && line[2] == 0x00,
           "invert makes on-pixel black");
     CHECK(line[12 * 3] == 0xff, "invert makes off-pixel white");
 
+    /* The overlay composites over the base: an untouched cell (bit 6 of
+     * its attribute set) is transparent, a written cell wins, and hiding
+     * it again brings the base back. */
     uint8_t base_line[RENDER_LINE_BYTES];
     memcpy(base_line, line, sizeof(base_line));
-    v.char_map[1][0] = 'B';
-    v.attr_map[1][0] = 0;
-    v.z_order = 1; /* select the overlay layer */
+    v.overlay_char[0] = 'B';
     render_line(&v, 4, line);
     CHECK(memcmp(line, base_line, sizeof(line)) == 0,
-          "inactive overlay is skipped");
-    v.layer_active[1] = 1;
+          "unwritten overlay cell is transparent");
+    v.overlay_attr[0] = 0x00; /* opaque, default white */
     render_line(&v, 4, line);
     CHECK(memcmp(line, base_line, sizeof(line)) != 0, "overlay is visible");
-    v.layer_active[1] = 0;
+    v.overlay_attr[0] = VIDEO_ATTR_TRANSPARENT;
     render_line(&v, 4, line);
     CHECK(memcmp(line, base_line, sizeof(line)) == 0,
-          "cleared overlay restores the base layer");
-    v.layer_active[1] = 1;
-    v.attr_map[1][0] = VIDEO_ATTR_TRANSPARENT;
-    render_line(&v, 4, line);
-    CHECK(memcmp(line, base_line, sizeof(line)) == 0,
-          "transparent overlay restores the base layer");
+          "transparent overlay cell restores the base");
 }
 
 /* ---------------- test 3: custom tiles ---------------- */
@@ -137,7 +133,7 @@ static void test_render_custom_tile(void) {
     v.tiles[200][0] = 0x0C;
     v.tiles[200][1] = 0x01;
     v.tile_defined[200] = 1;
-    v.char_map[0][0] = 200;
+    v.base_char[0] = 200;
 
     render_line(&v, 0, line);
     for (int x = 0; x < RENDER_OUT_WIDTH; x++) {
@@ -168,9 +164,9 @@ static void test_op_queue(void) {
 
     CHECK(video_ops_drain(), "drain reports the palette change");
     CHECK(video_screen_index() == 1, "slot switch applied");
-    CHECK(s0->char_map[0][0] == 'K', "op applied to the slot in force");
+    CHECK(s0->base_char[0] == 'K', "op applied to the slot in force");
     CHECK(s0->palette[9] == 0x102030, "palette op applied to slot 0");
-    CHECK(video_screen()->char_map[0][1] == 'A', "later ops follow the slot");
+    CHECK(video_screen()->base_char[1] == 'A', "later ops follow the slot");
     CHECK(!video_ops_drain(), "empty drain reports no palette change");
     video_screens_init(); /* leave slot 0 active for the Lua test */
 }
@@ -251,6 +247,38 @@ static void test_screen_module(void) {
     video_screens_init();
 }
 
+/* ---------------- test 7: overlay API (via a program) ---------------- */
+
+static const char *OVERLAY_LUA =
+    "function setup()\n"
+    "  assert(ScreenMode(1) == true)\n"
+    "  assert(ScreenOut(0, 0, 65) == true)\n"
+    "  assert(OverlayOut(1, 1, 66, 0x03) == true)\n"
+    "  assert(OverlayAttr(2, 1, 0x40) == true)\n"
+    "  assert(OverlayClear() == true)\n"
+    "  assert(OverlayOut(3, 2, 67, 0x05) == true)\n"
+    "  ExitProgram()\n"
+    "end\n"
+    "function tick() end\n";
+
+static void test_overlay_module(void) {
+    video_screens_init();
+    mock_set_file("ovl.lua", OVERLAY_LUA);
+    CHECK(program_boot("ovl.lua", NULL), "overlay program boots");
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "overlay program exited");
+    video_ops_drain();
+
+    const video_state_t *v = video_screen();
+    CHECK(v->base_char[0] == 65, "ScreenOut writes the base layer");
+    CHECK(v->overlay_attr[1 * VIDEO_COLS + 1] == VIDEO_ATTR_TRANSPARENT,
+          "OverlayClear hides earlier overlay cells");
+    CHECK(v->overlay_char[2 * VIDEO_COLS + 3] == 67 &&
+              v->overlay_attr[2 * VIDEO_COLS + 3] == 0x05,
+          "OverlayOut writes the overlay layer");
+    video_screens_init();
+}
+
 int main(void) {
     printf("=== render / screen tests ===\n");
     rpc_bind_wait(rpc_wait_host);
@@ -266,6 +294,7 @@ int main(void) {
     test_op_queue();
     test_render_mode10();
     test_screen_module();
+    test_overlay_module();
 
     if (g_failures == 0) {
         printf("all render/screen tests passed\n");

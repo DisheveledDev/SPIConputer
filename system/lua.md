@@ -239,29 +239,30 @@ modes are scaled 2x. The RP2040 dev board supports modes 0 and 1 only.
 | Function | Returns |
 |---|---|
 | `ScreenMode(mode)` | `true`, or `nil, err` (invalid mode, unsupported board) |
-| `ScreenZOrder(layer)` | `true`, or `nil, err`; selects the text layer that subsequent `ScreenOut`, `ScreenAttr`, and `ScreenClear` calls mutate; it does not reorder compositing |
-| `ScreenOut(x, y, char [, attr])` | `true`, or `nil, err` (text modes) |
+| `ScreenOut(x, y, char [, attr])` | `true`, or `nil, err` (text modes); draws on the base layer |
 | `ScreenAttr(x, y, flags)` | `true`, or `nil, err` |
 | `ScreenDefineTile(index, bytes)` | `true` (bytes = table of 8 row patterns or 8-byte string; bit 0 of a row is the leftmost pixel) |
 | `ScreenPalette(i, r, g, b)` | `true` |
 | `ScreenPaletteSet(t)` | `true` (t = array of `{r,g,b}` tables or 0xRRGGBB integers, up to 256) |
-| `ScreenClear([char])` | `true` (defaults to space) |
+| `ScreenClear([char])` | `true` (defaults to space); clears the base layer |
+| `OverlayOut(x, y, char [, attr])` | `true`, or `nil, err` (text modes); draws on the overlay layer |
+| `OverlayAttr(x, y, flags)` | `true`, or `nil, err` |
+| `OverlayClear([char])` | `true` (defaults to space); blanks the overlay and hides it |
 | `ScreenPlot(x, y, colour)` | `true`, or `nil, err` (mode 10 only) |
 
 Attribute byte: bit 7 = invert (swap fg/bg), bits 0-2 = colour index,
 bit 6 = transparent overlay cell. Colour index `c` uses palette entry `c+1`
 (so 0 = default white); the background is palette entry 0 (black). Text
-modes have three content/attribute pairs. Layer 0 is always active and opaque;
-layers 1 and 2 are inactive until `ScreenOut` or `ScreenAttr` writes to them.
-Inactive overlays are skipped entirely by the renderer. Active overlays are
-composited above layer 0 and reveal lower layers wherever bit 6 is set.
-`ScreenClear()` clears the selected overlay and deactivates it; selecting a
-layer with `ScreenZOrder` alone does not activate it.
+modes have a base layer and one overlay layer. Overlay cells are hidden
+until written: a cell shows when `OverlayOut`/`OverlayAttr` store an
+attribute without bit 6, and `OverlayClear` hides the whole overlay
+again. The renderer
+composites a visible overlay cell over the base; hidden cells show the base.
 Tiles not redefined render with the ROM font (ASCII-aligned, tile index =
 character code). Tile rows and ROM font rows share one convention: bit 0 is
-the leftmost pixel. A mode switch clears all layers; switching to mode 10
-allocates its framebuffer (only one mode 10 program may run; `Launch` from
-mode 10 fails).
+the leftmost pixel. A mode switch clears both layers; switching to mode 10
+attaches the shared framebuffer (only one mode 10 program may run; `Launch`
+from mode 10 fails).
 
 ## Sound and Music (Sound API)
 

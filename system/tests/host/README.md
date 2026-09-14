@@ -43,8 +43,9 @@ with video state restore, tick-crash termination, timers (incl. pause
 deadline shifting), input deposit, failed launches.
 
 `spicomputer_render_tests` exercises the video pieces: the scanline
-renderer (golden output, 2x scaling, attribute colours, three text-layer
-composition, custom tiles, mode 10), and the screen Lua module.
+renderer (golden output, 2x scaling, attribute colours, base + overlay
+composition, custom tiles, mode 10), the change queue, and the screen /
+overlay Lua modules.
 
 `spicomputer_audio_tests` exercises the Phase 8 audio pieces: note
 parsing, oscillators, envelopes, pan/master volume, score scheduling

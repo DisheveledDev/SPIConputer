@@ -28,13 +28,13 @@ or new detail is captured.
 | Process model | `program.c` — 4-program stack, per-program Lua state (64 KB heap cap), optional heap-allocated video/audio state, timers, per-program event rings; noninteractive utilities keep their isolated Lua state but return `UtilityResult` text to the parent via `UtilityPoll`; `sys_lua.c` exposes TimeNow/Pid/ExitProgram/Launch/Execute/ExecuteString/UtilityResult/UtilityPoll/TimerCreate/TimerStop/InputPoll/InputControl |
 | Shell / card programs | **Not in this repo.** `core/boot.lua`/`core/boot.prg`, the shell (`core/os.lua`/`core/os.prg`), installed apps, and other programs are SPIEdit projects developed outside the OS source tree (this workspace builds system outputs into `software/core/`, apps into `software/apps/`, and reserves `data/` for user files). The shell protects `core/`, lists apps with `APPS`, restricts file operations to `data/`, and launches programs from `apps/` or `data/`. It has no exit command: the shell is the OS. The OS only provides the runtime, `lua.md` the contract |
 | Lua API reference | `lua.md` — the developer contract (entry points, OS/functions/fs/input, limits); keep in sync with the implementation and use as the basis for the future IDE |
-| Display | `render.c` (scanline renderer, host-tested golden output) + `screen_lua.c` (ScreenMode/ZOrder/Out/Attr/DefineTile/Palette/Clear/Plot) with three composited text layers. Product-board scanout: `render332.c` (RGB332 fast path, host-tested against `render.c`) + `scanout.c` (HSTX scanline sequencer, host-tested) + `core0/video_hw.c` (TMDS expander, ping/pong DMA, render pump into an 8-line ring) |
+| Display | `render.c` (scanline renderer, host-tested golden output) + `screen_lua.c` (ScreenMode/Out/Attr/OverlayOut/OverlayAttr/DefineTile/Palette/Clear/Plot) with a base layer plus one overlay. Product-board scanout: `render332.c` (RGB332 fast path, host-tested against `render.c`) + `scanout.c` (HSTX scanline sequencer, host-tested) + `core0/video_hw.c` (TMDS expander, ping/pong DMA, render pump into an 8-line ring) |
 | Audio | `audio.c` (8-voice stereo synth, score scheduler, WAV sample voices) + `sound_lua.c` (Sound*/Music* API); per-program state like video; host-tested. HDMI data-island feed deferred to Phase 7 |
 | Input | `input.c` + `core1/input_hw.c` — 1 kHz matrix scan + joystick poll into the event queue (`system_state.input`); the scheduler drains it between ticks. Producer and consumer are both on the OS core, so the ring indices are plain words |
 | Desktop terminal interface | Removed; display and input development now use the simulator |
 | Desktop simulator | `../simulator/` — sibling folder, not part of the OS. SDL2 app (macOS) running the real OS sources with `sdcard/` as the virtual SD card, an SDL window for video, queued audio, and keyboard/controller input; hardware files replaced by `sim_fs.c`/`sim_main.c` |
 | Desktop IDE | `../ide/macos` — sibling folder, not part of the OS. SwiftUI app managing component projects (manifest + Lua/tile/audio/snippet components) and building them into `.lua` source plus `.prg` Lua bytecode; new projects start with header/main/input/tick components. Editors show line numbers, syntax highlighting and autocomplete for Lua, the SPIComputer APIs and the project's own functions (with parameter hints); a debounced compile check runs the OS's own Lua via `simulator --check` and maps errors back to component lines, the edited file is syntax-checked two seconds after typing stops and components with errors are flagged in the sidebar, and Return after a block opener auto-inserts the matching `end`. Run writes both outputs into a run-folder SD card and boots the `.prg` directly with `simulator --boot` |
-| Host tests | `tests/host` — fs bridge (both the direct firmware path and the two-core slot transport) over mock SD (incl. ejected-card errors), scanout sequencer + RGB332 renderer, layered renderer, input engine, process model (retire queue, WaitVSync), audio engine/API, editor |
+| Host tests | `tests/host` — fs bridge (both the direct firmware path and the two-core slot transport) over mock SD (incl. ejected-card errors), scanout sequencer + RGB332 renderer, base+overlay renderer, input engine, process model (retire queue, WaitVSync), audio engine/API, editor |
 
 Build (VS Code Pico extension or CLI):
 ```bash
@@ -199,7 +199,7 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   640 RGB888 per logical row, 2x scaling), host-tested against golden
   output. Uses the font8x8 ROM font for undefined tiles.
 - `screen_lua.c` — the API above; each call queues an op for core 0.
-  Text modes provide three composited content/attribute layers.
+  Text modes provide a base layer plus one composited overlay.
 - Mode 10 uses core 0's shared 320x240 pixel buffer; entering the mode
   attaches and clears it, and per the memory policy `Launch` from a
   mode 10 program fails.

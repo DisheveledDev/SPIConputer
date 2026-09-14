@@ -18,18 +18,13 @@ void render_line(const video_state_t *v, int ly, uint8_t *out) {
                 v->framebuf ? v->framebuf[ly * VIDEO_FB_COLS + lpx] : 0;
             colour = v->palette[ci];
         } else {
-            uint8_t ch = v->char_map[0][row * VIDEO_COLS + col];
-            uint8_t attr = v->attr_map[0][row * VIDEO_COLS + col];
-            for (int layer = VIDEO_LAYERS - 1; layer > 0; layer--) {
-                if (!v->layer_active[layer]) {
-                    continue;
-                }
-                uint8_t candidate = v->attr_map[layer][row * VIDEO_COLS + col];
-                if ((candidate & VIDEO_ATTR_TRANSPARENT) == 0) {
-                    ch = v->char_map[layer][row * VIDEO_COLS + col];
-                    attr = candidate;
-                    break;
-                }
+            int idx = row * VIDEO_COLS + col;
+            uint8_t ch = v->base_char[idx];
+            uint8_t attr = v->base_attr[idx];
+            uint8_t oattr = v->overlay_attr[idx];
+            if ((oattr & VIDEO_ATTR_TRANSPARENT) == 0) {
+                ch = v->overlay_char[idx];
+                attr = oattr;
             }
             uint8_t bits;
             if (v->tile_defined[ch]) {

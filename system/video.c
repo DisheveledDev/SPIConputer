@@ -26,12 +26,8 @@ static uint8_t s_lua_mode;
 
 void video_state_init(video_state_t *v) {
     memset(v, 0, sizeof(*v));
-    v->z_order = 0;
-    v->layer_active[0] = 1;
-    for (int layer = 1; layer < VIDEO_LAYERS; layer++) {
-        memset(v->attr_map[layer], VIDEO_ATTR_TRANSPARENT,
-               sizeof(v->attr_map[layer]));
-    }
+    /* The overlay starts fully transparent (every cell hidden). */
+    memset(v->overlay_attr, VIDEO_ATTR_TRANSPARENT, sizeof(v->overlay_attr));
     /* Palette: C64-ish 16-entry colours for the low indexes; entries
      * above stay black until ScreenPalette sets them. */
     static const uint32_t c64[16] = {
@@ -101,17 +97,10 @@ int video_mode_rows(int mode) {
 /* Clear the maps and the frame geometry for a new mode; entering the
  * pixel mode attaches and clears the shared pixel buffer. */
 static void apply_mode(video_state_t *v, int mode) {
-    v->z_order = 0;
-    v->layer_active[0] = 1;
-    for (int layer = 1; layer < VIDEO_LAYERS; layer++) {
-        v->layer_active[layer] = 0;
-    }
-    memset(v->char_map, ' ', sizeof(v->char_map));
-    memset(v->attr_map, 0, sizeof(v->attr_map));
-    for (int layer = 1; layer < VIDEO_LAYERS; layer++) {
-        memset(v->attr_map[layer], VIDEO_ATTR_TRANSPARENT,
-               sizeof(v->attr_map[layer]));
-    }
+    memset(v->base_char, ' ', sizeof(v->base_char));
+    memset(v->base_attr, 0, sizeof(v->base_attr));
+    memset(v->overlay_char, 0, sizeof(v->overlay_char));
+    memset(v->overlay_attr, VIDEO_ATTR_TRANSPARENT, sizeof(v->overlay_attr));
     if (mode == VIDEO_MODE_PIXEL) {
         memset(s_pixel_buffer, 0, sizeof(s_pixel_buffer));
         v->framebuf = s_pixel_buffer;
@@ -128,15 +117,17 @@ static void apply_clear(video_state_t *v, int ch) {
         }
         return;
     }
-    size_t cells = (size_t)VIDEO_COLS * VIDEO_ROWS;
-    memset(v->char_map[v->z_order], (uint8_t)ch, cells);
-    memset(v->attr_map[v->z_order], 0, cells);
-    if (v->z_order > 0) {
-        memset(v->attr_map[v->z_order], VIDEO_ATTR_TRANSPARENT, cells);
-        v->layer_active[v->z_order] = 0;
-    } else {
-        v->layer_active[0] = 1;
+    memset(v->base_char, (uint8_t)ch, sizeof(v->base_char));
+    memset(v->base_attr, 0, sizeof(v->base_attr));
+}
+
+/* Hide the whole overlay again: blank chars, every cell transparent. */
+static void apply_over_clear(video_state_t *v, int ch) {
+    if (v->mode == VIDEO_MODE_PIXEL) {
+        return;
     }
+    memset(v->overlay_char, (uint8_t)ch, sizeof(v->overlay_char));
+    memset(v->overlay_attr, VIDEO_ATTR_TRANSPARENT, sizeof(v->overlay_attr));
 }
 
 /* Apply one op. Returns true when the palette changed. */
@@ -150,27 +141,39 @@ static bool apply_op(video_state_t *v, const video_op_t *op) {
                 apply_mode(v, op->a);
             }
             return false;
-        case VIDEO_OP_ZORDER:
-            if (op->a < VIDEO_LAYERS && v->mode != VIDEO_MODE_PIXEL) {
-                v->z_order = op->a;
-            }
-            return false;
         case VIDEO_OP_OUT:
             if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
                 v->mode != VIDEO_MODE_PIXEL) {
-                v->char_map[v->z_order][op->b * VIDEO_COLS + op->a] = op->c;
-                v->attr_map[v->z_order][op->b * VIDEO_COLS + op->a] =
-                    (uint8_t)op->d;
-                v->layer_active[v->z_order] = 1;
+                int idx = op->b * VIDEO_COLS + op->a;
+                v->base_char[idx] = op->c;
+                v->base_attr[idx] = (uint8_t)op->d;
             }
             return false;
         case VIDEO_OP_ATTR:
             if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
                 v->mode != VIDEO_MODE_PIXEL) {
-                v->attr_map[v->z_order][op->b * VIDEO_COLS + op->a] =
-                    (uint8_t)op->d;
-                v->layer_active[v->z_order] = 1;
+                v->base_attr[op->b * VIDEO_COLS + op->a] = (uint8_t)op->d;
             }
+            return false;
+        case VIDEO_OP_CLEAR:
+            apply_clear(v, op->a);
+            return false;
+        case VIDEO_OP_OVER_OUT:
+            if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
+                v->mode != VIDEO_MODE_PIXEL) {
+                int idx = op->b * VIDEO_COLS + op->a;
+                v->overlay_char[idx] = op->c;
+                v->overlay_attr[idx] = (uint8_t)op->d;
+            }
+            return false;
+        case VIDEO_OP_OVER_ATTR:
+            if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
+                v->mode != VIDEO_MODE_PIXEL) {
+                v->overlay_attr[op->b * VIDEO_COLS + op->a] = (uint8_t)op->d;
+            }
+            return false;
+        case VIDEO_OP_OVER_CLEAR:
+            apply_over_clear(v, op->a);
             return false;
         case VIDEO_OP_TILE:
             for (int i = 0; i < 4; i++) {
@@ -182,9 +185,6 @@ static bool apply_op(video_state_t *v, const video_op_t *op) {
         case VIDEO_OP_PALETTE:
             v->palette[op->a] = op->d & 0xffffffu;
             return true;
-        case VIDEO_OP_CLEAR:
-            apply_clear(v, op->a);
-            return false;
         case VIDEO_OP_PLOT:
             /* a (x) is a uint8_t, so x < 320 always holds. */
             if (v->mode == VIDEO_MODE_PIXEL && v->framebuf &&

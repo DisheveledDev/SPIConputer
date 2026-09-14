@@ -28,7 +28,6 @@
 #define VIDEO_MODE_TEXT40C 1 /* 40x30, per-cell invert + colour */
 #define VIDEO_MODE_PIXEL 10  /* 320x240 direct pixels, 256-entry palette */
 
-#define VIDEO_LAYERS 3
 #define VIDEO_ATTR_TRANSPARENT 0x40
 
 /* One screen slot per program stack level (must cover PROGRAM_MAX). */
@@ -36,15 +35,19 @@
 
 typedef struct {
     uint8_t mode; /* VIDEO_MODE_* */
-    uint8_t z_order;
-    uint8_t layer_active[VIDEO_LAYERS];
 
-    /* Tile modes 0/1. Layer 0 is the base, layers 1 and 2 are
-     * transparent overlays. Attribute byte: bit 7 invert; bits 0-2
-     * colour index; bit 6 makes overlay cells transparent. Colour index
-     * c uses palette entry c+1 (0 is the background). */
-    uint8_t char_map[VIDEO_LAYERS][VIDEO_COLS * VIDEO_ROWS];
-    uint8_t attr_map[VIDEO_LAYERS][VIDEO_COLS * VIDEO_ROWS];
+    /* Base layer: one 40x30 cell per entry. Attribute byte: bit 7
+     * invert; bits 0-2 colour index. Colour index c uses palette entry
+     * c+1 (0 is the background). */
+    uint8_t base_char[VIDEO_COLS * VIDEO_ROWS];
+    uint8_t base_attr[VIDEO_COLS * VIDEO_ROWS];
+
+    /* One overlay layer, composited over the base. A cell is transparent
+     * while its attribute has bit 6 set: OverlayOut/OverlayAttr clear
+     * the bit for the cells they touch and OverlayClear sets it
+     * everywhere. */
+    uint8_t overlay_char[VIDEO_COLS * VIDEO_ROWS];
+    uint8_t overlay_attr[VIDEO_COLS * VIDEO_ROWS];
 
     /* RAM tile override set; ROM font (font8x8, ASCII-aligned) used
      * where tile_defined[i] == 0. Each tile is 8 row bytes; bit 0 of a
@@ -64,16 +67,18 @@ typedef struct {
 /* ------------------------------------------------------------------ */
 
 typedef enum {
-    VIDEO_OP_RESET,   /* fresh screen: mode 0, maps/tiles/palette reset */
-    VIDEO_OP_MODE,    /* a = mode */
-    VIDEO_OP_ZORDER,  /* a = layer */
-    VIDEO_OP_OUT,     /* a,b = x,y; c = char; d = attr */
-    VIDEO_OP_ATTR,    /* a,b = x,y; d = flags */
-    VIDEO_OP_TILE,    /* a = index; d,e = the 8 row bytes */
-    VIDEO_OP_PALETTE, /* a = index; d = 0xRRGGBB */
-    VIDEO_OP_CLEAR,   /* a = fill char */
-    VIDEO_OP_PLOT,    /* a,b = x,y; d = colour (mode 10) */
-    VIDEO_OP_SLOT,    /* a = screen slot for the ops that follow */
+    VIDEO_OP_RESET,      /* fresh screen: mode 0, maps/tiles/palette reset */
+    VIDEO_OP_MODE,       /* a = mode */
+    VIDEO_OP_OUT,        /* base: a,b = x,y; c = char; d = attr */
+    VIDEO_OP_ATTR,       /* base: a,b = x,y; d = flags */
+    VIDEO_OP_CLEAR,      /* base: a = fill char */
+    VIDEO_OP_OVER_OUT,   /* overlay: a,b = x,y; c = char; d = attr */
+    VIDEO_OP_OVER_ATTR,  /* overlay: a,b = x,y; d = flags */
+    VIDEO_OP_OVER_CLEAR, /* overlay: a = fill char */
+    VIDEO_OP_TILE,       /* a = index; d,e = the 8 row bytes */
+    VIDEO_OP_PALETTE,    /* a = index; d = 0xRRGGBB */
+    VIDEO_OP_PLOT,       /* a,b = x,y; d = colour (mode 10) */
+    VIDEO_OP_SLOT,       /* a = screen slot for the ops that follow */
 } video_op_kind_t;
 
 typedef struct {
