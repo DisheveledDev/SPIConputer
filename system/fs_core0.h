@@ -11,6 +11,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "rpc.h"
 
@@ -24,6 +25,11 @@ bool fs_core0_mount(void);
 
 bool fs_core0_write_error(const char *name, uint64_t timestamp,
                           const char *text);
+
+/* Append `len` bytes to `name` in the card root, creating it if needed.
+ * Each call opens, writes and closes the file, so the data is on the
+ * card when this returns (a reset afterwards cannot lose it). */
+bool fs_core0_append(const char *name, const char *data, size_t len);
 
 /* True if the SD card is mounted (core 0 side). */
 bool fs_core0_mounted(void);

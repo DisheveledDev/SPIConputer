@@ -47,6 +47,10 @@ bool fs_core0_mount(void) {
     return s_mounted;
 }
 
+bool fs_core0_mounted(void) {
+    return s_mounted;
+}
+
 bool fs_core0_write_error(const char *name, uint64_t timestamp,
                           const char *text) {
     sd_card_t *sd = sd_get_by_num(0);
@@ -75,6 +79,26 @@ bool fs_core0_write_error(const char *name, uint64_t timestamp,
     UINT written = 0;
     result = f_write(&file, text, (UINT)strlen(text), &written);
     bool ok = result == FR_OK && written == (UINT)strlen(text);
+    if (f_close(&file) != FR_OK) {
+        ok = false;
+    }
+    return ok;
+}
+
+bool fs_core0_append(const char *name, const char *data, size_t len) {
+    sd_card_t *sd = sd_get_by_num(0);
+    if (!s_mounted || !sd || !name || !data) {
+        return false;
+    }
+    char path[64];
+    snprintf(path, sizeof(path), "%s/%s", sd->pcName, name);
+    FIL file;
+    if (f_open(&file, path, FA_WRITE | FA_OPEN_APPEND) != FR_OK) {
+        return false;
+    }
+    UINT written = 0;
+    FRESULT result = f_write(&file, data, (UINT)len, &written);
+    bool ok = result == FR_OK && written == (UINT)len;
     if (f_close(&file) != FR_OK) {
         ok = false;
     }

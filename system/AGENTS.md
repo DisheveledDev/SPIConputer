@@ -272,6 +272,15 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   what the monitor shows is the HDMI path alone. (The older
   `SPICOMPUTER_VIDEO_TEST_PATTERN` build keeps the 640x480 band pattern
   with the underrun bar.)
+- Bring-up log: the bench has no working USB console, so core 1 also
+  appends its boot report and a video status line per
+  `SPICOMPUTER_LOG_PERIOD_MS` to `spilog.txt` in the card root (one
+  open/append/close per period, so nothing flushed is lost to a reset).
+  Each boot logs the POWMAN reset reason (power-on, brown-out, RUN pin,
+  watchdog, ...) plus the previous run's uptime and loop phase, kept in
+  watchdog scratch 0-2. A frame-counter stall is flushed immediately,
+  ahead of the watchdog reset. Test-pattern builds do no SD work and so
+  log nothing.
 - `scanout_frame_begin` must set `rows_total` to `VIDEO_FB_ROWS` (240
   logical pixel rows). Setting it to `VIDEO_ROWS` (30 tile rows) made
   the sequencer rebase the frame every 60 output lines: most of the
