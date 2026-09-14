@@ -24,6 +24,12 @@
 
 extern void mock_set_file(const char *path, const char *content);
 
+/* Like the simulator: the tests are single-threaded, so a full queue or
+ * a busy staging slot is drained from inside the wait. */
+void video_queue_full_hook(void) {
+    video_ops_drain();
+}
+
 static int g_failures = 0;
 
 #define CHECK(cond, msg)                                                     \
@@ -368,6 +374,80 @@ static void test_box_fill(void) {
     video_screens_init();
 }
 
+/* ---------------- test 10: block ops (via a program) ---------------- */
+
+static const char *BLOCK_LUA =
+    "function setup()\n"
+    "  assert(ScreenMode(1) == true)\n"
+    "  assert(ScreenWrite(0, 0, 'HELLO', 0x02) == true)\n"
+    "  assert(ScreenWrite(38, 1, 'ABCD') == true)\n"          /* wraps */
+    "  assert(ScreenWriteAttr(0, 0, '\\1\\2\\3') == true)\n"
+    "  assert(ScreenFill(10, 10, 5, 3, 65, 0x01) == true)\n"
+    "  assert(ScreenFillAttr(10, 10, 2, 1, 0x05) == true)\n"
+    "  assert(ScreenCopy(10, 10, 5, 3, 20, 20) == true)\n"
+    "  assert(ScreenMove(10, 10, 5, 3, 12, 11) == true)\n"     /* overlaps */
+    "  assert(ScreenFill(0, 5, 40, 3, 88) == true)\n"           /* 'X' rows */
+    "  assert(ScreenScroll(0, 5, 40, 3, -1, 0, 46) == true)\n"  /* left, '.' */
+    "  assert(ScreenScroll(0, 5, 40, 3, 0, 1, 45) == true)\n"   /* down, '-' */
+    "  assert(OverlayWrite(5, 5, 'OV', 0x80) == true)\n"
+    "  assert(OverlayFill(0, 20, 40, 2, 35, 0x03) == true)\n"
+    "  assert(OverlayScroll(0, 20, 40, 2, 3, 0, 32, 0x40) == true)\n"
+    /* Four writes in a row: more than the two staging slots. */
+    "  for i = 1, 4 do assert(ScreenWrite(i - 1, 29, tostring(i)) == true) end\n"
+    "  assert(ScreenCopy(0, 0, 5, 5, 40, 0) == nil)\n"
+    "  assert(ScreenWrite(40, 0, 'x') == nil)\n"
+    "  assert(ScreenScroll(0, 0, 0, 5, 1, 1) == nil)\n"
+    "  local ok, err = ScreenLoadImage('x.bmp', 0, 0)\n"
+    "  assert(ok == nil and err:find('not available'))\n"
+    "  ExitProgram()\n"
+    "end\n"
+    "function tick() end\n";
+
+static void test_block_ops(void) {
+    video_screens_init();
+    mock_set_file("blk.lua", BLOCK_LUA);
+    CHECK(program_boot("blk.lua", NULL), "block-op program boots");
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "block-op program exited");
+    video_ops_drain();
+
+    const video_state_t *v = video_screen();
+#define CELL(x, y) ((y) * VIDEO_COLS + (x))
+    CHECK(v->base_char[CELL(0, 0)] == 'H' && v->base_char[CELL(4, 0)] == 'O',
+          "ScreenWrite writes the text");
+    CHECK(v->base_attr[CELL(0, 0)] == 1 && v->base_attr[CELL(2, 0)] == 3 &&
+              v->base_attr[CELL(3, 0)] == 0x02,
+          "ScreenWriteAttr overrides attributes cell by cell");
+    CHECK(v->base_char[CELL(38, 1)] == 'A' && v->base_char[CELL(39, 1)] == 'B' &&
+              v->base_char[CELL(0, 2)] == 'C' && v->base_char[CELL(1, 2)] == 'D',
+          "ScreenWrite wraps to the next row");
+    CHECK(v->base_char[CELL(20, 20)] == 'A' && v->base_attr[CELL(20, 20)] == 0x05 &&
+              v->base_char[CELL(24, 22)] == 'A' && v->base_attr[CELL(24, 22)] == 0x01 &&
+              v->base_char[CELL(25, 20)] == ' ',
+          "ScreenCopy copies chars and attrs (after FillAttr)");
+    CHECK(v->base_char[CELL(10, 10)] == ' ' && v->base_attr[CELL(10, 10)] == 0 &&
+              v->base_char[CELL(11, 12)] == ' ',
+          "ScreenMove blanks the uncovered part of the source");
+    CHECK(v->base_char[CELL(12, 11)] == 'A' && v->base_attr[CELL(12, 11)] == 0x05 &&
+              v->base_char[CELL(16, 13)] == 'A' && v->base_char[CELL(12, 12)] == 'A' &&
+              v->base_attr[CELL(14, 11)] == 0x01,
+          "ScreenMove handles an overlapping destination");
+    CHECK(v->base_char[CELL(0, 5)] == '-' && v->base_char[CELL(39, 5)] == '-' &&
+              v->base_char[CELL(0, 6)] == 'X' && v->base_char[CELL(39, 6)] == '.' &&
+              v->base_char[CELL(39, 7)] == '.' && v->base_char[CELL(0, 8)] == ' ',
+          "ScreenScroll shifts and fills, within the region only");
+    CHECK(v->overlay_char[CELL(5, 5)] == 'O' && v->overlay_char[CELL(6, 5)] == 'V' &&
+              v->overlay_attr[CELL(6, 5)] == 0x80,
+          "OverlayWrite writes the overlay");
+    CHECK(v->overlay_char[CELL(3, 20)] == 35 && v->overlay_attr[CELL(3, 20)] == 0x03 &&
+              v->overlay_char[CELL(0, 20)] == 32 && v->overlay_attr[CELL(0, 21)] == 0x40,
+          "OverlayScroll fills uncovered cells with the given attr");
+    CHECK(v->base_char[CELL(0, 29)] == '1' && v->base_char[CELL(3, 29)] == '4',
+          "staging slots are reused safely across more writes than slots");
+#undef CELL
+    video_screens_init();
+}
+
 int main(void) {
     printf("=== render / screen tests ===\n");
     rpc_bind_wait(rpc_wait_host);
@@ -383,6 +463,7 @@ int main(void) {
     test_op_queue();
     test_render_rom_font();
     test_box_fill();
+    test_block_ops();
     test_render_mode10();
     test_screen_module();
     test_overlay_module();

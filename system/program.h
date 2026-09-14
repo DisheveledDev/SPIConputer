@@ -49,9 +49,9 @@ typedef struct program_s {
     int setup_ref;     /* LUA_NOREF when absent */
     int tick_ref;
     int finish_ref;
-    /* Optional input callbacks (globals "on_keypress"/"on_control"). */
-    int on_keypress_ref;
-    int on_control_ref;
+    /* The optional input callbacks (globals "on_keypress"/"on_control")
+     * are looked up at dispatch time, not cached here, so a program or a
+     * framework can install or replace them after load (e.g. in setup). */
     bool exit_requested;
     bool interactive;
     bool requires_video;

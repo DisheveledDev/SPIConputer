@@ -295,7 +295,6 @@ static program_t *program_create(const char *name, const char *source,
         return NULL;
     }
     p->setup_ref = p->tick_ref = p->finish_ref = LUA_NOREF;
-    p->on_keypress_ref = p->on_control_ref = LUA_NOREF;
     p->chunk_ref = LUA_NOREF;
 
     fs_lua_openlibs(p->L);
@@ -413,12 +412,6 @@ static program_t *program_create(const char *name, const char *source,
     else lua_pop(p->L, 1);
     lua_getglobal(p->L, "finish");
     if (lua_isfunction(p->L, -1)) p->finish_ref = luaL_ref(p->L, LUA_REGISTRYINDEX);
-    else lua_pop(p->L, 1);
-    lua_getglobal(p->L, "on_keypress");
-    if (lua_isfunction(p->L, -1)) p->on_keypress_ref = luaL_ref(p->L, LUA_REGISTRYINDEX);
-    else lua_pop(p->L, 1);
-    lua_getglobal(p->L, "on_control");
-    if (lua_isfunction(p->L, -1)) p->on_control_ref = luaL_ref(p->L, LUA_REGISTRYINDEX);
     else lua_pop(p->L, 1);
 
     p->pid = s_next_pid++;
@@ -781,11 +774,24 @@ static bool callback_failed(program_t *p, const char *what) {
     return false;
 }
 
+/* Push the callback global `name`, or return false (stack unchanged)
+ * when the program has not defined it as a function. */
+static bool push_callback(lua_State *L, const char *name) {
+    lua_settop(L, 0);
+    lua_getglobal(L, name);
+    if (!lua_isfunction(L, -1)) {
+        lua_pop(L, 1);
+        return false;
+    }
+    return true;
+}
+
 /* on_keypress(key, shift, ctrl, cbm, restore) on key-down events. */
 static bool call_on_keypress(program_t *p, const input_event_t *ev) {
     lua_State *L = p->L;
-    lua_settop(L, 0);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, p->on_keypress_ref);
+    if (!push_callback(L, "on_keypress")) {
+        return true;
+    }
     lua_pushinteger(L, ev->key);
     lua_pushboolean(L, (ev->mods & INPUT_MOD_SHIFT) != 0);
     lua_pushboolean(L, (ev->mods & INPUT_MOD_CTRL) != 0);
@@ -804,8 +810,9 @@ static bool call_on_keypress(program_t *p, const input_event_t *ev) {
  * after the event; index is the port (0 = joystick 1, 1 = joystick 2). */
 static bool call_on_control(program_t *p, int index, uint8_t dirs) {
     lua_State *L = p->L;
-    lua_settop(L, 0);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, p->on_control_ref);
+    if (!push_callback(L, "on_control")) {
+        return true;
+    }
     lua_pushinteger(L, index);
     lua_pushboolean(L, (dirs & INPUT_DIR_UP) != 0);
     lua_pushboolean(L, (dirs & INPUT_DIR_DOWN) != 0);
@@ -825,9 +832,6 @@ static bool call_on_control(program_t *p, int index, uint8_t dirs) {
  * also stay in the program's ring, so InputPoll() still sees them. */
 static bool dispatch_input_callbacks(program_t *p, const input_event_t *ev) {
     if (ev->type == INPUT_EV_KEY) {
-        if (p->on_keypress_ref == LUA_NOREF) {
-            return true;
-        }
         /* Presses only: releases and modifier-key events (key 0) are
          * available through InputPoll(). */
         if (ev->pressed == 0 || ev->key == 0) {
@@ -836,9 +840,6 @@ static bool dispatch_input_callbacks(program_t *p, const input_event_t *ev) {
         return call_on_keypress(p, ev);
     }
     if (ev->type == INPUT_EV_CONTROL1 || ev->type == INPUT_EV_CONTROL2) {
-        if (p->on_control_ref == LUA_NOREF) {
-            return true;
-        }
         int index = ev->type == INPUT_EV_CONTROL1 ? 0 : 1;
         return call_on_control(p, index, p->joy[index]);
     }

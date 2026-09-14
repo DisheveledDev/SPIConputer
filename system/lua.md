@@ -204,7 +204,9 @@ advance.
 Instead of (or as well as) polling, a program may define these globals:
 the scheduler invokes them as events arrive, before the next `tick()`,
 with the same error handling as `tick()` (a throwing callback terminates
-the program):
+the program). They are looked up by name for every event, so a program
+(or a framework such as `Input.Keyboard.Callback`) may define, replace
+or remove them at any time, including from `setup()`:
 
 ```lua
 function on_keypress(key, shift, ctrl, cbm, restore)
@@ -255,14 +257,35 @@ modes are scaled 2x. The RP2040 dev board supports modes 0 and 1 only.
 | `ScreenClear([char])` | `true` (defaults to space); clears the base layer |
 | `ScreenBox(x, y, w, h [, style [, attr]])` | `true`, or `nil, err`; draws a frame with the ROM box-drawing characters (style 1 = single line, default; 2 = double). Needs `w` and `h` >= 2; clipped at the screen edge |
 | `ScreenFill(x, y, w, h [, char [, attr]])` | `true`, or `nil, err`; writes `char` (default space) and `attr` into every cell of the rectangle; clipped at the screen edge |
+| `ScreenFillAttr(x, y, w, h, attr)` | `true`, or `nil, err`; sets the attribute of every cell in the rectangle, characters unchanged |
+| `ScreenWrite(x, y, text [, attr])` | `true`, or `nil, err`; writes the bytes of `text` as consecutive cells from (x, y), wrapping to the next row (so `ScreenWrite(0, 0, map)` with a 1200-byte string replaces the whole screen); with `attr`, every cell gets it too |
+| `ScreenWriteAttr(x, y, attrs)` | `true`, or `nil, err`; the bytes of `attrs` become the attributes of consecutive cells from (x, y) |
+| `ScreenCopy(sx, sy, w, h, dx, dy)` | `true`, or `nil, err`; copies a block (characters and attributes) so its top-left lands at (dx, dy); clipped so both fit |
+| `ScreenMove(sx, sy, w, h, dx, dy [, char [, attr]])` | as `ScreenCopy`, then blanks the part of the source the block no longer covers with `char` (default space) and `attr` |
+| `ScreenScroll(x, y, w, h, dx, dy [, char [, attr]])` | `true`, or `nil, err`; shifts the region's contents by (dx, dy) cells (negative = up/left); the cells uncovered get `char` and `attr` |
+| `ScreenLoadImage(path, x, y [, w, h])` | reserved: always `nil, err` for now (the loader is not implemented) |
 | `OverlayOut(x, y, char [, attr])` | `true`, or `nil, err` (text modes); draws on the overlay layer |
 | `OverlayAttr(x, y, flags)` | `true`, or `nil, err` |
 | `OverlayClear([char])` | `true` (defaults to space); blanks the overlay and hides it |
-| `OverlayBox(...)`, `OverlayFill(...)` | as `ScreenBox`/`ScreenFill`, on the overlay layer (a dialog over the base: `OverlayFill` the body, `OverlayBox` the frame, `OverlayOut` the text; `OverlayClear` removes it) |
+| `OverlayBox`, `OverlayFill`, `OverlayFillAttr`, `OverlayWrite`, `OverlayWriteAttr`, `OverlayCopy`, `OverlayMove`, `OverlayScroll` | as the `Screen` versions, on the overlay layer (a dialog over the base: `OverlayFill` the body, `OverlayBox` the frame, `OverlayWrite` the text; `OverlayClear` removes it) |
 | `ScreenPlot(x, y, colour)` | `true`, or `nil, err` (mode 10 only) |
 
-Box and Fill queue one display op per cell, so a full-screen fill is
-1200 ops: more than one frame's queue, which briefly blocks the caller.
+The block calls (`Box`, `Fill`, `FillAttr`, `Write`, `WriteAttr`, `Copy`,
+`Move`, `Scroll`) each queue **one** display op whatever the size of the
+rectangle; the display core does the work at the frame boundary. Prefer
+them to loops of `ScreenOut`: a full-screen repaint is one `ScreenWrite`
+instead of 1200 ops. They are text-mode calls; mode 10 has `ScreenPlot`.
+
+### Frameworks
+
+The IDE can inject read-only frameworks (SDKs) into a program: `Screen`,
+`Overlay`, `Sound`/`Music` and `Input` namespaces with higher-level calls
+such as `Screen.CenterText(y, text)`, `Screen.Move(x1, y1, x2, y2, x3, y3)`,
+`Overlay.Dialog(title, lines)`, `Sound.Tone(hz, ms)` and
+`Input.Keyboard.Callback(key, fn)`. They are plain Lua over the API above,
+selected per project in the IDE's settings, and stripped at build time to
+the functions the program uses. The framework sources (and their
+documentation) are `ide/macos/Sources/SPIIDECore/Resources/sdk/*.lua`.
 
 Attribute byte: bit 7 = invert (swap fg/bg), bits 0-2 = colour index,
 bit 6 = transparent overlay cell. Colour index `c` uses palette entry `c+1`

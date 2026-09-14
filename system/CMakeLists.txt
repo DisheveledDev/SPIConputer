@@ -95,7 +95,8 @@ add_executable(SPIComputerOS
 # built without them.
 set_source_files_properties(
         core0/video_hw.c video.c render332.c scanout.c
-        PROPERTIES COMPILE_OPTIONS -fno-jump-tables)
+        PROPERTIES COMPILE_OPTIONS
+        "-fno-jump-tables;-fno-tree-loop-distribute-patterns")
 
 pico_set_program_name(SPIComputerOS "SPIComputerOS")
 pico_set_program_version(SPIComputerOS "0.1")

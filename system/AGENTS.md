@@ -212,6 +212,15 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   rectangles with these codes, one queued op per cell.
 - `screen_lua.c` — the API above; each call queues an op for core 0.
   Text modes provide a base layer plus one composited overlay.
+- Block ops (`video.h` `VIDEO_OP_RECT/COPY/SCROLL/BOX/TEXT`): one op per
+  rectangle, applied by core 0 in `video.c` (`ScreenFill/FillAttr/Copy/
+  Move/Scroll/Box/Write/WriteAttr` and the Overlay twins). `TEXT` carries
+  its bytes through a two-slot staging buffer (`video_staging_acquire`,
+  `video_op_put_staged`): the producer reuses a slot only after the drain
+  has applied the op that referenced it, which is why the drain applies
+  an op *before* advancing the head. Frameworks (the IDE's SDKs) are
+  Lua over these calls; the input callbacks are looked up by name per
+  event so a framework can install its dispatcher from `setup()`.
 - Mode 10 uses core 0's shared 320x240 pixel buffer; entering the mode
   attaches and clears it, and per the memory policy `Launch` from a
   mode 10 program fails.
