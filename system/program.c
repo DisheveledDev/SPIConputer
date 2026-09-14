@@ -32,11 +32,6 @@ static uint32_t s_next_pid = 0;
 
 static void program_log_event(const program_t *p, const char *event,
                               const char *detail) {
-    char line[224];
-    snprintf(line, sizeof(line), "program: t=%llu pid=%lu name=%s event=%s%s%s",
-             (unsigned long long)os_time_us(), (unsigned long)p->pid, p->name,
-             event, detail ? " detail=" : "", detail ? detail : "");
-    fs_core0_debug_log(line);
 }
 
 static void program_log_error(const program_t *p, const char *phase,
@@ -331,11 +326,6 @@ static program_t *program_create(const char *name, const char *source,
         }
         chunk = buf;
         chunk_name = resolved;
-        char load_log[320];
-        snprintf(load_log, sizeof(load_log),
-                 "loader: requested=%s resolved=%s bytes=%lu", name,
-                 chunk_name, (unsigned long)len);
-        fs_core0_debug_log(load_log);
     }
     int st = luaL_loadbufferx(p->L, chunk, len, chunk_name, "bt");
     free(buf);

@@ -47,31 +47,6 @@ bool fs_core0_mount(void) {
     return s_mounted;
 }
 
-bool fs_core0_debug_log(const char *line) {
-    sd_card_t *sd = sd_get_by_num(0);
-    if (!s_mounted || !sd || !line) {
-        return false;
-    }
-    char path[32];
-    snprintf(path, sizeof(path), "%s/log.txt", sd->pcName);
-    FIL file;
-    if (f_open(&file, path, FA_WRITE | FA_OPEN_APPEND) != FR_OK) {
-        return false;
-    }
-    UINT written = 0;
-    size_t length = strlen(line);
-    FRESULT result = f_write(&file, line, (UINT)length, &written);
-    bool ok = result == FR_OK && written == (UINT)length;
-    if (ok) {
-        result = f_write(&file, "\n", 1, &written);
-        ok = result == FR_OK && written == 1;
-    }
-    if (f_close(&file) != FR_OK) {
-        ok = false;
-    }
-    return ok;
-}
-
 bool fs_core0_write_error(const char *name, uint64_t timestamp,
                           const char *text) {
     sd_card_t *sd = sd_get_by_num(0);

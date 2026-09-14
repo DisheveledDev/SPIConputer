@@ -20,7 +20,6 @@
  *     core 0.
  */
 
-#include <stdarg.h>
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
@@ -70,15 +69,6 @@ static void fs_service(const rpc_request_t *req, rpc_response_t *resp) {
     watchdog_update();
     fs_core0_execute(req, resp);
     watchdog_update();
-}
-
-static bool sd_log(const char *format, ...) {
-    char line[224];
-    va_list args;
-    va_start(args, format);
-    vsnprintf(line, sizeof(line), format, args);
-    va_end(args);
-    return fs_core0_debug_log(line);
 }
 
 static void print_boot_info(void) {
@@ -150,15 +140,6 @@ void core1_entry(void)
      * cost a full command timeout); give the program load its own full
      * watchdog period rather than whatever the card left of this one. */
     watchdog_update();
-    if (card_ok) {
-        sd_log("boot: SD mount succeeded");
-        sd_log("boot: sys_khz=%lu refresh_hz=%u hstx_test_pattern=%d",
-               (unsigned long)(clock_get_hz(clk_sys) / 1000),
-               (unsigned)SPICOMPUTER_REFRESH_HZ,
-               video_hw_test_pattern() ? 1 : 0);
-        sd_log("boot: boot_path=%s", BOOT_SCRIPT);
-        sd_log("boot: attempting compiled path first: core/boot.prg");
-    }
     boot_signal(6); /* card stage complete */
 
     /* Input subsystem: 1 kHz matrix and joystick scanning. This claims
@@ -185,11 +166,9 @@ void core1_entry(void)
         printf("no SD card: showing the chequerboard test pattern\n");
     } else if (!program_boot(BOOT_SCRIPT, NULL)) {
         boot_failed = true;
-        sd_log("boot: program_boot failed; error details should be in /logs/errors");
         video_hw_set_test_pattern(true);
         printf("Boot failed: showing the chequerboard test pattern\n");
     } else {
-        sd_log("boot: program_boot succeeded; Lua boot program is running");
     }
 #endif
     boot_signal(7); /* boot program attempted; scheduler loop next */
@@ -254,17 +233,6 @@ void core1_entry(void)
                    (unsigned long)video_hw_long_gaps(),
                    (unsigned long)video_hw_fifo_empty(),
                    (unsigned long)video_hw_fifo_wofs());
-            sd_log("video: frame=%lu scanline=%lu underruns=%lu "
-                   "queue=%lu drains=%lu slot=%d mode=%d base_out=%lu "
-                   "overlay_out=%lu",
-                   (unsigned long)frames,
-                   (unsigned long)video_hw_scanline(),
-                   (unsigned long)underruns,
-                   (unsigned long)video_ops_pending(),
-                   (unsigned long)video_ops_drain_count(),
-                   video_screen_index(), video_lua_mode(),
-                   (unsigned long)video_ops_base_out_count(),
-                   (unsigned long)video_ops_overlay_out_count());
             last_underruns = underruns;
 #endif
         }

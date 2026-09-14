@@ -26,12 +26,10 @@
  */
 #include "screen_lua.h"
 
-#include <stdio.h>
 #include <string.h>
 
 #include "lauxlib.h"
 
-#include "fs_core0.h"
 #include "program.h"
 #include "video.h"
 
@@ -72,9 +70,6 @@ static int screen_mode(lua_State *L) {
         return 2;
     }
     video_note_mode(mode);
-    char detail[32];
-    snprintf(detail, sizeof(detail), "screen_mode=%d", mode);
-    fs_core0_debug_log(detail);
     put(VIDEO_OP_MODE, mode, 0, 0, 0, 0);
     lua_pushboolean(L, true);
     return 1;
