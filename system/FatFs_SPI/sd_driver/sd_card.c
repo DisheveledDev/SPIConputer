@@ -457,18 +457,10 @@ static int sd_cmd(sd_card_t *pSD, const cmdSupported cmd, uint32_t arg,
     int32_t status = SD_BLOCK_DEVICE_ERROR_NONE;
     uint32_t response;
 
-    // No need to wait for card to be ready when sending the stop command.
-    // If the data line never rises there is either no card or a dead one
-    // (an empty socket can read as a stuck-low DO): report it, instead of
-    // sending the command anyway and repeating the full timeout for every
-    // retry of the init sequence, which outlasts the system watchdog.
+    // No need to wait for card to be ready when sending the stop command
     if (CMD12_STOP_TRANSMISSION != cmd) {
         if (false == sd_wait_ready(pSD, SD_COMMAND_TIMEOUT)) {
             DBG_PRINTF("%s:%d: Card not ready yet\r\n", __FILE__, __LINE__);
-            if (NULL != resp) {
-                *resp = R1_NO_RESPONSE;
-            }
-            return SD_BLOCK_DEVICE_ERROR_NO_DEVICE;
         }
     }
     // Re-try command
@@ -653,14 +645,8 @@ static uint32_t sd_go_idle_state(sd_card_t *pSD) {
      * not be interpreted as a command and get lost. For some cards retrying
      * the command overcomes this situation. */
     for (int i = 0; i < SD_CMD0_GO_IDLE_STATE_RETRIES; i++) {
-        int status = sd_cmd(pSD, CMD0_GO_IDLE_STATE, 0x0, false, &response);
+        sd_cmd(pSD, CMD0_GO_IDLE_STATE, 0x0, false, &response);
         if (R1_IDLE_STATE == response) {
-            break;
-        }
-        if (SD_BLOCK_DEVICE_ERROR_NO_DEVICE == status &&
-            R1_NO_RESPONSE == response) {
-            // The data line never released: nothing is listening, so the
-            // remaining retries would only repeat the same timeout.
             break;
         }
         sd_release(pSD);
