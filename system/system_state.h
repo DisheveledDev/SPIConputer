@@ -10,17 +10,14 @@
  *     filesystem and the scheduler are same-core, so they need no
  *     sharing primitives at all.
  *
- * That leaves two cross-core objects: the video frame counter, written
- * by core 0's scanout at each vertical blank and read by core 1
- * (WaitVSync, the video-state retire queue and the watchdog gate), and
- * the test pattern request, written once by core 1 at boot and read by
- * core 0 at each frame boundary. Both are single words with a single
- * writer, so a plain read is enough: the cores share SRAM with no data
- * caches between them.
+ * That leaves exactly one cross-core object: the video frame counter,
+ * written by core 0's scanout at each vertical blank and read by core 1
+ * (WaitVSync, the video-state retire queue and the watchdog gate). It is
+ * a single word with a single writer, so a plain read is enough: the
+ * cores share SRAM with no data caches between them.
  */
 #pragma once
 
-#include <stdbool.h>
 #include <stdint.h>
 
 #include "input.h"
@@ -34,17 +31,10 @@ typedef struct {
     input_queue_t input;
 
     /* Completed video frames. Written by core 0's scanout, read by core
-     * 1 (WaitVSync, the retire queue, the watchdog gate). Zero on boards
-     * and in builds with no HSTX output. */
+     * 1 (WaitVSync, the retire queue, the watchdog gate). This is the
+     * only object the two cores share. Zero on boards and in builds with
+     * no HSTX output. */
     volatile uint32_t video_frame_count;
-
-    /* Draw the bring-up test pattern instead of the program screen.
-     * Raised by core 1 during boot when there is no program to run (SD
-     * card not mounted, or the boot script missing) and initialised true
-     * in diagnostic builds (SPICOMPUTER_VIDEO_TEST_PATTERN), so a bare
-     * board still shows something that exercises every HSTX lane for
-     * wiring checks. Core 0 latches it at each frame boundary. */
-    volatile bool video_pattern_request;
 } system_state_t;
 
 extern system_state_t g_system_state;

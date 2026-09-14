@@ -82,7 +82,7 @@ static void log_status(uint64_t now_us, uint32_t frames) {
 
     snprintf(line, sizeof(line),
              "t=%lus frame=%lu underruns=%lu black=%lu snapfail=%lu "
-             "skew=%lu(%lu) gap=%luus long=%lu empty=%lu wof=%lu pattern=%d",
+             "skew=%lu(%lu) gap=%luus long=%lu empty=%lu wof=%lu",
              (unsigned long)(now_us / 1000000u), (unsigned long)frames,
              (unsigned long)video_hw_underruns(),
              (unsigned long)video_hw_black_rows(),
@@ -92,8 +92,7 @@ static void log_status(uint64_t now_us, uint32_t frames) {
              (unsigned long)video_hw_gap_max_us(),
              (unsigned long)video_hw_long_gaps(),
              (unsigned long)video_hw_fifo_empty(),
-             (unsigned long)video_hw_fifo_wofs(),
-             g_system_state.video_pattern_request ? 1 : 0);
+             (unsigned long)video_hw_fifo_wofs());
     fs_core0_log(line);
 
     /* New stream stalls: log where in the frame the most recent one
@@ -132,20 +131,6 @@ static void log_boot(uint32_t sys_khz, bool was_watchdog) {
     snprintf(line, sizeof(line), "boot: watchdog=%d", was_watchdog ? 1 : 0);
 #endif
     fs_core0_log(line);
-}
-
-/* Boot found no program to run (no card, or the boot script missing):
- * ask core 0 for the bring-up test pattern. A bare board then shows the
- * colour bars/stripes instead of a black screen, so the HSTX wiring can
- * be checked with a monitor alone (see core0/video_hw.c for the layout).
- * The request is a plain shared flag; core 0 latches it at the next
- * frame boundary. */
-static void request_test_pattern(const char *why) {
-    if (g_system_state.video_pattern_request) {
-        return;
-    }
-    printf("%s: showing the video test pattern\n", why);
-    g_system_state.video_pattern_request = true;
 }
 
 static void print_boot_info(void) {
@@ -207,7 +192,7 @@ void core1_entry(void)
     printf("test pattern build: SD mount skipped\n");
 #else
     if (!fs_core0_mount()) {
-        request_test_pattern("SD card not mounted");
+        printf("SD card not mounted\n");
     }
 #endif
     /* Record the clock/display setup and whether this run followed a
@@ -220,12 +205,12 @@ void core1_entry(void)
     input_hw_init();
 
 #if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
-    /* Diagnostic build: the scanout draws the test pattern from the
-     * first frame, so no program is loaded (and no SD work was done). */
+    /* Diagnostic build: the scanout draws a test pattern, so no program
+     * is loaded (the SD mount above still reports the card). */
     printf("test pattern build: boot program not loaded\n");
 #else
     if (!program_boot(BOOT_SCRIPT, NULL)) {
-        request_test_pattern("Boot failed (no boot program on the card?)");
+        printf("Boot failed (no SD card?)\n");
     }
 #endif
     boot_signal(7); /* boot program attempted; scheduler loop next */
@@ -275,13 +260,11 @@ void core1_entry(void)
             log_status(now, frames);
 #if defined(SPICOMPUTER_HAS_HDMI)
             uint32_t underruns = video_hw_underruns();
-            printf("video: frame %lu scanline %lu underruns %lu (+%lu) "
-                   "pattern %d\n",
+            printf("video: frame %lu scanline %lu underruns %lu (+%lu)\n",
                    (unsigned long)frames,
                    (unsigned long)video_hw_scanline(),
                    (unsigned long)underruns,
-                   (unsigned long)(underruns - last_underruns),
-                   g_system_state.video_pattern_request ? 1 : 0);
+                   (unsigned long)(underruns - last_underruns));
             printf("video: black %lu snapfail %lu skew %lu(%lu) gap %lu us "
                    "long %lu empty %lu wof %lu\n",
                    (unsigned long)video_hw_black_rows(),

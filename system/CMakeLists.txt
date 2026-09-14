@@ -123,11 +123,9 @@ target_include_directories(SPIComputerOS PRIVATE
 # Core 1's stack is not set here: the SDK's stack lives in SCRATCH_X,
 # which is only 4 KB, so core1_entry gets a stack in main SRAM instead
 # (see core0/main.c).
-# Diagnostic build: draw the test pattern on the scanout from the first
-# frame and run no SD/Lua at all, so the video path can be judged on its
-# own. Normal builds show the same pattern automatically when boot finds
-# no program (no card, or no boot script): see core1/lua_main.c and
-# core0/video_hw.c for the pattern layout.
+# Diagnostic build: draw a test pattern on the scanout instead of running
+# the boot program (no SD card or Lua involved), so the video path can be
+# judged on its own. See core0/video_hw.c for the pattern layout.
 if (SPICOMPUTER_VIDEO_TEST_PATTERN)
     target_compile_definitions(SPIComputerOS PRIVATE
             SPICOMPUTER_VIDEO_TEST_PATTERN=1)

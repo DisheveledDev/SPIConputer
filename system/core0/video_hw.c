@@ -132,10 +132,6 @@ static bool s_frame_snapshot_pending;
 static uint32_t s_ring[SCANOUT_RING_LINES][SCANOUT_WORDS_PER_LINE];
 static uint32_t s_black_line[SCANOUT_WORDS_PER_LINE];
 
-/* Latched from g_system_state.video_pattern_request at each frame
- * boundary: draw the bring-up pattern instead of the program screen. */
-static bool s_pattern_on;
-
 /* Rendering runs in core 0's main loop (video_hw_poll), never in an
  * IRQ: the DMA completion IRQ must be able to preempt it at any point,
  * because a late post starves the 8-word HSTX FIFO (~1.3 us of pixels)
@@ -244,44 +240,39 @@ void __not_in_flash_func(scanout_frame_begin)(scanout_t *s) {
     }
     s_diag_steps = 0;
 
-    /* Latched here so core 1 can raise the request at any point (it
-     * does so during boot, after the card mount fails) and the whole
-     * next frame is drawn from a stable source. */
-    s_pattern_on = g_system_state.video_pattern_request;
-    if (s_pattern_on) {
-        /* The test pattern is drawn at the full 640x480 resolution. */
-        s->rows_total = RENDER_OUT_HEIGHT;
-        s->row_2x = false;
-    } else {
-        const video_state_t *source = video_current_load();
-        bool dirty = source != s_frame_source || !s_frame_video_valid;
-        if (source != NULL && s_frame_video_valid && source == s_frame_source &&
-            source->version != s_frame_video_ptr->version) {
-            dirty = true;
-        }
-        s_frame_source = source;
-        s_frame_snapshot_pending = source != NULL && dirty;
-        s->rows_total = (source && render332_is_2x(source))
-                            ? RENDER_OUT_HEIGHT / 2
-                            : RENDER_OUT_HEIGHT;
-        s->row_2x = source && render332_is_2x(source);
+#if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
+    /* The test pattern is drawn at the full 640x480 resolution. */
+    s->rows_total = RENDER_OUT_HEIGHT;
+    s->row_2x = false;
+#else
+    const video_state_t *source = video_current_load();
+    bool dirty = source != s_frame_source || !s_frame_video_valid;
+    if (source != NULL && s_frame_video_valid && source == s_frame_source &&
+        source->version != s_frame_video_ptr->version) {
+        dirty = true;
     }
+    s_frame_source = source;
+    s_frame_snapshot_pending = source != NULL && dirty;
+    s->rows_total = (source && render332_is_2x(source))
+                        ? RENDER_OUT_HEIGHT / 2
+                        : RENDER_OUT_HEIGHT;
+    s->row_2x = source && render332_is_2x(source);
+#endif
 }
 
-/* Bring-up test pattern: a cheap, static image that exercises the
- * scanout without needing a program. Drawn when core 1 raises
- * g_system_state.video_pattern_request (no SD card, or no boot program
- * loaded) and always in diagnostic builds
- * (SPICOMPUTER_VIDEO_TEST_PATTERN), so a bare board shows something
- * that exercises every HSTX lane for wiring checks.
- *
- * The top band has a live counter so the bench can report numbers
+#if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
+
+/* Diagnostic pattern (bring-up builds only): a cheap, static image that
+ * exercises the scanout without needing a program, plus two live
+ * counters shown as bars in the top band so the bench can report numbers
  * without a console:
  *
- *   red bar = ring underruns since boot (1 px per underrun)
+ *   red bar    = ring underruns since boot (1 px per underrun)
+ *   yellow bar = worst row render time of the last frame (4 px per us;
+ *                a 1x line is 31.7 us, i.e. 127 px)
  *
  * Bands, top to bottom (with a 1 px white border):
- *   y   0.. 31  status bar (above)
+ *   y   0.. 31  status bars (above)
  *   y  32.. 95  colour bars: black, blue, red, magenta, green, cyan,
  *               yellow, white, dark grey, light grey (64 px each)
  *   y  96..159  1 px black/white vertical stripes (fine detail)
@@ -294,14 +285,15 @@ void __not_in_flash_func(scanout_frame_begin)(scanout_t *s) {
  *               (frames advancing)
  *
  * Row rendering is a constant fill or a 160-word copy: the per-pixel
- * work happens once, in pattern_init(), and the diagonal is two pixels
- * computed per row, so the producer always beats the line rate. That is
- * deliberate - a pattern slow enough to starve the ring would hide the
- * very fault it is meant to find.
+ * work below happens once, in pattern_init(), so the producer always
+ * beats the line rate. That is deliberate - a pattern slow enough to
+ * starve the ring would hide the very fault it is meant to find.
  */
 enum { PAT_BARS, PAT_STRIPES, PAT_2ON1OFF, PAT_HRAMP, PAT_GRID, PAT_ROWS };
 
 static uint32_t s_pat[PAT_ROWS][SCANOUT_WORDS_PER_LINE];
+static uint32_t s_pat_diag[64][SCANOUT_WORDS_PER_LINE];
+static bool s_pat_ready;
 
 static uint8_t pattern_grey(uint32_t level) {
     uint8_t v = (uint8_t)level;
@@ -339,6 +331,15 @@ static void pattern_init(void) {
             s_pat[band][w] = word;
         }
     }
+    for (uint32_t row = 0; row < 64; row++) {
+        uint32_t dx = (row * (SCANOUT_H_ACTIVE_PIXELS - 1)) / 63;
+        for (uint32_t x = 0; x < SCANOUT_H_ACTIVE_PIXELS; x++) {
+            if (x == dx || x == dx + 1) {
+                s_pat_diag[row][x / 4] |= 0xffu << ((x % 4) * 8);
+            }
+        }
+    }
+    s_pat_ready = true;
 }
 
 static void __not_in_flash_func(render_test_line)(uint32_t row,
@@ -373,14 +374,10 @@ static void __not_in_flash_func(render_test_line)(uint32_t row,
     } else if (row < 416) {
         memcpy(out, s_pat[PAT_GRID], sizeof(s_pat[0]));
     } else {
-        /* Diagonal band: black with a 2 px white diagonal step, then the
-         * moving bar overlaid. Both are a handful of byte writes on top
-         * of a constant fill, so this path cannot starve the row
-         * producer either. */
-        memset(out, 0, SCANOUT_WORDS_PER_LINE * sizeof(uint32_t));
-        uint32_t dx = ((row - 416u) * (SCANOUT_H_ACTIVE_PIXELS - 1)) / 63u;
-        out[dx / 4] |= 0xffu << ((dx % 4) * 8);
-        out[(dx + 1) / 4] |= 0xffu << (((dx + 1) % 4) * 8);
+        /* Copy the precomputed diagonal, then overlay the moving bar.
+         * Keeping this path to a copy plus ten words ensures the test
+         * pattern itself cannot starve the row producer. */
+        memcpy(out, s_pat_diag[row - 416], sizeof(s_pat[0]));
         uint32_t pos = (s_scanout.frame * 4u) % SCANOUT_H_ACTIVE_PIXELS;
         for (uint32_t x = pos; x < pos + 40; x++) {
             uint32_t px = x % SCANOUT_H_ACTIVE_PIXELS;
@@ -399,13 +396,17 @@ static void __not_in_flash_func(render_test_line)(uint32_t row,
     }
 }
 
+#endif /* SPICOMPUTER_VIDEO_TEST_PATTERN */
+
+
 /* Render the rows the ring has room for, using the frame geometry the
  * sequencer selected at the last frame boundary. A frame boundary can
  * pass mid-render (the DMA IRQ preempts), which resets rows_published;
  * scanout_ring_publish() detects that and drops the stale row, and the
  * loop re-reads the geometry for the new frame. */
 static void __not_in_flash_func(render_rows)(void) {
-    if (!s_pattern_on && s_frame_snapshot_pending) {
+#if !defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
+    if (s_frame_snapshot_pending) {
         const video_state_t *source = video_current_load();
         if (source == NULL) {
             s_frame_source = NULL;
@@ -431,7 +432,7 @@ static void __not_in_flash_func(render_rows)(void) {
             }
         }
     }
-
+#endif
     while (scanout_ring_can_publish(&s_scanout)) {
         const video_state_t *video = s_frame_video_valid
                                          ? s_frame_video_ptr
@@ -439,11 +440,12 @@ static void __not_in_flash_func(render_rows)(void) {
         uint32_t row = s_scanout.rows_published;
         uint32_t *dst = scanout_ring_next(&s_scanout);
 
-        if (s_pattern_on) {
-            (void)video;
-            /* One pattern row per output line (geometry forced above). */
-            render_test_line(row, dst);
-        } else if (video != NULL) {
+#if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
+        (void)video;
+        /* One pattern row per output line (geometry forced below). */
+        render_test_line(row, dst);
+#else
+        if (video != NULL) {
             render_line_332(video, (int)row * (s_scanout.row_2x ? 2 : 1),
                             dst);
         } else {
@@ -452,6 +454,7 @@ static void __not_in_flash_func(render_rows)(void) {
             memcpy(dst, s_black_line, sizeof(s_black_line));
             s_diag_black_rows++;
         }
+#endif
         if (!scanout_ring_publish(&s_scanout, row)) {
             break; /* a frame boundary passed: re-read the geometry */
         }
@@ -610,11 +613,9 @@ void video_hw_init(void) {
 
     render332_init();
     memset(s_black_line, 0, sizeof(s_black_line));
-    /* Build the static pattern rows before the DMA runs. The fallback
-     * can be requested at any time (core 1 raises it at boot), and the
-     * ISR must never be the one doing this work. A few microseconds and
-     * ~4 KB, so it is unconditional. */
-    pattern_init();
+#if defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
+    pattern_init(); /* build the static pattern rows before the DMA runs */
+#endif
 
     scanout_init(&s_scanout);
     s_scanout.vblank_on = s_vblank_vsync_on;

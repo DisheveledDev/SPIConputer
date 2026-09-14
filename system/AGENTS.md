@@ -116,10 +116,8 @@ while a row is drawn. Core 1
 the 1 kHz input tick, the watchdog and the Lua scheduler. Consequences
 worth remembering:
 
-- The cross-core objects are `g_system_state.video_frame_count`
-  (written by core 0 at each vertical blank, read by core 1) and the
-  video test pattern request (raised once by core 1 when boot finds no
-  program, latched by core 0 at each frame boundary). No RPC, no
+- The only cross-core object is `g_system_state.video_frame_count`
+  (written by core 0 at each vertical blank, read by core 1). No RPC, no
   queues, no locks elsewhere.
 - IRQ affinity: each IRQ is enabled on the core that should take it.
   The video DMA IRQ (DMA_IRQ_2) on core 0; the SD
@@ -241,14 +239,6 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   vertical blank; `WaitVSync([ms])` in `sys_lua.c` reports frames elapsed
   since the program's previous call. HSTX audio data islands remain the
   only deferred Phase 7 piece.
-- Test pattern fallback: when boot finds no program to run (SD card not
-  mounted, or `core/boot.lua` missing) core 1 raises
-  `g_system_state.video_pattern_request` and core 0 draws the bring-up
-  pattern instead of a black screen: colour bars, stripes, ramps and a
-  moving bar at full 640x480 (layout in `core0/video_hw.c`), so a bare
-  board still shows something that exercises every HSTX lane for wiring
-  checks. Diagnostic builds (`SPICOMPUTER_VIDEO_TEST_PATTERN`) start
-  with the request set and skip SD/Lua entirely.
 - Video states are freed two frame boundaries after a program terminates
   (the `program.c` retire queue), so a scanline in flight cannot touch
   freed memory; `video_set_mode` publishes the framebuffer before the mode
