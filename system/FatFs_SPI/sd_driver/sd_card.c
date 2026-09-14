@@ -347,7 +347,7 @@ static uint8_t sd_cmd_spi(sd_card_t *pSD, cmdSupported cmd, uint32_t arg) {
 }
 
 static bool sd_wait_ready(sd_card_t *pSD, int timeout) {
-    char resp;
+    uint8_t resp;
 
     // Keep sending dummy clocks with DI held high until the card releases the
     // DO line
