@@ -6,13 +6,29 @@
 
 #include "font8x8_basic.h"
 
+/* Core 0's render pump calls this for every row, so on the product
+ * board the code and every table it reads live in SRAM: the XIP cache is
+ * shared with core 1, and a miss behind a Lua program's traffic stalls
+ * core 0 long enough to delay the scanout's DMA IRQ (see video_hw.c). */
+#if defined(PICO_RP2040) || defined(PICO_RP2350)
+#include "pico.h"
+#define RENDER_HOT(name) __not_in_flash_func(name)
+#else
+#define RENDER_HOT(name) name
+#endif
+
 /* Four output words containing 16 doubled pixels (one 8-pixel tile row
  * scaled 2x horizontally). */
 static uint32_t s_expand2[4][256];
 static uint32_t s_rgb332[256];
 static bool s_palette_valid;
 
+/* SRAM copy of the ROM font: the compiler places the never-written
+ * font8x8_basic table in flash. */
+static uint8_t s_font[128][8];
+
 void render332_init(void) {
+    memcpy(s_font, font8x8_basic, sizeof(s_font));
     memset(s_expand2, 0, sizeof(s_expand2));
     for (int bits = 0; bits < 256; bits++) {
         for (int word = 0; word < 4; word++) {
@@ -32,14 +48,14 @@ void render332_init(void) {
     s_palette_valid = false;
 }
 
-void render332_invalidate_palette(void) {
+void RENDER_HOT(render332_invalidate_palette)(void) {
     s_palette_valid = false;
 }
 
 /* Refresh the palette LUT from the state's RGB888 palette. Cached until
  * render332_invalidate_palette() (called after a queue drain that
  * changed the palette), not once per rendered line. */
-static void update_palette(const video_state_t *v) {
+static void RENDER_HOT(update_palette)(const video_state_t *v) {
     if (s_palette_valid) {
         return;
     }
@@ -49,15 +65,16 @@ static void update_palette(const video_state_t *v) {
     s_palette_valid = true;
 }
 
-static void put_cell_2x(uint32_t *dst, uint8_t bits, uint32_t fg,
-                        uint32_t bg) {
+static void RENDER_HOT(put_cell_2x)(uint32_t *dst, uint8_t bits,
+                                    uint32_t fg, uint32_t bg) {
     for (int word = 0; word < 4; word++) {
         uint32_t mask = s_expand2[word][bits];
         dst[word] = (fg & mask) | (bg & ~mask);
     }
 }
 
-void render_line_332(const video_state_t *v, int ly, uint32_t *out) {
+void RENDER_HOT(render_line_332)(const video_state_t *v, int ly,
+                                 uint32_t *out) {
     update_palette(v);
 
     int row = ly / 8;
@@ -88,7 +105,7 @@ void render_line_332(const video_state_t *v, int ly, uint32_t *out) {
             attr = oattr;
         }
         uint8_t bits = v->tile_defined[ch] ? v->tiles[ch][sub]
-                                           : (uint8_t)font8x8_basic[ch & 0x7f][sub];
+                                           : s_font[ch & 0x7f][sub];
 
         uint8_t fg_idx, bg_idx;
         if (v->mode == VIDEO_MODE_TEXT40C) {

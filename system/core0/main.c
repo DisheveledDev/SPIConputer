@@ -165,6 +165,20 @@ static uint32_t apply_sys_clock(void) {
 
 #endif /* PICO_RP2350 */
 
+/* Nothing else to do here: the scanout's DMA IRQ posts the next buffer
+ * and raises a flag; rendering happens in this loop so the IRQ can
+ * always preempt it. WFI (rather than a spin) keeps this core out of the
+ * way of the DMA - and keeps the overclocked core cool - while the OS
+ * core does the work. The loop runs from SRAM like the pump it calls:
+ * the XIP cache is shared with core 1, and a fetch miss here would stall
+ * core 0 and delay the DMA IRQ. */
+static void __no_inline_not_in_flash_func(core0_loop)(void) {
+    for (;;) {
+        video_hw_poll();
+        __wfi();
+    }
+}
+
 int main(void)
 {
     boot_signal(1); /* core 0 alive */
@@ -201,13 +215,5 @@ int main(void)
                                       sizeof(s_core1_stack));
     boot_signal(4); /* OS core launched */
 
-    /* Nothing else to do here: the scanout's DMA IRQ posts the next
-     * buffer and raises a flag; rendering happens in this loop so the
-     * IRQ can always preempt it. WFI (rather than a spin) keeps this
-     * core out of the way of the DMA and the XIP cache - and keeps the
-     * overclocked core cool - while the OS core does the work. */
-    for (;;) {
-        video_hw_poll();
-        __wfi();
-    }
+    core0_loop();
 }

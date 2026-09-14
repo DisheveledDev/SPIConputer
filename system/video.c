@@ -2,7 +2,20 @@
 #include "video.h"
 
 #include <stdatomic.h>
-#include <string.h>
+#include <stddef.h>
+
+/* The drain runs on core 0 once per frame, between rows of the render
+ * pump, so on the product board it and everything it calls live in
+ * SRAM: the XIP cache is shared with core 1, and a miss there stalls
+ * core 0 long enough to delay the scanout's DMA IRQ (see video_hw.c). */
+#if defined(PICO_RP2040) || defined(PICO_RP2350)
+#include "pico.h"
+#define VIDEO_HOT(name) __not_in_flash_func(name)
+#define VIDEO_HOT_DATA __not_in_flash("video_data")
+#else
+#define VIDEO_HOT(name) name
+#define VIDEO_HOT_DATA
+#endif
 
 /* One pixel buffer, shared by whichever slot holds mode 10. Only one
  * program can use the pixel mode at a time (Launch from a mode-10
@@ -27,13 +40,23 @@ static volatile uint32_t s_overlay_out_count;
 /* Core-1-side shadow of the mode Lua last requested. */
 static uint8_t s_lua_mode;
 
-void video_state_init(video_state_t *v) {
-    memset(v, 0, sizeof(*v));
+/* memset for the core 0 paths: the library's lives in flash. The
+ * volatile store keeps the compiler from turning the loop back into a
+ * memset call. */
+static void VIDEO_HOT(fill)(void *dst, uint8_t value, uint32_t len) {
+    volatile uint8_t *p = dst;
+    while (len--) {
+        *p++ = value;
+    }
+}
+
+void VIDEO_HOT(video_state_init)(video_state_t *v) {
+    fill(v, 0, sizeof(*v));
     /* The overlay starts fully transparent (every cell hidden). */
-    memset(v->overlay_attr, VIDEO_ATTR_TRANSPARENT, sizeof(v->overlay_attr));
+    fill(v->overlay_attr, VIDEO_ATTR_TRANSPARENT, sizeof(v->overlay_attr));
     /* Palette: C64-ish 16-entry colours for the low indexes; entries
      * above stay black until ScreenPalette sets them. */
-    static const uint32_t c64[16] = {
+    static const uint32_t VIDEO_HOT_DATA c64[16] = {
         0x000000, 0xffffff, 0x880000, 0xaaffee,
         0xcc44cc, 0x00cc55, 0x0000aa, 0xeeee77,
         0xdd8855, 0x664400, 0xff7777, 0x333333,
@@ -77,7 +100,7 @@ void video_screens_init(void) {
     s_lua_mode = VIDEO_MODE_TEXT40;
 }
 
-video_state_t *video_screen(void) {
+video_state_t *VIDEO_HOT(video_screen)(void) {
     return &s_screens[s_screen_active];
 }
 
@@ -101,7 +124,7 @@ uint32_t video_ops_overlay_out_count(void) {
     return s_overlay_out_count;
 }
 
-bool video_mode_valid(int mode) {
+bool VIDEO_HOT(video_mode_valid)(int mode) {
     return mode == VIDEO_MODE_TEXT40 || mode == VIDEO_MODE_TEXT40C ||
            mode == VIDEO_MODE_PIXEL;
 }
@@ -118,13 +141,13 @@ int video_mode_rows(int mode) {
 
 /* Clear the maps and the frame geometry for a new mode; entering the
  * pixel mode attaches and clears the shared pixel buffer. */
-static void apply_mode(video_state_t *v, int mode) {
-    memset(v->base_char, ' ', sizeof(v->base_char));
-    memset(v->base_attr, 0, sizeof(v->base_attr));
-    memset(v->overlay_char, 0, sizeof(v->overlay_char));
-    memset(v->overlay_attr, VIDEO_ATTR_TRANSPARENT, sizeof(v->overlay_attr));
+static void VIDEO_HOT(apply_mode)(video_state_t *v, int mode) {
+    fill(v->base_char, ' ', sizeof(v->base_char));
+    fill(v->base_attr, 0, sizeof(v->base_attr));
+    fill(v->overlay_char, 0, sizeof(v->overlay_char));
+    fill(v->overlay_attr, VIDEO_ATTR_TRANSPARENT, sizeof(v->overlay_attr));
     if (mode == VIDEO_MODE_PIXEL) {
-        memset(s_pixel_buffer, 0, sizeof(s_pixel_buffer));
+        fill(s_pixel_buffer, 0, sizeof(s_pixel_buffer));
         v->framebuf = s_pixel_buffer;
     } else {
         v->framebuf = NULL;
@@ -132,28 +155,28 @@ static void apply_mode(video_state_t *v, int mode) {
     v->mode = (uint8_t)mode;
 }
 
-static void apply_clear(video_state_t *v, int ch) {
+static void VIDEO_HOT(apply_clear)(video_state_t *v, int ch) {
     if (v->mode == VIDEO_MODE_PIXEL) {
         if (v->framebuf) {
-            memset(v->framebuf, (uint8_t)ch, VIDEO_FB_COLS * VIDEO_FB_ROWS);
+            fill(v->framebuf, (uint8_t)ch, VIDEO_FB_COLS * VIDEO_FB_ROWS);
         }
         return;
     }
-    memset(v->base_char, (uint8_t)ch, sizeof(v->base_char));
-    memset(v->base_attr, 0, sizeof(v->base_attr));
+    fill(v->base_char, (uint8_t)ch, sizeof(v->base_char));
+    fill(v->base_attr, 0, sizeof(v->base_attr));
 }
 
 /* Hide the whole overlay again: blank chars, every cell transparent. */
-static void apply_over_clear(video_state_t *v, int ch) {
+static void VIDEO_HOT(apply_over_clear)(video_state_t *v, int ch) {
     if (v->mode == VIDEO_MODE_PIXEL) {
         return;
     }
-    memset(v->overlay_char, (uint8_t)ch, sizeof(v->overlay_char));
-    memset(v->overlay_attr, VIDEO_ATTR_TRANSPARENT, sizeof(v->overlay_attr));
+    fill(v->overlay_char, (uint8_t)ch, sizeof(v->overlay_char));
+    fill(v->overlay_attr, VIDEO_ATTR_TRANSPARENT, sizeof(v->overlay_attr));
 }
 
 /* Apply one op. Returns true when the palette changed. */
-static bool apply_op(video_state_t *v, const video_op_t *op) {
+static bool VIDEO_HOT(apply_op)(video_state_t *v, const video_op_t *op) {
     switch (op->op) {
         case VIDEO_OP_RESET:
             video_state_init(v);
@@ -221,7 +244,7 @@ static bool apply_op(video_state_t *v, const video_op_t *op) {
     }
 }
 
-bool video_ops_drain(void) {
+bool VIDEO_HOT(video_ops_drain)(void) {
     s_drain_count++;
     bool palette_changed = false;
     uint32_t tail = s_tail;

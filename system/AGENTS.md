@@ -550,11 +550,24 @@ liabilities; the cost is the affinity rules listed under "Core split"
 above (IRQ, timer-pool and stdio ownership).
 
 Performance is symmetric: both cores are identical Hazard3 RISC-V cores at
-the same clock (378 MHz, see the Phase 7 notes), each with its own
-dedicated XIP cache (RP2350 split the cache per core; RP2040 shared one).
-The core split is about responsibility, not speed. Hot code (the scanout
-sequencer, the DMA IRQs) lives in RAM (`__not_in_flash_func`).
-Both cores always run the same ISA (all-RISC-V or all-ARM, set at boot).
+the same clock (252 MHz, see the Phase 7 notes). They share one 16 KB XIP
+cache, and so does the DMA. The core split is about responsibility, not
+speed. Both cores always run the same ISA (all-RISC-V or all-ARM, set at
+boot).
+
+**Core 0's scanout path never touches flash.** Everything it executes
+or reads (and everything the video DMA reads) lives in SRAM: the DMA
+IRQ and sequencer, the render pump and its idle loop, `render332.c`, the
+op drain in `video.c`, the HSTX command lists, the font copy and the
+tables they use (`__not_in_flash_func` / `__not_in_flash`). Those files
+are built with `-fno-jump-tables` so a `switch` cannot put its table in
+flash, and the drain uses its own fill loop rather than the flash
+`memset`. The rule exists because a Lua program on core 1 evicts
+whatever core 0 had cached. With the command lists in flash, the DMA
+stalled on QSPI refills, the 8-word HSTX FIFO ran dry and the monitor
+lost sync as soon as Lua drew anything; the chequerboard (with an idle
+core 1) looked perfect. After changing core 0 code, check the ELF: no
+function on that path may call or load from a `0x10xxxxxx` address.
 
 Design principles:
 - **Real-time isolation:** core 0 runs only the scanout. Anything added

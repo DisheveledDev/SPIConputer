@@ -87,7 +87,14 @@ _Static_assert(SCANOUT_H_TOTAL_PIXELS * SCANOUT_V_TOTAL_LINES *
                    25200000,
                "vertical timing must give the 25.2 MHz pixel clock");
 
-static const uint32_t s_vblank_vsync_on[] = {
+/* The command lists are read by the DMA on every line, so they must live
+ * in SRAM. As `const` data they landed in flash, and every read went
+ * through the XIP cache that core 1 shares: once a Lua program ran, its
+ * interpreter evicted them, the DMA waited on QSPI refills while the
+ * 8-word HSTX FIFO drained, and the stretched lines dropped the
+ * monitor's sync (the chequerboard kept working because an idle core 1
+ * left the cache warm). */
+static const uint32_t __not_in_flash("hstx_cmdlist") s_vblank_vsync_on[] = {
     HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
     SYNC_V0_H1,
     HSTX_CMD_RAW_REPEAT | MODE_H_SYNC_WIDTH,
@@ -97,7 +104,7 @@ static const uint32_t s_vblank_vsync_on[] = {
     HSTX_CMD_NOP,
 };
 
-static const uint32_t s_vblank_vsync_off[] = {
+static const uint32_t __not_in_flash("hstx_cmdlist") s_vblank_vsync_off[] = {
     HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
     SYNC_V1_H1,
     HSTX_CMD_RAW_REPEAT | MODE_H_SYNC_WIDTH,
@@ -107,7 +114,7 @@ static const uint32_t s_vblank_vsync_off[] = {
     HSTX_CMD_NOP,
 };
 
-static const uint32_t s_vactive_cmdlist[] = {
+static const uint32_t __not_in_flash("hstx_cmdlist") s_vactive_cmdlist[] = {
     HSTX_CMD_RAW_REPEAT | MODE_H_FRONT_PORCH,
     SYNC_V1_H1,
     HSTX_CMD_NOP,
@@ -286,14 +293,16 @@ _Static_assert(VIDEO_FB_COLS % CHEQUER_SQUARE_PX == 0 &&
 
 static void __not_in_flash_func(render_chequer_line)(uint32_t row,
                                                      uint32_t *out) {
-    static const uint32_t rgb[8] = {
+    static const uint32_t __not_in_flash("video_chequer") rgb[8] = {
         0x000000, 0x0000ff, 0xff0000, 0xff00ff,
         0x00ff00, 0x00ffff, 0xffff00, 0xffffff,
     };
     uint32_t white = render332_rgb(0xffffff) * 0x01010101u;
     if (row == 0 || row == VIDEO_FB_ROWS - 1) {
+        /* volatile: otherwise this becomes a call to the flash memset. */
+        volatile uint32_t *fill = out;
         for (uint32_t w = 0; w < SCANOUT_WORDS_PER_LINE; w++) {
-            out[w] = white;
+            fill[w] = white;
         }
         return;
     }
@@ -489,8 +498,12 @@ static void __not_in_flash_func(render_rows)(void) {
 }
 
 /* Main-loop render pump: called from core 0 with interrupts enabled, so
- * the DMA IRQ preempts it freely. */
-void video_hw_poll(void) {
+ * the DMA IRQ preempts it freely. It runs from SRAM, as does everything
+ * it calls (render332.c, the op drain in video.c): an XIP miss behind
+ * core 1's traffic stalls core 0 mid-fetch and delays the DMA IRQ past
+ * the ~1.3 us a command-list post allows. (render_rows is inlined here,
+ * so this function's placement is the one that counts.) */
+void __not_in_flash_func(video_hw_poll)(void) {
     if (!s_render_pending) {
         return;
     }

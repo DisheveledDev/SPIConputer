@@ -89,6 +89,14 @@ add_executable(SPIComputerOS
         system_state.c
 )
 
+# Core 0's scanout path runs from SRAM (the XIP cache is shared with the
+# OS core, and a miss delays the video DMA IRQ). A switch compiled to a
+# jump table would still read its table from flash, so these files are
+# built without them.
+set_source_files_properties(
+        core0/video_hw.c video.c render332.c scanout.c
+        PROPERTIES COMPILE_OPTIONS -fno-jump-tables)
+
 pico_set_program_name(SPIComputerOS "SPIComputerOS")
 pico_set_program_version(SPIComputerOS "0.1")
 
