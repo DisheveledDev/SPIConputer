@@ -207,14 +207,17 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   mode 10 program fails.
 
 **Implemented (Phase 7, video):**
-- CPU clock: `core0/main.c` overclocks `clk_sys` to 378 MHz (the
-  `board_config.h` default; 3x the 126 MHz baseline; core voltage
-  1.30 V) before stdio comes up, because a scanline
+- CPU clock: `core0/main.c` overclocks `clk_sys` to 252 MHz (the
+  `board_config.h` default; 2x the 126 MHz baseline; core voltage
+  1.25 V) before stdio comes up, because a scanline
   must never be missed and the display core still shares the clock (and
-  the bus) with the OS core. 378 MHz is chosen so `clk_hstx` can be
-  `clk_sys / 3 = 126 MHz`
-  and keep the exact 25.2 MHz pixel clock (the HSTX divider only divides
-  by 1..3). `SPICOMPUTER_SYS_CLOCK_KHZ` overrides the target; 400 MHz is
+  the bus) with the OS core. The clock must let `clk_hstx` be
+  `clk_sys / 1..3 = 126 MHz`
+  to keep the exact 25.2 MHz pixel clock (the HSTX divider only divides
+  by 1..3), so 252 (/2) and 378 (/3, 1.30 V) are the candidates; a
+  378 MHz build gave no HDMI sync at all on the pico2 prototype, so it
+  stays opt-in until the display is proven at 252 and the clock can be
+  raised as the one variable. `SPICOMPUTER_SYS_CLOCK_KHZ` overrides the target; 400 MHz is
   achievable but then `clk_hstx` is 133.3 MHz, i.e. a ~26.7 MHz pixel
   clock and ~63.5 Hz refresh (off DVI spec but usually still locked),
   while 252 MHz (2x) stays exact. `clk_hstx` cannot be moved to

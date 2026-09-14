@@ -25,20 +25,20 @@
  * The value must divide (through the HSTX's 1..3 clock divider) to
  * 126 MHz so the pixel clock stays the exact 25.2 MHz: 252 MHz (/2) and
  * 378 MHz (/3) both do, and both keep the flash clock within its boot
- * range (core0/main.c rescales the QMI divider). The default is 378 MHz
- * (3x the 126 MHz baseline, core voltage 1.30 V): it is the highest
- * clock that keeps the DVI timing exact. 400 MHz and above run fine on
- * the silicon but cannot be divided to 25.2 MHz (400/3 = 133.3 MHz,
- * i.e. 26.7 MHz pixels and ~63.5 Hz refresh, off spec), and clk_hstx
- * cannot borrow pll_usb either, because USB stdio pins that PLL to
- * 48/96/144 MHz. A monitor that has trouble holding sync is the last
- * thing that wants an off-spec pixel clock, so stay at 378.
+ * range (core0/main.c rescales the QMI divider). The default is the
+ * known-good 252 MHz (2x): a 378 MHz build (1.30 V) produced no HDMI
+ * sync at all on the pico2 prototype, and the display must be proven
+ * before the clock is pushed again. 378 MHz remains the highest clock
+ * that keeps the DVI timing exact; 400 MHz and above run on the silicon
+ * but cannot be divided to 25.2 MHz (400/3 = 133.3 MHz, i.e. 26.7 MHz
+ * pixels and ~63.5 Hz refresh, off spec), and clk_hstx cannot borrow
+ * pll_usb either, because USB stdio pins that PLL to 48/96/144 MHz.
  *
  * Build with -DSPICOMPUTER_SYS_CLOCK_KHZ=<khz> to override; the clock is
  * applied by core0/main.c before anything else runs and reported in the
  * boot log. */
 #ifndef SPICOMPUTER_SYS_CLOCK_KHZ
-#define SPICOMPUTER_SYS_CLOCK_KHZ 378000
+#define SPICOMPUTER_SYS_CLOCK_KHZ 252000
 #endif
 
 #define HSTX_D0_P_PIN 12
