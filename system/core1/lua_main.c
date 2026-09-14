@@ -197,6 +197,10 @@ void core1_entry(void)
         printf("SD card not mounted\n");
     }
 #endif
+    /* The mount is the slow, unbounded part of boot (an empty socket can
+     * cost a full command timeout); give the program load its own full
+     * watchdog period rather than whatever the card left of this one. */
+    watchdog_update();
     /* Record the clock/display setup and whether this run followed a
      * watchdog reset; the log is appended, so it survives resets. */
     log_boot(clock_get_hz(clk_sys) / 1000, was_watchdog);
