@@ -24,6 +24,7 @@ bool fs_core0_mount(void);
 
 bool fs_core0_write_error(const char *name, uint64_t timestamp,
                           const char *text);
+bool fs_core0_debug_log(const char *line);
 
 /* True if the SD card is mounted (core 0 side). */
 bool fs_core0_mounted(void);

@@ -322,6 +322,11 @@ static program_t *program_create(const char *name, const char *source,
         }
         chunk = buf;
         chunk_name = resolved;
+        char load_log[320];
+        snprintf(load_log, sizeof(load_log),
+                 "loader: requested=%s resolved=%s bytes=%lu", name,
+                 chunk_name, (unsigned long)len);
+        fs_core0_debug_log(load_log);
     }
     int st = luaL_loadbufferx(p->L, chunk, len, chunk_name, "bt");
     free(buf);
