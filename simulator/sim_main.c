@@ -49,6 +49,7 @@ typedef struct {
     const char *compile_in;
     const char *compile_out;
     const char *type_text;
+    int type_delay_ms;
     int ticks_per_frame;
     int exit_after_ms;
     bool headless;
@@ -429,6 +430,24 @@ void video_queue_full_hook(void) {
     video_ops_drain();
 }
 
+/* The frame counter core 0 writes at each vertical blank: here it
+ * follows wall-clock time at 60 Hz, advanced once per simulator frame
+ * and from inside WaitVSync's spin, so a program that waits for frames
+ * (a game's tick) runs at frame rate instead of timing out. */
+static uint64_t s_frame_clock_start_us;
+
+static void sim_advance_frames(void) {
+    uint32_t frames = (uint32_t)((os_time_us() - s_frame_clock_start_us) / 16667u);
+    if ((int32_t)(frames - g_system_state.video_frame_count) > 0) {
+        g_system_state.video_frame_count = frames;
+    }
+}
+
+void video_frame_wait_hook(void) {
+    sim_advance_frames();
+    video_ops_drain();
+}
+
 static void sim_render(SDL_Renderer *ren, SDL_Texture *tex, uint8_t *frame) {
     const video_state_t *v = sim_screen();
     for (int y = 0; y < SIM_H; y++) {
@@ -490,7 +509,9 @@ static void usage(const char *argv0) {
         "  --headless          no window/audio (smoke tests)\n"
         "  --exit-after-ms N   quit automatically after N ms\n"
         "  --type TEXT         type TEXT one key per frame after boot\n"
-        "                      (\\n Return, \\e Escape, \\u \\d \\l \\r cursor keys)\n",
+        "                      (\\n Return, \\e Escape, \\u \\d \\l \\r cursor keys)\n"
+        "  --type-delay-ms N   wait N ms after boot before typing (default 500;\n"
+        "                      keys typed while boot.lua shows its splash are lost)\n",
         argv0);
 }
 
@@ -540,6 +561,7 @@ int main(int argc, char **argv) {
         .sdcard = NULL,
         .boot_file = "core/boot.lua",
         .ticks_per_frame = 64,
+        .type_delay_ms = 500,
         .exit_after_ms = 0,
         .headless = false,
     };
@@ -561,6 +583,8 @@ int main(int argc, char **argv) {
             o.exit_after_ms = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--type") == 0 && i + 1 < argc) {
             o.type_text = argv[++i];
+        } else if (strcmp(argv[i], "--type-delay-ms") == 0 && i + 1 < argc) {
+            o.type_delay_ms = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--headless") == 0) {
             o.headless = true;
         } else if (strcmp(argv[i], "--help") == 0) {
@@ -599,6 +623,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     video_screens_init();
+    s_frame_clock_start_us = os_time_us();
     if (!program_boot(o.boot_file, NULL)) {
         fprintf(stderr,
                 "[sim] boot failed: no %s in %s (copy your programs in)\n",
@@ -707,7 +732,8 @@ int main(int argc, char **argv) {
 
         /* Scripted input: one key per frame once the program has had
          * half a second to draw its first screen. */
-        if (o.type_text && os_time_us() - started_us >= 500000u) {
+        if (o.type_text &&
+            os_time_us() - started_us >= (uint64_t)o.type_delay_ms * 1000u) {
             int key = typed_key(&o.type_text);
             if (key) {
                 push_key(key, true);
@@ -715,12 +741,26 @@ int main(int argc, char **argv) {
             }
         }
 
+        sim_advance_frames();
         for (int i = 0; i < o.ticks_per_frame && s_running; i++) {
             program_scheduler_step();
             /* Core 0's part: collect the display ops each tick queued,
              * or a drawing-heavy program fills the queue and blocks. */
             video_ops_drain();
             ticks++;
+        }
+
+        /* The device reboots when the last program exits (a game that
+         * replaced the shell, or the shell itself); here that is a
+         * restart of the boot program. Headless runs keep going too, so
+         * a scripted test sees the same sequence as the board. */
+        if (program_top() == NULL) {
+            printf("[sim] program stack empty: restarting %s\n", o.boot_file);
+            video_screens_init();
+            if (!program_boot(o.boot_file, NULL)) {
+                fprintf(stderr, "[sim] restart failed\n");
+                break;
+            }
         }
 
         if (!o.headless) {
