@@ -28,20 +28,16 @@ local function paint_cursor()
     OverlayOut(cx, prompt_row, cursor_cell(), 0x80)
 end
 
+-- Each line is one Screen.OutText call (one display op), not a cell loop.
 local function paint()
-    ScreenClear(32)
-    OverlayClear(32)
+    Screen.Clear()
+    Overlay.Clear()
     for i = 1, math.min(#lines, ROWS) do
-        local line = lines[i]
-        for c = 1, math.min(#line, COLS) do
-            ScreenOut(c - 1, i - 1, line:byte(c))
-        end
+        Screen.OutText(0, i - 1, lines[i]:sub(1, COLS))
     end
     prompt_row = #lines
-    for c = 1, math.min(#input, COLS) do
-        if prompt_row < ROWS then
-            ScreenOut(c - 1, prompt_row, input:byte(c))
-        end
+    if prompt_row < ROWS and #input > 0 then
+        Screen.OutText(0, prompt_row, input:sub(1, COLS))
     end
     paint_cursor()
 end

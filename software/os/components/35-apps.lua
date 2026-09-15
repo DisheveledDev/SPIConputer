@@ -176,10 +176,11 @@ local function load_apps()
     return found
 end
 
+-- Text clipped to the dialog's right edge, one display op per string.
 local function dialog_text(x, y, s, attr)
-    for i = 1, math.min(#s, DLG_X + DLG_W - 1 - x) do
-        OverlayOut(x + i - 1, y, s:byte(i), attr)
-    end
+    local room = DLG_X + DLG_W - 1 - x
+    if room <= 0 then return end
+    Overlay.OutText(x, y, s:sub(1, room), attr)
 end
 
 local function draw_dialog()

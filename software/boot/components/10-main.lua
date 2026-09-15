@@ -1,21 +1,14 @@
+-- A centred line: one display op through the Screen framework.
 local function text(row, message, attr)
-    local x = math.max(0, math.floor((40 - #message) / 2))
-    for i = 1, #message do
-        ScreenOut(x + i - 1, row, message:byte(i), attr or 0)
-    end
+    Screen.CenterText(row, message, attr or 0)
 end
 
 local function draw_boot()
-    ScreenClear(32)
+    Screen.Clear()
     text(8, "SPI COMPUTER", 0)
     text(10, "STARTING SYSTEM", 0)
     text(12, "PLEASE WAIT", 0)
-    for x = 8, 31 do
-        ScreenOut(x, 14, 32, 0x02)
-    end
-    for x = 8, 31 do
-        ScreenOut(x, 14, 32, 0x00)
-    end
+    Screen.Clean(8, 14, 31, 14)
 end
 
 local function draw_failure()
@@ -47,5 +40,5 @@ function setup()
     ScreenPalette(1, 255, 255, 255)
     ScreenPalette(2, 180, 220, 255)
     draw_boot()
-    TimerCreate(start_os, 2000, true)
+    Timer.After(2000, start_os)
 end

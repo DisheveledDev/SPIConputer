@@ -20,6 +20,8 @@
   "sdks": [
     "screen",
     "overlay",
+    "text",
+    "timer",
     "sound",
     "input"
   ]
