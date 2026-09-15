@@ -140,14 +140,17 @@ static void handle_free(int32_t h) {
 /* Directory listing: NUL-terminated names, each followed by a
  * uint32 size and a uint8 dir flag, packed into the staging buffer.
  * Returns the entry count (0 if the buffer filled exactly). */
-static uint16_t pack_ls(const char *path) {
+static uint16_t pack_ls(const char *path, FRESULT *result) {
     DIR dj;
     FILINFO fno;
     uint8_t *out = rpc_staging();
     size_t used = 0;
     uint16_t count = 0;
 
-    if (f_opendir(&dj, path) != FR_OK) {
+    /* A directory that cannot be opened is an error for the caller
+     * (fs.ls returns nil, err), not an empty listing. */
+    *result = f_opendir(&dj, path);
+    if (*result != FR_OK) {
         return 0;
     }
     for (;;) {
@@ -344,9 +347,12 @@ void fs_core0_execute(const rpc_request_t *req, rpc_response_t *resp) {
         resp->result = f_sync(f);
         break;
 
-    case RPC_FS_LS:
-        resp->value = pack_ls(req->path1);
+    case RPC_FS_LS: {
+        FRESULT ls_result;
+        resp->value = pack_ls(req->path1, &ls_result);
+        resp->result = ls_result;
         break;
+    }
 
     case RPC_FS_FIND:
         resp->value = pack_find(req->path1, req->path2);

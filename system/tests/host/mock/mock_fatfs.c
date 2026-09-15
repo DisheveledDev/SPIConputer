@@ -208,8 +208,18 @@ FRESULT f_sync(FIL *fp) { (void)fp; return FR_OK; }
 FRESULT f_close(FIL *fp) { fp->obj.fs = NULL; return FR_OK; }
 
 FRESULT f_opendir(DIR *dp, const TCHAR *path) {
-    (void)path;
     if (g_ejected) return FR_NOT_READY;
+    /* The mock card's directories are the root and "lib" (f_readdir
+     * lists the root view for either); any other path fails as FatFs
+     * does for a missing directory. */
+    static const char *const dirs[] = {"", "/", ".", "lib", "/lib"};
+    bool known = path == NULL;
+    for (size_t i = 0; !known && i < sizeof(dirs) / sizeof(dirs[0]); i++) {
+        known = strcmp(path, dirs[i]) == 0;
+    }
+    if (!known) {
+        return FR_NO_PATH;
+    }
     dp->idx = 0;
     return FR_OK;
 }

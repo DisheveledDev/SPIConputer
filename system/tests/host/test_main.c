@@ -222,6 +222,8 @@ int main(void) {
             "local names = {}\n"
             "for _, e in ipairs(fs.ls('/')) do names[e.name] = true end\n"
             "assert(names['os.lua'] and names['lib'])\n"
+            "local none, ls_err = fs.ls('/no-such-dir')\n"
+            "assert(none == nil and ls_err:find('cannot open directory'), 'missing dir: ' .. tostring(ls_err))\n"
             "assert(fs.find('OS.LUA') == 'os.lua')\n"
             "assert(fs.find('missing.lua') == nil)\n"
             "local wf = assert(fs.open('boot.log', 'w'))\n"
