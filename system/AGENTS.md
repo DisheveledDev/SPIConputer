@@ -648,20 +648,33 @@ Design principles:
 
 ## First Application: Editor
 
-`editor.lua` (implemented, Phase 6): edits entirely in RAM (array of
-lines, no SD block-shifting ever), saves with one `fs.writeall`.
-Rendered in mode 1 (40x30 tiles): 29 text lines + an inverted status
-line (filename, line/col, dirty flag, save prompt). Cursor blinks via a
-500 ms timer.
+`software/editor` (an *application* project, installed as
+`apps/editor.app`): edits entirely in RAM (array of lines, no SD
+block-shifting ever), saves with one `fs.writeall`. Written on the
+Screen/Overlay/Text/Timer frameworks, mode 1 (40x30 tiles): row 0 is a
+menu bar (FILE / EDIT / OPTIONS / HELP), rows 1-28 the text, row 29 an
+inverted status line (file name, line/col, dirty flag). The base layer
+holds only the text; the open drop-down menu and the dialogs (go to
+line, file info, keyboard help, unsaved-changes prompt) are
+`Overlay.Window`/`Overlay.Dialog` on the overlay, so dismissing them is
+one `Overlay.Clear()` with no text redraw. The cursor is the invert
+attribute on its cell, blinked by a `Timer.Every(500)` that is paused
+while the overlay is showing. Input arrives through `on_keypress`.
 
-Keys (host-tested end-to-end in `tests/host/editor_test.c`):
+Keys (host-tested end-to-end in `tests/host/editor_test.c`, which needs
+the built `software/editor/build/editor.lua` on its command line):
 
-- Cursor keys: extended codes 128-131 from the matrix, and the
-  terminal's ESC [ A/B/C/D sequences, both handled.
+- Cursor keys: extended codes 128-131; Home jumps to the start of the
+  line. F1-F4 (and Ctrl+H/F/E/O) open help and the three menus; arrows
+  move within and between menus, Return chooses, Esc closes.
 - Return splits the line; Backspace deletes before the cursor and joins
   lines; Shift+Backspace inserts a space (C64 INST semantics); Forward
-  delete deletes at the cursor; Home jumps to the start of the line.
-- Ctrl+S saves, Ctrl+Q quits (asks `save? (y/n)` when dirty).
+  delete deletes at the cursor.
+- Ctrl+S saves, Ctrl+Q quits (an overlay dialog asks Y/N/Esc when dirty).
+
+Shell note: a launched program's `setup()` runs inside the shell's
+`Execute` call, so the shell must not repaint at the end of that tick
+(it checks `needs_repaint`) or it paints over the new program's screen.
 
 Limitations (accepted for v1): 40-column cursor (no horizontal
 scrolling), always-insert mode, saves always end the file with a

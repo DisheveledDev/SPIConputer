@@ -1,4 +1,4 @@
--- File commands: save the RAM buffer back to the SD card, quit.
+-- Commands: save and quit, the menus and the dialogs.
 
 local function save()
     local ok, err = fs.writeall(filename, table.concat(lines, "\n") .. "\n")
@@ -7,153 +7,134 @@ local function save()
     else
         print("save failed: " .. tostring(err))
     end
-    draw()
+    draw_status()
 end
 
 local function quit()
     ExitProgram()
 end
 
-local function close_menus()
-    menu_open = false
-    dialog_open = false
-    dialog_kind = ""
-    dialog_text = ""
-    draw()
+-- The overlay owns the keyboard while something is on it, and the
+-- cursor stops blinking so the text underneath stays still.
+local function set_overlay(mode)
+    overlay_mode = mode
+    if mode then
+        if blink_timer then blink_timer:Pause() end
+        cursor_visible = true
+        draw_cursor()
+    else
+        Overlay.Clear()
+        if blink_timer then blink_timer:Resume() end
+    end
+    draw_menu_bar()
+end
+
+local function close_overlay()
+    set_overlay(nil)
 end
 
 local function open_menu(index)
-    dialog_open = false
-    menu_open = true
     menu_top = index
     menu_item = 1
-    draw()
+    set_overlay("menu")
+    draw_menu()
 end
 
 local function open_dialog(kind)
-    menu_open = false
-    dialog_open = true
-    dialog_kind = kind
     dialog_text = ""
-    dialog_cursor = 0
-    draw()
+    set_overlay(kind)
+    draw_dialog()
 end
 
-local function toggle_width()
-    editor_wide = not editor_wide
-    if editor_wide then
-        W, H = 80, 59
-        ScreenMode(3)
+local function ask_quit()
+    if dirty then
+        open_dialog("quit")
     else
-        W, H = 40, 29
-        ScreenMode(1)
+        quit()
     end
-    cx = math.min(cx, W - 1)
-    scroll_y = math.max(0, math.min(scroll_y, math.max(0, #lines - H)))
-    ScreenPalette(0, 0, 0, 160)
-    ScreenPalette(1, 255, 255, 255)
-    draw()
 end
 
 local function select_menu_item()
     local menu = menu_defs[menu_top]
     local item = menu.items[menu_item]
-    if menu_top == 1 and item == "Save" then
+    if item == "Save" then
+        close_overlay()
         save()
-        close_menus()
-    elseif menu_top == 1 and item == "Go to line" then
+    elseif item == "Go to line" then
         open_dialog("goto")
-    elseif menu_top == 1 and item == "Quit" then
-        close_menus()
-        if dirty then
-            quit_confirm = true
-            draw()
-        else
-            quit()
-        end
-    elseif menu_top == 2 and item == "Top of file" then
-        cy = 1
-        cx = 0
-        scroll_y = 0
-        close_menus()
-    elseif menu_top == 2 and item == "Bottom of file" then
-        cy = #lines
-        cx = 0
-        scroll_y = math.max(0, cy - H)
-        close_menus()
-    elseif menu_top == 2 and item == "Delete line" then
+    elseif item == "Quit" then
+        close_overlay()
+        ask_quit()
+    elseif item == "Top of file" then
+        close_overlay()
+        goto_line(1)
+    elseif item == "Bottom of file" then
+        close_overlay()
+        goto_line(#lines)
+    elseif item == "Delete line" then
         if #lines > 1 then
             table.remove(lines, cy)
             cy = math.min(cy, #lines)
             cx = math.min(cx, #(lines[cy] or ""))
             dirty = true
         end
-        close_menus()
-    elseif menu_top == 3 and item == "Toggle 40/80" then
-        toggle_width()
-        close_menus()
-    elseif menu_top == 3 and item == "Toggle cursor" then
-        cursor_on = not cursor_on
-        close_menus()
-    elseif menu_top == 3 and item == "Clear menu" then
-        close_menus()
-    elseif menu_top == 4 and item == "Keyboard help" then
+        close_overlay()
+        draw_text()
+        draw_status()
+    elseif item == "Toggle cursor blink" then
+        blink_enabled = not blink_enabled
+        cursor_visible = true
+        close_overlay()
+        draw_cursor()
+    elseif item == "File info" then
+        open_dialog("info")
+    elseif item == "Keyboard help" then
         open_dialog("help")
     end
 end
 
-local function handle_menu_key(ev)
-    local k = ev.key
-    if k == 27 then
-        close_menus()
-    elseif k == 128 then
-        if menu_open then
-            menu_item = (menu_item - 2) % #menu_defs[menu_top].items + 1
-            draw()
-        end
-    elseif k == 129 then
-        if menu_open then
-            menu_item = menu_item % #menu_defs[menu_top].items + 1
-            draw()
-        end
-    elseif k == 130 and menu_open then
-        menu_top = (menu_top - 2) % #menu_defs + 1
-        menu_item = 1
-        draw()
-    elseif k == 131 and menu_open then
-        menu_top = menu_top % #menu_defs + 1
-        menu_item = 1
-        draw()
-    elseif k == 13 and menu_open then
+local function handle_menu_key(key)
+    local menu = menu_defs[menu_top]
+    if key == KEY_ESCAPE then
+        close_overlay()
+    elseif key == KEY_UP then
+        menu_item = (menu_item - 2) % #menu.items + 1
+        draw_menu()
+    elseif key == KEY_DOWN then
+        menu_item = menu_item % #menu.items + 1
+        draw_menu()
+    elseif key == KEY_LEFT then
+        open_menu((menu_top - 2) % #menu_defs + 1)
+    elseif key == KEY_RIGHT then
+        open_menu(menu_top % #menu_defs + 1)
+    elseif key == KEY_RETURN then
         select_menu_item()
     end
 end
 
-local function handle_dialog_key(ev)
-    local k = ev.key
-    if k == 27 then
-        close_menus()
-    elseif dialog_kind == "help" then
-        if k == 13 then close_menus() end
-    elseif dialog_kind == "goto" then
-        if k == 13 then
+local function handle_dialog_key(key)
+    if key == KEY_ESCAPE then
+        close_overlay()
+    elseif overlay_mode == "help" or overlay_mode == "info" then
+        if key == KEY_RETURN then close_overlay() end
+    elseif overlay_mode == "quit" then
+        if key == 121 or key == 89 then       -- y
+            save()
+            quit()
+        elseif key == 110 or key == 78 then   -- n
+            quit()
+        end
+    elseif overlay_mode == "goto" then
+        if key == KEY_RETURN then
             local target = tonumber(dialog_text)
-            if target then
-                cy = math.max(1, math.min(math.floor(target), #lines))
-                cx = 0
-                if cy - 1 < scroll_y then
-                    scroll_y = cy - 1
-                elseif cy - 1 >= scroll_y + H then
-                    scroll_y = cy - H + 1
-                end
-            end
-            close_menus()
-        elseif k == 8 then
+            close_overlay()
+            if target then goto_line(target) end
+        elseif key == KEY_BACKSPACE then
             dialog_text = dialog_text:sub(1, -2)
-            draw()
-        elseif k >= 48 and k <= 57 and #dialog_text < 5 then
-            dialog_text = dialog_text .. string.char(k)
-            draw()
+            draw_dialog()
+        elseif key >= 48 and key <= 57 and #dialog_text < 5 then
+            dialog_text = dialog_text .. string.char(key)
+            draw_dialog()
         end
     end
 end

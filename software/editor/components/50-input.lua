@@ -1,54 +1,41 @@
--- Keyboard: cursor keys, editing keys, menu shortcuts and dialogs.
+-- Keyboard: the OS calls on_keypress for every key-down with the
+-- modifier state; the overlay takes the keys while it is showing.
 
-local function ctrl_down(mods)
-    return math.floor(mods / 2) % 2 == 1
-end
-
-local function handle_key(ev)
-    if dialog_open then
-        handle_dialog_key(ev)
+function on_keypress(key, shift, ctrl)
+    if overlay_mode == "menu" then
+        handle_menu_key(key)
         return
-    end
-    if menu_open then
-        handle_menu_key(ev)
-        return
-    end
-    if quit_confirm then
-        if ev.key == 121 then save(); quit()
-        elseif ev.key == 110 then quit()
-        else quit_confirm = false; draw_status() end
+    elseif overlay_mode then
+        handle_dialog_key(key)
         return
     end
 
-    local k = ev.key
-    if ctrl_down(ev.mods) then
-        if k == 102 then open_menu(1)
-        elseif k == 101 then open_menu(2)
-        elseif k == 111 then open_menu(3)
-        elseif k == 104 then open_dialog("help")
-        elseif k == 115 then save()
-        elseif k == 113 then
-            if dirty then quit_confirm = true; draw() else quit() end
+    if ctrl then
+        if key == 102 then open_menu(1)          -- f
+        elseif key == 101 then open_menu(2)      -- e
+        elseif key == 111 then open_menu(3)      -- o
+        elseif key == 104 then open_dialog("help") -- h
+        elseif key == 115 then save()            -- s
+        elseif key == 113 then ask_quit()        -- q
         end
         return
     end
 
-    if k == 132 then open_dialog("help")
-    elseif k == 133 then open_menu(1)
-    elseif k == 134 then open_menu(2)
-    elseif k == 135 then open_menu(3)
-    elseif k == 128 then move(0, -1)
-    elseif k == 129 then move(0, 1)
-    elseif k == 130 then move(-1, 0)
-    elseif k == 131 then move(1, 0)
-    elseif k == 13 then insert_newline()
-    elseif k == 8 then
-        if ev.mods % 2 == 1 then insert_char(" ") else backspace() end
-    elseif k == 127 then fwd_delete()
-    elseif k == 19 then save()
-    elseif k == 17 then
-        if dirty then quit_confirm = true; draw() else quit() end
-    elseif k == 139 then cx = 0; draw()
-    elseif k >= 32 and k < 128 then insert_char(string.char(k))
+    if key == KEY_F1 then open_dialog("help")
+    elseif key == KEY_F2 then open_menu(1)
+    elseif key == KEY_F3 then open_menu(2)
+    elseif key == KEY_F4 then open_menu(3)
+    elseif key == KEY_UP then move(0, -1)
+    elseif key == KEY_DOWN then move(0, 1)
+    elseif key == KEY_LEFT then move(-1, 0)
+    elseif key == KEY_RIGHT then move(1, 0)
+    elseif key == KEY_RETURN then insert_newline()
+    elseif key == KEY_BACKSPACE then
+        if shift then insert_char(" ") else backspace() end
+    elseif key == KEY_DELETE then fwd_delete()
+    elseif key == 19 then save()                 -- Ctrl+S as a control code
+    elseif key == 17 then ask_quit()             -- Ctrl+Q as a control code
+    elseif key == KEY_HOME then move(-cx, 0)
+    elseif key >= 32 and key < 127 then insert_char(string.char(key))
     end
 end

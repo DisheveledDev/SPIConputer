@@ -1,9 +1,9 @@
--- Entry points: load the file, blink the cursor, pump input.
+-- Entry points: load the file, start the cursor blink, draw.
 
 function setup()
-    ScreenMode(1)
-    ScreenPalette(0, 0, 0, 160)
-    ScreenPalette(1, 255, 255, 255)
+    Screen.Mode(1)
+    Screen.Palette(0, 0, 0, 160)
+    Screen.Palette(1, 255, 255, 255)
     local content, err = fs.readall(filename)
     if content then
         lines = load_content(content)
@@ -11,17 +11,18 @@ function setup()
         lines = { "" }
         print("new file: " .. tostring(err))
     end
-    TimerCreate(function()
-        cursor_on = not cursor_on
-        draw()
-    end, 500)
+    -- The blink is two attribute ops every half second; menus pause it.
+    blink_timer = Timer.Every(500, function()
+        if not blink_enabled then return end
+        cursor_visible = not cursor_visible
+        draw_cursor()
+    end)
     draw()
 end
 
 function tick()
-    while true do
-        local ev = InputPoll()
-        if not ev then break end
-        if ev.type == "key" and ev.pressed == 1 then handle_key(ev) end
-    end
+end
+
+function finish()
+    Timer.CancelAll()
 end
