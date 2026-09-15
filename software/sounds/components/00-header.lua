@@ -1,16 +1,24 @@
--- sounds.lua — the built-in sound bank and a tune, to listen to.
+-- sounds.lua — SPITRACKER: a module player with a tracker view, and the
+-- built-in sound bank.
 --
 -- Launch from the shell:  sounds   (or pick SOUNDS in APPS).
 --
--- Two pages, TAB switches. SOUNDS lists every built-in sound: UP/DOWN
--- move, RETURN plays the one selected (instruments at C4, effects at
--- their own pitch), LEFT/RIGHT play an instrument a fifth down or up,
--- M starts and stops the demo tune (Music.Track, four MML channels).
--- The right-hand panel shows the selected sound's definition, so a
--- program can copy it into Sound.Define and change it. MODULES lists
--- the .mod files in the app's resources folder: RETURN loads and plays
--- one (streamed from the card), SPACE stops it, and the panel shows its
--- facts, the position and the underrun count. ESC quits.
+-- 80x60 text mode, three pages:
+--   MODULES  the .mod files in the app's resources folder: UP/DOWN
+--            choose, RETURN plays one (streamed from the card).
+--   TRACKER  the playing module: a ten-band spectrum analyser bouncing
+--            to the mix (Sound.Spectrum), a VU meter, note, sample and
+--            volume per channel (Music.ModChannels), the pattern
+--            scrolling past the row being played (Music.ModRows), the
+--            song position and the streaming underrun count. SPACE
+--            stops and restarts, N/P (or LEFT/RIGHT) skip to the next or
+--            previous module.
+--   SOUNDS   the built-in instruments and effects: UP/DOWN choose,
+--            RETURN plays (instruments at C4, effects at their own
+--            pitch), LEFT/RIGHT a fifth down or up; the panel shows the
+--            definition, so a program can copy it into Sound.Define.
+-- TAB switches MODULES and TRACKER, F1 shows SOUNDS, ESC goes back a
+-- page and quits from MODULES.
 --
 -- Built from the SPIEdit project in this folder: `swift run
 -- --package-path ide/macos spibuild software/sounds`.
