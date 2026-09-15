@@ -5,7 +5,8 @@
 -- A list of every built-in sound: UP/DOWN move, RETURN plays the one
 -- selected (instruments at C4, effects at their own pitch), LEFT/RIGHT
 -- play an instrument a fifth down or up, M starts and stops the demo
--- tune (Music.Track, three MML channels), ESC quits. The right-hand
+-- tune (Music.Track, four MML channels), D the bundled ProTracker
+-- module (resources/demo.mod, streamed from the card), ESC quits. The right-hand
 -- panel shows the selected sound's definition, so a program can copy
 -- it into Sound.Define and change it.
 --

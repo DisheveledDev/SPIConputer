@@ -3,6 +3,7 @@ local selected = 1
 local scroll = 0
 local LIST_TOP, LIST_ROWS = 2, 24
 local playing = false
+local module, mod_playing = nil, false
 
 local TUNE = {
     tempo = 132, loop = true,
@@ -55,7 +56,7 @@ local function draw_all()
     for i = scroll + 1, scroll + LIST_ROWS do draw_entry(i) end
     draw_spec()
     Screen.Label(0, 27, 40, "RETURN play  LEFT/RIGHT -5/+7", "center", Attributes.LightGreen or Attributes.Green)
-    Screen.Label(0, 28, 40, "M tune " .. (playing and "(playing)" or "") .. "  ESC quit", "center", Attributes.Green)
+    Screen.Label(0, 28, 40, "M tune" .. (playing and "*" or "") .. "  D mod" .. (mod_playing and "*" or "") .. "  ESC quit", "center", Attributes.Green)
 end
 
 local function move_to(index)
@@ -92,8 +93,22 @@ function on_keypress(key)
     elseif key == Input.KEY_LEFT then play(-5)
     elseif key == Input.KEY_RIGHT then play(7)
     elseif key == 109 or key == 77 then
+        if mod_playing then Music.StopMod() mod_playing = false end
         if playing then Music.Stop() else Music.Play("demo") end
         playing = not playing
+        draw_all()
+    elseif key == 100 or key == 68 then
+        -- D: the bundled ProTracker module, streamed from the card.
+        if playing then Music.Stop() playing = false end
+        if mod_playing then
+            Music.StopMod()
+        elseif not module then
+            module = Music.LoadMod(app.resources .. "/demo.mod")
+            if module then module:Play() end
+        else
+            module:Play()
+        end
+        mod_playing = module ~= nil and not mod_playing
         draw_all()
     end
 end
