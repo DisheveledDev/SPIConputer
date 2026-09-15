@@ -18,11 +18,12 @@
 --   row 29       the ball is lost below the paddle
 --
 -- Sounds are the OS's built-in effects (Sound.Effect: "bounce", "hit",
--- "hurt", "powerup") and "blip" played at a note per brick row.
+-- "hurt", "powerup") and "blip" played at a note per brick row, over
+-- popcorn.mod from resources/ streamed from the card (M mutes it).
 --
 -- Keys: cursor left/right (or Z / X, or joystick 1) move the paddle,
 -- SPACE (or fire) serves the ball, RETURN restarts after game over,
--- ESC quits (the device restarts).
+-- M mutes and restores the music, ESC quits (the device restarts).
 --
 -- Built from the SPIEdit project in this folder: `swift run
 -- --package-path ide/macos spibuild software/breakout`, or

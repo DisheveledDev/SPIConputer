@@ -30,6 +30,8 @@ local function key_event(key, pressed)
         action()
     elseif key == Input.KEY_RETURN and state == "over" then
         action()
+    elseif key == 109 or key == 77 then -- M
+        toggle_music()
     elseif key == Input.KEY_ESCAPE then
         ExitProgram()
     end
