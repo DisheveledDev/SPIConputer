@@ -31,6 +31,10 @@
 
 #define AUDIO_SAMPLE_RATE 44100
 
+/* Spectrum analyser for visuals: ten resonators on the mixed output,
+ * one frame in four, band centres in audio_spectrum_hz[] (60 Hz .. 4 kHz). */
+#define AUDIO_SPECTRUM_BANDS 10
+
 #define AUDIO_VOICES 16
 #define AUDIO_CHANNELS 8 /* score voices, voice index == channel */
 #define AUDIO_ONESHOT_VOICES (AUDIO_VOICES - AUDIO_CHANNELS)
@@ -208,6 +212,16 @@ typedef struct audio_state_s {
     uint32_t score_frame;
     uint16_t ch_next[AUDIO_CHANNEL_MAX];
     audio_voice_t voices[AUDIO_VOICES];
+
+    /* ---- spectrum analyser (producer; the levels are read by core 1) ---- */
+    int32_t spec_c1[AUDIO_SPECTRUM_BANDS]; /* Q14 resonator coefficients, */
+    int32_t spec_c2[AUDIO_SPECTRUM_BANDS]; /* copied in at init (no flash */
+    int32_t spec_g[AUDIO_SPECTRUM_BANDS];  /* reads on the producer) */
+    int32_t spec_y1[AUDIO_SPECTRUM_BANDS];
+    int32_t spec_y2[AUDIO_SPECTRUM_BANDS];
+    int32_t spec_peak[AUDIO_SPECTRUM_BANDS]; /* |y| max in the current block */
+    volatile uint16_t spec_level[AUDIO_SPECTRUM_BANDS]; /* 0..32767, decays */
+    uint8_t spec_phase;                       /* 4:1 decimation counter */
 } audio_state_t;
 
 /* The active audio state: points at the top program's state. Written
@@ -216,6 +230,11 @@ extern audio_state_t *g_current_audio;
 
 /* Init a fresh state (silent, default master volume). */
 void audio_state_init(audio_state_t *a);
+
+/* The analyser's band centres (Hz) and its current levels, 0..255 per
+ * band: a decaying peak of everything mixed (sounds, scores, a module). */
+extern const uint16_t audio_spectrum_hz[AUDIO_SPECTRUM_BANDS];
+void audio_spectrum(const audio_state_t *a, uint8_t out[AUDIO_SPECTRUM_BANDS]);
 
 /* Release the sample pool (heap). */
 void audio_state_free(audio_state_t *a);

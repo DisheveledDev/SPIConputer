@@ -271,6 +271,22 @@ function Sound.Stop(voice)
     return SoundStopAll()
 end
 
+--- Sound.Spectrum([levels])
+-- Ten band levels (0..255) of everything playing, sounds, scores and a
+-- module together, for a graphic equaliser or any visual that moves
+-- with the music: bands centred at 60 Hz to 4 kHz (Sound.SpectrumBands),
+-- each a peak that decays over about 50 ms. Pass the list from the
+-- previous call to refill it without garbage.
+function Sound.Spectrum(levels)
+    return SoundSpectrum(levels)
+end
+
+--- Sound.SpectrumBands()
+-- The centre frequency (Hz) of each Sound.Spectrum band.
+function Sound.SpectrumBands()
+    return SoundSpectrumBands()
+end
+
 --- Sound.Volume(volume)
 -- Sets the master volume 0..255.
 function Sound.Volume(volume)
@@ -362,6 +378,8 @@ function Music.LoadMod(path)
         Playing = function() return Music.ModPlaying() end,
         Position = function() return Music.ModPosition() end,
         Info = function() return Music.ModInfo() end,
+        Channels = function(_, channels) return Music.ModChannels(channels) end,
+        Rows = function(_, pattern, from, count) return Music.ModRows(pattern, from, count) end,
     } })
 end
 
@@ -396,4 +414,23 @@ end
 -- underruns } (underruns counts frames a streamed sample was late for).
 function Music.ModInfo()
     return ModInfo()
+end
+
+--- Music.ModChannels([channels])
+-- What each of the module's four channels is doing, for a tracker view
+-- or VU meters: a list of { sample, note ("C-2", "..." when silent),
+-- period, volume (0..64), level (0..255, a decaying peak), active }.
+-- Pass the list from the previous call to refill it without garbage.
+function Music.ModChannels(channels)
+    return ModChannels(channels)
+end
+
+--- Music.ModRows(pattern [, from [, count]])
+-- Rows of a pattern that is in RAM (the one playing, or the next), as
+-- strings of four "C-2 05 C40" cells (note, sample in hex, effect) a
+-- space apart; `from` (default 0) and `count` (default 64) pick the
+-- window, rows outside 0..63 come back as "". nil, err when the pattern
+-- is not resident.
+function Music.ModRows(pattern, from, count)
+    return ModRows(pattern, from, count)
 end

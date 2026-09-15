@@ -101,10 +101,63 @@ int audio_note_parse(const char *name) {
 /* State lifetime                                                      */
 /* ------------------------------------------------------------------ */
 
+/* Analyser bands: two-pole resonators y = c1*y1 - c2*y2 + g*x at a
+ * quarter of the sample rate (11025 Hz), Q of 2.5, unity gain at the
+ * centre; Q14. Computed offline: w = 2*pi*fc/fs, r = exp(-pi*fc/(2.5*fs)),
+ * c1 = 2*r*cos(w), c2 = r*r, g = (1-r)*sqrt(1 - 2*r*cos(2w) + r*r). */
+const uint16_t audio_spectrum_hz[AUDIO_SPECTRUM_BANDS] = {
+    60, 100, 160, 250, 400, 630, 1000, 1600, 2500, 4000,
+};
+static const int32_t s_spec_coef[AUDIO_SPECTRUM_BANDS][3] = {
+    {32526, 16161, 8},     {32344, 16015, 21},   {32042, 15797, 54},
+    {31525, 15476, 130},   {30498, 14956, 324},  {28553, 14192, 774},
+    {24617, 13044, 1809},  {16719, 11377, 3969}, {3586, 9266, 7043},
+    {-13520, 6583, 7577},
+};
+
 void audio_state_init(audio_state_t *a) {
     memset(a, 0, sizeof(*a));
     a->master = AUDIO_DEFAULT_VOLUME;
+    for (int b = 0; b < AUDIO_SPECTRUM_BANDS; b++) {
+        a->spec_c1[b] = s_spec_coef[b][0];
+        a->spec_c2[b] = s_spec_coef[b][1];
+        a->spec_g[b] = s_spec_coef[b][2];
+    }
     build_tables();
+}
+
+void audio_spectrum(const audio_state_t *a, uint8_t out[AUDIO_SPECTRUM_BANDS]) {
+    for (int b = 0; b < AUDIO_SPECTRUM_BANDS; b++) {
+        uint32_t v = a ? a->spec_level[b] : 0;
+        out[b] = (uint8_t)(v >> 7); /* 0..32767 -> 0..255 */
+    }
+}
+
+/* One decimated frame through the resonators (producer). */
+static inline void spectrum_feed(audio_state_t *a, int32_t x) {
+    for (int b = 0; b < AUDIO_SPECTRUM_BANDS; b++) {
+        int32_t y = (int32_t)(((int64_t)a->spec_c1[b] * a->spec_y1[b] -
+                               (int64_t)a->spec_c2[b] * a->spec_y2[b] +
+                               (int64_t)a->spec_g[b] * x) >> 14);
+        a->spec_y2[b] = a->spec_y1[b];
+        a->spec_y1[b] = y;
+        if (y < 0) y = -y;
+        if (y > a->spec_peak[b]) a->spec_peak[b] = y;
+    }
+}
+
+/* End of a block: the levels take the block's peaks and decay by 1/32
+ * a block (about 50 ms to fall by two thirds), so a reader polling a
+ * few times a frame sees an envelope, not the odd sample. */
+static inline void spectrum_block(audio_state_t *a) {
+    for (int b = 0; b < AUDIO_SPECTRUM_BANDS; b++) {
+        int32_t lvl = a->spec_level[b];
+        lvl -= lvl >> 5;
+        int32_t peak = a->spec_peak[b] > 32767 ? 32767 : a->spec_peak[b];
+        if (peak > lvl) lvl = peak;
+        a->spec_level[b] = (uint16_t)lvl;
+        a->spec_peak[b] = 0;
+    }
 }
 
 void audio_state_free(audio_state_t *a) {
@@ -624,6 +677,11 @@ static inline void mix_frame(audio_state_t *a, int16_t *out) {
 
     mod_mix_frame(a->mod, &l, &r);
 
+    if (++a->spec_phase >= 4) {
+        a->spec_phase = 0;
+        spectrum_feed(a, (l + r) >> 1);
+    }
+
     int32_t master = a->master;
     l = (l * master) >> 8;
     r = (r * master) >> 8;
@@ -659,6 +717,7 @@ void audio_mix(audio_state_t *a, int16_t *out, int frames) {
         for (int i = 0; i < n; i++) {
             mix_frame(a, out + (size_t)(done + i) * 2);
         }
+        spectrum_block(a);
         if (a->score_active) {
             a->score_frame += (uint32_t)n;
             const audio_score_t *sc = &a->scores[a->score_index];

@@ -49,7 +49,8 @@ public enum LuaCompletion {
         // Sound
         "SoundDefine", "SoundPreset", "SoundPresets", "SoundLoad", "SoundPlay", "SoundStop", "SoundStopAll",
         "SoundVolume", "MusicDefine", "MusicPlay", "MusicStop", "MusicPlaying",
-        "ModLoad", "ModPlay", "ModStop", "ModPlaying", "ModPosition", "ModInfo", "ModUnload",
+        "ModLoad", "ModPlay", "ModStop", "ModPlaying", "ModPosition", "ModInfo", "ModChannels", "ModRows", "ModUnload",
+        "SoundSpectrum", "SoundSpectrumBands",
         // Filesystem
         "fs.open", "fs.ls", "fs.stat", "fs.exists", "fs.mkdir", "fs.remove",
         "fs.rename", "fs.free", "fs.ready", "fs.mount", "fs.readall",

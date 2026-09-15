@@ -690,6 +690,17 @@ static void test_mod(void) {
           "long sample keeps a head and streams");
     CHECK(m->samples[1].resident[1] == (int8_t)(4 - 128), "resident bytes read");
     CHECK(m->pat_num[0] == 0 && m->pat_num[1] == 1, "first two patterns loaded");
+    char rowbuf[64];
+    CHECK(mod_format_row(m, 0, 0, rowbuf, sizeof(rowbuf)) &&
+              strcmp(rowbuf, "C-2 01 C20 C-3 02 ... ... .. ... ... .. F03") == 0,
+          "row 0 formats as note/sample/effect cells");
+    CHECK(mod_format_row(m, 0, 1, rowbuf, sizeof(rowbuf)) &&
+              strcmp(rowbuf, "... .. A02 ... .. ... ... .. ... ... .. ...") == 0,
+          "an empty cell is dots");
+    CHECK(!mod_format_row(m, 2, 0, rowbuf, sizeof(rowbuf)), "a pattern not in RAM is refused");
+    char nm[4];
+    mod_note_name(113, nm);
+    CHECK(strcmp(nm, "B-3") == 0, "period 113 is B-3");
 
     audio_state_t a;
     audio_state_init(&a);
@@ -707,6 +718,7 @@ static void test_mod(void) {
      * volume down 2 a tick (ticks 1 and 2): 32 -> 28. */
     audio_mix(&a, buf, 3 * 882);
     CHECK(m->row == 1, "row 1 after three ticks");
+    CHECK(m->ch[0].level > 0 && m->ch[1].level > 0, "channel levels follow the output");
     CHECK(!m->ch[0].active, "a one-shot sample stops at its end");
     audio_mix(&a, buf, 2 * 882);
     CHECK(m->ch[0].volume == 28, "volume slide");
@@ -794,6 +806,12 @@ static const char *MOD_LUA =
     "  results.playing = tostring(ModPlaying())\n"
     "  local info = ModInfo()\n"
     "  results.info = info.name .. ':' .. info.orders .. ':' .. info.samples\n"
+    "  local rows = ModRows(0, 0, 2)\n"
+    "  results.row0 = rows[1]\n"
+    "  results.rows_bad = tostring(select(2, ModRows(2)))\n"
+    "  local chs = ModChannels()\n"
+    "  results.chn = #chs .. ':' .. chs[1].note .. ':' .. tostring(ModChannels(chs) == chs)\n"
+    "  results.spec = #SoundSpectrum() .. ':' .. #SoundSpectrumBands() .. ':' .. SoundSpectrumBands()[1]\n"
     "end\n"
     "function tick() end\n";
 
@@ -811,6 +829,10 @@ static void test_lua_mod(void) {
         CHECK(strcmp(lua_global_string(p->L, "play"), "true") == 0 &&
                   strcmp(lua_global_string(p->L, "playing"), "true") == 0, "ModPlay");
         CHECK(strcmp(lua_global_string(p->L, "info"), "test module:3:4") == 0, "ModInfo");
+        CHECK(strcmp(lua_global_string(p->L, "row0"), "C-2 01 C20 C-3 02 ... ... .. ... ... .. F03") == 0, "ModRows");
+        CHECK(strcmp(lua_global_string(p->L, "rows_bad"), "pattern not resident") == 0, "ModRows refuses a pattern not in RAM");
+        CHECK(strcmp(lua_global_string(p->L, "chn"), "4:...:true") == 0, "ModChannels (silent, refills the table)");
+        CHECK(strcmp(lua_global_string(p->L, "spec"), "10:10:60") == 0, "SoundSpectrum and its bands");
         static int16_t buf[2048 * 2];
         audio_mix(p->audio, buf, 2048);
         audio_service();
@@ -947,6 +969,7 @@ int main(void) {
     test_lua_presets();
     test_mml();
     test_mod();
+    test_spectrum();
     test_lua_mod();
     test_program_stack();
 

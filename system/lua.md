@@ -509,6 +509,10 @@ given.
 | `ModStop()` / `ModPlaying()` / `ModUnload()` | as for scores |
 | `ModPosition()` | `order, row, pattern`, or `nil` |
 | `ModInfo()` | `{name, orders, patterns, samples, resident_kb, underruns}` |
+| `ModChannels([t])` | a list of four `{sample, note, period, volume, level, active}` (`t` is refilled when given) |
+| `ModRows(pattern [, from [, count]])` | rows of a pattern in RAM as `"C-2 05 C40 ..."` strings, or `nil, err` |
+| `SoundSpectrum([t])` | ten band levels 0..255 of everything playing (`t` refilled when given) |
+| `SoundSpectrumBands()` | the bands' centre frequencies: 60, 100, 160, 250, 400, 630, 1000, 1600, 2500, 4000 Hz |
 
 A module streams from the card: the header, order list and two
 patterns are in RAM; samples up to a 48 KB resident budget stay in RAM

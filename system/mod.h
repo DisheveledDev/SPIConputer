@@ -88,6 +88,8 @@ typedef struct {
     uint8_t volume;       /* 0..64 */
     int8_t pan;           /* -64..63 */
     uint8_t active;
+    int32_t peak;         /* |output| max in the current block */
+    volatile uint16_t level; /* 0..32767: decaying peak, for visuals (core 1 reads) */
     /* effect memory */
     uint8_t effect, param;
     uint8_t porta_speed, vib_param, trem_param, offset_param;
@@ -158,3 +160,11 @@ void mod_mix_frame(mod_t *m, int32_t *l, int32_t *r);
 
 /* Silence the channels (program pause); playback resumes where it was. */
 void mod_pause(mod_t *m);
+
+/* For a tracker view (core 1). mod_note_name writes the tracker name of
+ * an Amiga period ("C-2", "A#3"; "..." for 0) plus a NUL. mod_format_row
+ * writes row `row` of pattern `pattern` as four "C-2 05 C40" cells
+ * (note, sample in hex, effect+param) separated by spaces, if the
+ * pattern is one of the two in RAM; false otherwise. */
+void mod_note_name(uint16_t period, char out[4]);
+bool mod_format_row(const mod_t *m, int pattern, int row, char *out, size_t cap);

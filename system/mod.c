@@ -730,12 +730,24 @@ void mod_advance(mod_t *m, int frames) {
             ch->loop_row = 0;
             ch->loop_count = 0;
             ch->arp_note = 0xff;
+            ch->peak = 0;
+            ch->level = 0;
         }
         goto_order(m, 0, 0);
         m->playing = 1;
         m->frame_acc = m->frames_per_tick; /* the first tick is now */
     }
     if (!m->playing) return;
+    /* Channel levels for visuals: the block's peak, decaying 1/32 a block. */
+    for (int c = 0; c < MOD_CHANNELS; c++) {
+        mod_channel_t *ch = &m->ch[c];
+        int32_t lvl = ch->level;
+        lvl -= lvl >> 5;
+        int32_t peak = ch->peak > 32767 ? 32767 : ch->peak;
+        if (peak > lvl) lvl = peak;
+        ch->level = (uint16_t)lvl;
+        ch->peak = 0;
+    }
     m->frame_acc += (uint32_t)frames;
     while (m->frame_acc >= m->frames_per_tick && m->playing) {
         m->frame_acc -= m->frames_per_tick;
@@ -774,6 +786,10 @@ void mod_mix_frame(mod_t *m, int32_t *l, int32_t *r) {
          * clear of the clamp (the Amiga summed four 8-bit channels into
          * 14 bits the same way). */
         s = (s * vol * 3) >> 9;
+        {
+            int32_t as = s < 0 ? -s : s;
+            if (as > ch->peak) ch->peak = as;
+        }
         int pan = ch->pan;
         int lg = 255 - (pan > 0 ? pan * 4 : 0);
         int rg = 255 + (pan < 0 ? pan * 4 : 0);
@@ -786,4 +802,68 @@ void mod_mix_frame(mod_t *m, int32_t *l, int32_t *r) {
         ch->frac &= 0xffff;
         ch->read_pos = ch->spos;
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tracker view helpers (core 1)                                       */
+/* ------------------------------------------------------------------ */
+
+void mod_note_name(uint16_t period, char out[4]) {
+    static const char names[12][2] = {
+        {'C', '-'}, {'C', '#'}, {'D', '-'}, {'D', '#'}, {'E', '-'}, {'F', '-'},
+        {'F', '#'}, {'G', '-'}, {'G', '#'}, {'A', '-'}, {'A', '#'}, {'B', '-'},
+    };
+    if (period == 0) {
+        out[0] = out[1] = out[2] = '.';
+        out[3] = 0;
+        return;
+    }
+    int n = note_index(period);
+    out[0] = names[n % 12][0];
+    out[1] = names[n % 12][1];
+    out[2] = (char)('1' + n / 12);
+    out[3] = 0;
+}
+
+bool mod_format_row(const mod_t *m, int pattern, int row, char *out, size_t cap) {
+    static const char hex[] = "0123456789ABCDEF";
+    if (!m || row < 0 || row >= MOD_ROWS || cap < MOD_CHANNELS * 11) return false;
+    const uint8_t *pat = NULL;
+    for (int s = 0; s < 2; s++) {
+        if (m->pat_num[s] == pattern) pat = m->pat[s];
+    }
+    if (!pat) return false;
+    const uint8_t *cells = pat + (uint32_t)row * MOD_CHANNELS * 4;
+    char *p = out;
+    for (int c = 0; c < MOD_CHANNELS; c++) {
+        const uint8_t *cell = cells + c * 4;
+        int sample = (cell[0] & 0xf0) | (cell[2] >> 4);
+        int period = ((cell[0] & 0x0f) << 8) | cell[1];
+        int effect = cell[2] & 0x0f, param = cell[3];
+        char note[4];
+        mod_note_name((uint16_t)period, note);
+        if (c) *p++ = ' ';
+        memcpy(p, note, 3);
+        p += 3;
+        *p++ = ' ';
+        if (sample) {
+            *p++ = hex[sample >> 4];
+            *p++ = hex[sample & 15];
+        } else {
+            *p++ = '.';
+            *p++ = '.';
+        }
+        *p++ = ' ';
+        if (effect || param) {
+            *p++ = hex[effect];
+            *p++ = hex[param >> 4];
+            *p++ = hex[param & 15];
+        } else {
+            *p++ = '.';
+            *p++ = '.';
+            *p++ = '.';
+        }
+    }
+    *p = 0;
+    return true;
 }

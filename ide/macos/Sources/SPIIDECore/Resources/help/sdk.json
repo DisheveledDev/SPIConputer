@@ -456,6 +456,44 @@
       ]
     },
     {
+      "name": "Sound.Spectrum",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Spectrum([levels])",
+      "summary": "Ten band levels (0..255) of everything playing, for a graphic equaliser or visuals that move with the music.",
+      "description": "Ten band levels (0..255) of everything playing, sounds, scores and a module together, for a graphic equaliser or any visual that moves with the music: bands centred at 60 Hz to 4 kHz (Sound.SpectrumBands), each a peak that decays over about 50 ms. Pass the list from the previous call to refill it without garbage.",
+      "parameters": [
+        {
+          "name": "levels",
+          "description": "the list from a previous call, refilled (optional)"
+        }
+      ],
+      "returns": "",
+      "example": "local bands = Sound.Spectrum()\nfor i, level in ipairs(bands) do Screen.Progress(0, i, 20, level / 255) end",
+      "seeAlso": [
+        "Sound",
+        "Sound.SpectrumBands",
+        "Music.ModChannels"
+      ]
+    },
+    {
+      "name": "Sound.SpectrumBands",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.SpectrumBands()",
+      "summary": "The centre frequency (Hz) of each Sound.Spectrum band.",
+      "description": "The centre frequency (Hz) of each Sound.Spectrum band.",
+      "parameters": [],
+      "returns": "",
+      "example": "print(table.concat(Sound.SpectrumBands(), \" \"))",
+      "seeAlso": [
+        "Sound",
+        "Sound.Spectrum"
+      ]
+    },
+    {
       "name": "Music.Track",
       "kind": "function",
       "group": "Music",
@@ -673,6 +711,58 @@
       "example": "print(Music.ModInfo().underruns)",
       "seeAlso": [
         "Music"
+      ]
+    },
+    {
+      "name": "Music.ModChannels",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.ModChannels([channels])",
+      "summary": "What each of the module's four channels is doing: { sample, note, period, volume, level, active } per channel, for a tracker view or VU meters.",
+      "description": "What each of the module's four channels is doing, for a tracker view or VU meters: a list of { sample, note (\"C-2\", \"...\" when silent), period, volume (0..64), level (0..255, a decaying peak), active }. Pass the list from the previous call to refill it without garbage.",
+      "parameters": [
+        {
+          "name": "channels",
+          "description": "the list from a previous call, refilled (optional)"
+        }
+      ],
+      "returns": "",
+      "example": "local chs = Music.ModChannels()\nScreen.Progress(0, 5, 20, chs[1].level / 255)",
+      "seeAlso": [
+        "Music",
+        "Music.ModRows",
+        "Sound.Spectrum"
+      ]
+    },
+    {
+      "name": "Music.ModRows",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.ModRows(pattern [, from [, count]])",
+      "summary": "Rows of a pattern in RAM as strings of four \"C-2 05 C40\" cells (note, sample, effect), for a tracker view.",
+      "description": "Rows of a pattern that is in RAM (the one playing, or the next), as strings of four \"C-2 05 C40\" cells (note, sample in hex, effect) a space apart; `from` (default 0) and `count` (default 64) pick the window, rows outside 0..63 come back as \"\". nil, err when the pattern is not resident.",
+      "parameters": [
+        {
+          "name": "pattern",
+          "description": "pattern number (Music.ModPosition's third result)"
+        },
+        {
+          "name": "from",
+          "description": "first row (default 0)"
+        },
+        {
+          "name": "count",
+          "description": "rows to return (default 64)"
+        }
+      ],
+      "returns": "",
+      "example": "local _, row, pattern = Music.ModPosition()\nlocal rows = Music.ModRows(pattern, row - 4, 9)",
+      "seeAlso": [
+        "Music",
+        "Music.ModChannels",
+        "Music.ModPosition"
       ]
     },
     {

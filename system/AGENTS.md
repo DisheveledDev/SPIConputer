@@ -590,7 +590,15 @@ are the core patch type, samples are the later addition):
   offset) waits for a read. Ring and pattern hand-over are volatile
   indices in the SPSC style of the video queue; a note that outruns its
   ring plays silence and counts an underrun. One module per program; a
-  module and a score do not play together. Budget: ~82 KB of system heap
+  module and a score do not play together. For a tracker view the player
+  keeps a decaying peak level per channel (`ModChannels`) and formats
+  pattern rows from the two resident patterns (`ModRows`).
+- **Analyser**: `audio_mix` feeds one frame in four of the mixed output
+  through ten Q14 two-pole resonators (60 Hz .. 4 kHz, Q 2.5,
+  coefficients copied into the audio state at init so the producer reads
+  no flash) and keeps a per-band peak that decays 1/32 a block;
+  `SoundSpectrum` reads it from core 1 for visuals. About 10 multiplies
+  per decimated frame, so it always runs. Budget: ~82 KB of system heap
   per loaded module (pool + rings + patterns), from the ~217 KB the
   firmware has after its static buffers; with the shell's ~45 KB and two
   audio states that leaves a module-playing app about 65 KB of Lua heap

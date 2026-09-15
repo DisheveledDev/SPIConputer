@@ -857,6 +857,110 @@ static int mod_info_lua(lua_State *L) {
     return 1;
 }
 
+/* ModChannels([t]) -> t: for each of the four channels { sample, note,
+ * period, volume (0..64), level (0..255), active }. A table passed in is
+ * refilled (its channel tables reused), so a view polling every frame
+ * makes no garbage. */
+static int mod_channels_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    if (!a->mod) {
+        lua_pushnil(L);
+        return 1;
+    }
+    if (lua_istable(L, 1)) {
+        lua_settop(L, 1);
+    } else {
+        lua_settop(L, 0);
+        lua_createtable(L, MOD_CHANNELS, 0);
+    }
+    for (int c = 0; c < MOD_CHANNELS; c++) {
+        const mod_channel_t *ch = &a->mod->ch[c];
+        lua_rawgeti(L, 1, c + 1);
+        if (!lua_istable(L, -1)) {
+            lua_pop(L, 1);
+            lua_createtable(L, 0, 6);
+            lua_pushvalue(L, -1);
+            lua_rawseti(L, 1, c + 1);
+        }
+        char note[4];
+        mod_note_name(ch->active ? ch->period : 0, note);
+        lua_pushinteger(L, ch->sample); lua_setfield(L, -2, "sample");
+        lua_pushstring(L, note); lua_setfield(L, -2, "note");
+        lua_pushinteger(L, ch->active ? ch->period : 0); lua_setfield(L, -2, "period");
+        lua_pushinteger(L, ch->volume); lua_setfield(L, -2, "volume");
+        /* A channel peaks at 127*256*64*3/512 = 12192: scale that to 255. */
+        uint32_t level = (uint32_t)ch->level * 255u / 12192u;
+        lua_pushinteger(L, level > 255 ? 255 : (lua_Integer)level); lua_setfield(L, -2, "level");
+        lua_pushboolean(L, ch->active); lua_setfield(L, -2, "active");
+        lua_pop(L, 1);
+    }
+    return 1;
+}
+
+/* ModRows(pattern [, from [, count]]) -> { "C-2 05 C40 ...", ... }: rows
+ * `from`.. of a pattern in RAM (the one playing or the next), each the
+ * four channels' note, sample and effect; rows outside 0..63 are "".
+ * nil, err when the pattern is not resident. */
+static int mod_rows_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    int pattern = (int)luaL_checkinteger(L, 1);
+    int from = (int)luaL_optinteger(L, 2, 0);
+    int count = (int)luaL_optinteger(L, 3, MOD_ROWS);
+    if (count < 0) count = 0;
+    if (count > MOD_ROWS) count = MOD_ROWS;
+    if (!a->mod) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "no module loaded");
+        return 2;
+    }
+    lua_createtable(L, count, 0);
+    for (int i = 0; i < count; i++) {
+        int row = from + i;
+        char buf[MOD_CHANNELS * 11 + 1];
+        if (row < 0 || row >= MOD_ROWS) {
+            lua_pushliteral(L, "");
+        } else if (mod_format_row(a->mod, pattern, row, buf, sizeof(buf))) {
+            lua_pushstring(L, buf);
+        } else {
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            lua_pushliteral(L, "pattern not resident");
+            return 2;
+        }
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
+/* SoundSpectrum([t]) -> t: the analyser's ten band levels, 0..255. A
+ * table passed in is refilled. */
+static int sound_spectrum(lua_State *L) {
+    audio_state_t *a = current(L);
+    uint8_t levels[AUDIO_SPECTRUM_BANDS];
+    audio_spectrum(a, levels);
+    if (lua_istable(L, 1)) {
+        lua_settop(L, 1);
+    } else {
+        lua_settop(L, 0);
+        lua_createtable(L, AUDIO_SPECTRUM_BANDS, 0);
+    }
+    for (int b = 0; b < AUDIO_SPECTRUM_BANDS; b++) {
+        lua_pushinteger(L, levels[b]);
+        lua_rawseti(L, 1, b + 1);
+    }
+    return 1;
+}
+
+/* SoundSpectrumBands() -> { 60, 100, ... }: the bands' centres in Hz. */
+static int sound_spectrum_bands(lua_State *L) {
+    lua_createtable(L, AUDIO_SPECTRUM_BANDS, 0);
+    for (int b = 0; b < AUDIO_SPECTRUM_BANDS; b++) {
+        lua_pushinteger(L, audio_spectrum_hz[b]);
+        lua_rawseti(L, -2, b + 1);
+    }
+    return 1;
+}
+
 static int mod_unload_lua(lua_State *L) {
     audio_state_t *a = current(L);
     mod_t *m = a->mod;
@@ -892,7 +996,11 @@ static const luaL_Reg sound_funcs[] = {
     {"ModPlaying", mod_playing_lua},
     {"ModPosition", mod_position_lua},
     {"ModInfo", mod_info_lua},
+    {"ModChannels", mod_channels_lua},
+    {"ModRows", mod_rows_lua},
     {"ModUnload", mod_unload_lua},
+    {"SoundSpectrum", sound_spectrum},
+    {"SoundSpectrumBands", sound_spectrum_bands},
     {NULL, NULL},
 };
 

@@ -1480,6 +1480,40 @@
       "seeAlso": []
     },
     {
+      "name": "SoundSpectrum",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundSpectrum([t])",
+      "summary": "Ten band levels (0..255) of everything playing, a decaying peak per band from 60 Hz to 4 kHz; a table passed in is refilled.",
+      "description": "",
+      "parameters": [
+        {
+          "name": "t",
+          "description": "a list from a previous call to refill (optional)"
+        }
+      ],
+      "returns": "a list of ten integers",
+      "example": "local bands = SoundSpectrum()\nprint(bands[5])",
+      "seeAlso": [
+        "SoundSpectrumBands",
+        "ModChannels"
+      ]
+    },
+    {
+      "name": "SoundSpectrumBands",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundSpectrumBands()",
+      "summary": "The centre frequency in Hz of each SoundSpectrum band.",
+      "description": "",
+      "parameters": [],
+      "returns": "a list of ten integers",
+      "example": "print(table.concat(SoundSpectrumBands(), \" \"))",
+      "seeAlso": [
+        "SoundSpectrum"
+      ]
+    },
+    {
       "name": "MusicDefine",
       "kind": "function",
       "group": "Sound",
@@ -1631,6 +1665,54 @@
       "example": "print(ModInfo().name)",
       "seeAlso": [
         "ModLoad"
+      ]
+    },
+    {
+      "name": "ModChannels",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModChannels([t])",
+      "summary": "The four channels' sample, note, period, volume (0..64), level (0..255) and active flag, for a tracker view; a table passed in is refilled.",
+      "description": "",
+      "parameters": [
+        {
+          "name": "t",
+          "description": "a list from a previous call to refill (optional)"
+        }
+      ],
+      "returns": "a list of four tables, or nil",
+      "example": "local chs = ModChannels()\nprint(chs[1].note, chs[1].level)",
+      "seeAlso": [
+        "ModRows",
+        "SoundSpectrum"
+      ]
+    },
+    {
+      "name": "ModRows",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModRows(pattern [, from [, count]])",
+      "summary": "Rows of a pattern in RAM (the playing one or the next) as strings of four \"C-2 05 C40\" cells; rows outside 0..63 are \"\".",
+      "description": "",
+      "parameters": [
+        {
+          "name": "pattern",
+          "description": "pattern number (ModPosition's third result)"
+        },
+        {
+          "name": "from",
+          "description": "first row (default 0)"
+        },
+        {
+          "name": "count",
+          "description": "rows to return (default 64)"
+        }
+      ],
+      "returns": "a list of strings, or nil, err when the pattern is not resident",
+      "example": "local _, row, pattern = ModPosition()\nfor _, line in ipairs(ModRows(pattern, row - 4, 9)) do print(line) end",
+      "seeAlso": [
+        "ModChannels",
+        "ModPosition"
       ]
     },
     {
