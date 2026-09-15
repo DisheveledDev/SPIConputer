@@ -41,6 +41,36 @@ struct ManifestAndStoreTests {
         #expect(none.sdks.isEmpty)
     }
 
+    @Test func stripDebugIsOptInAndOnlyWrittenWhenSet() throws {
+        let plain = try JSONCoding.decode(ProjectManifest.self, from: Data(#"{"name": "Tiny"}"#.utf8))
+        #expect(!plain.stripDebug)
+        #expect(!(String(data: try JSONCoding.encode(plain), encoding: .utf8) ?? "").contains("strip_debug"))
+        let shell = try JSONCoding.decode(
+            ProjectManifest.self, from: Data(#"{"name": "os", "strip_debug": true}"#.utf8))
+        #expect(shell.stripDebug)
+        let text = String(data: try JSONCoding.encode(shell), encoding: .utf8) ?? ""
+        #expect(text.contains("strip_debug"))
+        #expect(try JSONCoding.decode(ProjectManifest.self, from: JSONCoding.encode(shell)) == shell)
+    }
+
+    @Test func strippedPrgIsSmaller() throws {
+        // Needs a simulator to compile with: the vendored one.
+        guard let simulator = BundledResources.simulatorURL else { return }
+        let parent = try makeTempParent()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let source = parent.appendingPathComponent("p.lua")
+        try Data("local function add(first, second)\n  local total = first + second\n  return total\nend\nfunction setup() print(add(1, 2)) end\n".utf8)
+            .write(to: source)
+        let full = parent.appendingPathComponent("full.prg")
+        let stripped = parent.appendingPathComponent("stripped.prg")
+        #expect(PrgCompiler.compile(source: source, output: full, simulator: simulator).outputURL != nil)
+        #expect(PrgCompiler.compile(source: source, output: stripped, simulator: simulator,
+                                    stripDebug: true).outputURL != nil)
+        let fullSize = try Data(contentsOf: full).count
+        let strippedSize = try Data(contentsOf: stripped).count
+        #expect(strippedSize < fullSize, "stripped \(strippedSize) vs full \(fullSize)")
+    }
+
     @Test func format1ManifestsMigrateToKinds() throws {
         // output_kind prg into ../core: a system program installed to core/.
         let system = try JSONCoding.decode(ProjectManifest.self, from: Data(

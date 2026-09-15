@@ -42,7 +42,8 @@ do {
         let outcome = PrgCompiler.compile(
             source: product.outputURL,
             output: project.prgProductURL,
-            simulator: simulator)
+            simulator: simulator,
+            stripDebug: project.manifest.stripDebug)
         if outcome.outputURL != nil {
             try ProjectBuilder.writeAppBundle(project, compiledURL: project.prgProductURL)
             compiled = true

@@ -13,10 +13,14 @@ public enum PrgCompiler {
         }
     }
 
-    public static func compile(source: URL, output: URL, simulator: URL) -> Outcome {
+    /// `stripDebug` leaves out line numbers and local names (the
+    /// simulator's --strip): less heap once loaded, no line numbers in
+    /// runtime errors.
+    public static func compile(source: URL, output: URL, simulator: URL,
+                               stripDebug: Bool = false) -> Outcome {
         let process = Process()
         process.executableURL = simulator
-        process.arguments = ["--compile", source.path, output.path]
+        process.arguments = (stripDebug ? ["--strip"] : []) + ["--compile", source.path, output.path]
         let stdout = Pipe()
         let stderr = Pipe()
         process.standardOutput = stdout

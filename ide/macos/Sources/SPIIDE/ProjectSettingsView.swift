@@ -13,6 +13,7 @@ struct ProjectSettingsView: View {
     @State private var audio = true
     @State private var iconFile = ""
     @State private var sdks: Set<String> = []
+    @State private var stripDebug = false
 
     var body: some View {
         Form {
@@ -68,6 +69,8 @@ struct ProjectSettingsView: View {
                 }
                 LabeledContent("Installs to",
                                value: "\(installDirectory.isEmpty ? kind.installDirectory : installDirectory)/")
+                Toggle("Strip debug info from the .prg", isOn: $stripDebug)
+                    .help("About a fifth less heap once loaded, but runtime errors lose their line numbers. Meant for resident system programs such as the shell.")
             }
             HStack {
                 Spacer()
@@ -81,7 +84,8 @@ struct ProjectSettingsView: View {
                         requiresVideo: video,
                         requiresAudio: audio,
                         iconFile: iconFile,
-                        sdks: Array(sdks))
+                        sdks: Array(sdks),
+                        stripDebug: stripDebug)
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -104,5 +108,6 @@ struct ProjectSettingsView: View {
         audio = manifest.requiresAudio
         iconFile = manifest.iconFile ?? ""
         sdks = Set(manifest.sdks)
+        stripDebug = manifest.stripDebug
     }
 }

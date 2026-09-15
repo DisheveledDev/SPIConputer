@@ -331,7 +331,8 @@ final class AppModel {
         requiresVideo: Bool,
         requiresAudio: Bool,
         iconFile: String?,
-        sdks: [String]
+        sdks: [String],
+        stripDebug: Bool = false
     ) {
         guard var project else { return }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -346,6 +347,7 @@ final class AppModel {
         project.manifest.requiresVideo = kind.interactive && requiresVideo
         project.manifest.requiresAudio = kind.interactive && requiresAudio
         project.manifest.iconFile = iconFile?.isEmpty == true ? nil : iconFile
+        project.manifest.stripDebug = stripDebug
         do {
             try ProjectStore.save(project)
             self.project = project
@@ -627,7 +629,8 @@ final class AppModel {
                 let outcome = PrgCompiler.compile(
                     source: product.outputURL,
                     output: project.prgProductURL,
-                    simulator: simulator)
+                    simulator: simulator,
+                    stripDebug: project.manifest.stripDebug)
                 if outcome.outputURL != nil {
                     try? ProjectBuilder.writeAppBundle(
                         project, compiledURL: project.prgProductURL)

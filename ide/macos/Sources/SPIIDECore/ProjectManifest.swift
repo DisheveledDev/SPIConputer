@@ -81,6 +81,10 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
     /// Frameworks (SDKLibrary ids such as "screen") injected, read-only,
     /// ahead of the components; unused functions are stripped at build.
     public var sdks: [String]
+    /// Compile the .prg without debug info (line numbers, local names):
+    /// about a fifth less heap once loaded, but runtime errors carry no
+    /// line numbers. For resident system programs such as the shell.
+    public var stripDebug: Bool
     public var components: [ComponentRef]
 
     /// Utilities have no screen or sound of their own.
@@ -97,6 +101,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         description: String = "",
         iconFile: String? = nil,
         sdks: [String] = [],
+        stripDebug: Bool = false,
         components: [ComponentRef] = []
     ) {
         self.formatVersion = formatVersion
@@ -109,6 +114,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         self.description = description
         self.iconFile = iconFile
         self.sdks = sdks
+        self.stripDebug = stripDebug
         self.components = components
     }
 
@@ -123,6 +129,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         case description
         case iconFile = "icon_file"
         case sdks
+        case stripDebug = "strip_debug"
         case components
         // Format 1 keys, read for migration only.
         case legacyInteractive = "interactive"
@@ -163,6 +170,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         // empty list opts out.
         sdks = try c.decodeIfPresent([String].self, forKey: .sdks)
             ?? SDKLibrary.available.map(\.id)
+        stripDebug = try c.decodeIfPresent(Bool.self, forKey: .stripDebug) ?? false
         components = try c.decodeIfPresent([ComponentRef].self, forKey: .components) ?? []
     }
 
@@ -178,6 +186,7 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         try c.encode(description, forKey: .description)
         try c.encodeIfPresent(iconFile, forKey: .iconFile)
         try c.encode(sdks, forKey: .sdks)
+        if stripDebug { try c.encode(true, forKey: .stripDebug) }
         try c.encode(components, forKey: .components)
     }
 }
