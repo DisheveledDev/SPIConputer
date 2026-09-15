@@ -88,13 +88,14 @@ static const video_state_t *ed(void) {
  * fixed cells). */
 static bool overlay_has(const char *text) {
     size_t n = strlen(text);
-    for (int row = 0; row < 30; row++) {
-        char line[41];
-        for (int col = 0; col < 40; col++) {
-            line[col] = (char)ed()->overlay_char[row * 40 + col];
+    int cols = video_mode_cols(ed()->mode), rows = video_mode_rows(ed()->mode);
+    for (int row = 0; row < rows; row++) {
+        char line[VIDEO_MAX_COLS + 1];
+        for (int col = 0; col < cols; col++) {
+            line[col] = (char)ed()->overlay_char[row * cols + col];
         }
-        line[40] = '\0';
-        for (int col = 0; col + (int)n <= 40; col++) {
+        line[cols] = '\0';
+        for (int col = 0; col + (int)n <= cols; col++) {
             if (memcmp(line + col, text, n) == 0) return true;
         }
     }
@@ -133,11 +134,13 @@ static void test_editor(const char *editor_path) {
               ed()->base_char[STATUS_ROW * 40 + 4] == '.',
           "status line shows file name");
 
-    /* F4 opens OPTIONS on the overlay; Return toggles the cursor blink
-     * and closes it, leaving the base layer untouched. */
+    /* F4 opens OPTIONS on the overlay; DOWN, Return toggles the cursor
+     * blink (the second item) and closes it, leaving the base layer
+     * untouched. */
     type(135);
     CHECK(ed()->base_attr[menu_col_options()] == 0x80, "F4 highlights OPTIONS");
     CHECK(overlay_has("Toggle cursor blink"), "OPTIONS menu on the overlay");
+    type(129);
     type(13);
     CHECK(!overlay_has("Toggle cursor blink"), "menu closed after choosing");
     CHECK(TEXT(0, 0) == 'h', "text intact under the closed menu");
@@ -174,6 +177,16 @@ static void test_editor(const char *editor_path) {
     /* "note.txt  L1 C2  *" */
     CHECK(ed()->base_char[STATUS_ROW * 40 + 17] == '*',
           "status shows the dirty marker");
+
+    /* OPTIONS > Toggle 40/80 columns: mode 3, the status bar on row 59,
+     * the text unchanged; the unsaved-changes dialog works there too. */
+    type(135);
+    type(13);
+    CHECK(ed()->mode == VIDEO_MODE_TEXT80C, "40/80 toggle selects mode 3");
+    CHECK(ed()->base_attr[59 * 80] == 0x80 && ed()->base_char[59 * 80] == 'n',
+          "status bar on row 59 at 80 columns");
+    CHECK(ed()->base_char[80] == 'X' && ed()->base_char[81] == 'h',
+          "text redrawn with the 80-column stride");
 
     /* Ctrl+Q with a dirty buffer -> save confirmation dialog. */
     type(17);

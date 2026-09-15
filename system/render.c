@@ -22,6 +22,11 @@ void render_line(const video_state_t *v, int ly, uint8_t *out) {
             uint8_t ci =
                 v->framebuf ? v->framebuf[ly * VIDEO_FB_COLS + lpx] : 0;
             colour = v->palette[ci];
+        } else if (v->mode == VIDEO_MODE_PIXEL_LO) {
+            /* 4x4 pixels: quarter the column, halve the logical row. */
+            uint8_t ci = v->framebuf
+                ? v->framebuf[(ly / 2) * VIDEO_FB_LO_COLS + x / 4] : 0;
+            colour = v->palette[ci];
         } else {
             int idx = row * cols + col;
             uint8_t ch = v->base_char[idx];

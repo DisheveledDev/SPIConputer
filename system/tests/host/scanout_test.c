@@ -353,13 +353,13 @@ static void test_render332_matches_reference(void) {
     uint32_t words[RENDER332_WORDS_PER_LINE];
     const int modes[] = {VIDEO_MODE_TEXT40, VIDEO_MODE_TEXT40C,
                          VIDEO_MODE_TEXT80, VIDEO_MODE_TEXT80C,
-                         VIDEO_MODE_PIXEL};
+                         VIDEO_MODE_PIXEL, VIDEO_MODE_PIXEL_LO};
 
     render332_init();
     for (int m = 0; m < (int)(sizeof(modes) / sizeof(modes[0])); m++) {
         video_state_init(&v);
         v.mode = (uint8_t)modes[m];
-        v.framebuf = (v.mode == VIDEO_MODE_PIXEL) ? fb : NULL;
+        v.framebuf = video_mode_has_pixels(v.mode) ? fb : NULL;
 
         for (int i = 0; i < VIDEO_MAX_CELLS; i++) {
             v.base_char[i] = (uint8_t)('A' + (i * 7) % 26);
@@ -371,7 +371,7 @@ static void test_render332_matches_reference(void) {
             v.palette[i] = (uint32_t)(i * 0x010101) | 0x001020u;
         }
         render332_invalidate_palette();
-        if (v.mode == VIDEO_MODE_PIXEL) {
+        if (video_mode_has_pixels(v.mode)) {
             /* Vary by column *and* row: patterns that repeat every
              * 256 bytes can hide a wrong framebuffer row. */
             for (int i = 0; i < VIDEO_FB_COLS * VIDEO_FB_ROWS; i++) {

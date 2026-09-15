@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "font8x8_rom.h"
 
 /* Core 0's render pump calls this for every row, so on the product
  * board the code and every table it reads live in SRAM: the XIP cache is
@@ -25,12 +24,10 @@ static uint32_t s_expand1[2][256];
 static uint32_t s_rgb332[256];
 static bool s_palette_valid;
 
-/* SRAM copy of the ROM font: the const font8x8_rom table lives in
- * flash, which core 0 must not read. */
-static uint8_t s_font[256][8];
-
 void render332_init(void) {
-    memcpy(s_font, font8x8_rom, sizeof(s_font));
+    /* The SRAM copy of the ROM font (video.c): the const table lives in
+     * flash, which core 0 must not read. */
+    video_font_init();
     memset(s_expand2, 0, sizeof(s_expand2));
     memset(s_expand1, 0, sizeof(s_expand1));
     for (int bits = 0; bits < 256; bits++) {
@@ -85,6 +82,18 @@ static void RENDER_HOT(put_cell_2x)(uint32_t *dst, uint8_t bits,
     }
 }
 
+/* One row of mode 10 palette bytes, every pixel doubled: a straight LUT
+ * walk of the byte row. */
+static void RENDER_HOT(put_pixel_row)(const uint8_t *fb, uint32_t *out) {
+    for (int x = 0; x < VIDEO_FB_COLS; x += 2) {
+        uint8_t a = fb ? fb[x] : 0;
+        uint8_t b = fb ? fb[x + 1] : 0;
+        uint32_t px = s_rgb332[a] & 0xffffu;
+        uint32_t px2 = s_rgb332[b] & 0xffffu;
+        *out++ = px | (px2 << 16);
+    }
+}
+
 static void RENDER_HOT(put_cell_1x)(uint32_t *dst, uint8_t bits,
                                     uint32_t fg, uint32_t bg) {
     uint32_t mask = s_expand1[0][bits];
@@ -107,16 +116,18 @@ void RENDER_HOT(render_line_332)(const video_state_t *v, int ly,
     int sub = ly % 8;
 
     if (v->mode == VIDEO_MODE_PIXEL) {
-        /* Direct pixels: one logical line per output line pair; every
-         * pixel is doubled horizontally. */
-        const uint8_t *fb =
-            v->framebuf ? v->framebuf + ly * VIDEO_FB_COLS : NULL;
-        for (int x = 0; x < VIDEO_FB_COLS; x += 2) {
-            uint8_t a = fb ? fb[x] : 0;
-            uint8_t b = fb ? fb[x + 1] : 0;
-            uint32_t px = s_rgb332[a] & 0xffffu;
-            uint32_t px2 = s_rgb332[b] & 0xffffu;
-            *out++ = px | (px2 << 16);
+        /* Direct pixels: one logical line per output line pair. */
+        put_pixel_row(v->framebuf ? v->framebuf + ly * VIDEO_FB_COLS : NULL, out);
+        return;
+    }
+
+    if (v->mode == VIDEO_MODE_PIXEL_LO) {
+        /* 160x120: each byte is one output word (4 pixels, the LUT
+         * entry is the colour replicated), each buffer row two logical
+         * rows. 160 loads and stores a line: the cheapest mode. */
+        const uint8_t *fb = v->framebuf ? v->framebuf + (ly / 2) * VIDEO_FB_LO_COLS : NULL;
+        for (int x = 0; x < VIDEO_FB_LO_COLS; x++) {
+            *out++ = s_rgb332[fb ? fb[x] : 0];
         }
         return;
     }
@@ -134,7 +145,7 @@ void RENDER_HOT(render_line_332)(const video_state_t *v, int ly,
             attr = oattr;
         }
         uint8_t bits = v->tile_defined[ch] ? v->tiles[ch][sub]
-                                           : s_font[ch][sub];
+                                           : video_font[ch][sub];
 
         uint8_t fg_idx, bg_idx;
         if (colour_mode) {

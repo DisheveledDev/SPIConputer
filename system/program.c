@@ -576,11 +576,12 @@ static int launch_common(const char *name, const char *source, size_t len,
         return -1;
     }
     if (!replace && s_top && s_top->requires_video &&
-        video_lua_mode() == VIDEO_MODE_PIXEL) {
-        /* Memory policy: mode 10 is single-program (see AGENTS.md).
-         * Replacing the pixel-mode program is allowed: the new program
-         * takes its place and the slot resets. */
-        *err = "cannot launch from mode 10";
+        video_mode_has_pixels(video_lua_mode())) {
+        /* Memory policy: the pixel buffer (modes 10 and 11) is
+         * single-program (see AGENTS.md). Replacing the pixel-mode
+         * program is allowed: the new program takes its place and the
+         * slot resets. */
+        *err = "cannot launch from a pixel mode (10 or 11)";
         return -1;
     }
     if (s_top) {

@@ -16,6 +16,12 @@
  * at the full 640x480, one output line per tile row, so a text row
  * costs twice the cells and every row is rendered rather than every
  * second one (see render332.c for the budget).
+ *
+ * The pixel modes are a plain byte buffer, one palette index per pixel:
+ * mode 10 is 320x240 (every pixel doubled), mode 11 is 160x120 (every
+ * pixel shown 4x4, a 19 KB buffer and the cheapest mode to render).
+ * Drawing into them (shapes, blits, text) is done by core 0 from queued
+ * ops; the Graphics framework builds on those.
  */
 #pragma once
 
@@ -39,7 +45,10 @@
 #define VIDEO_MODE_TEXT40C 1 /* 40x30, per-cell invert + colour */
 #define VIDEO_MODE_TEXT80 2  /* 80x60, B&W */
 #define VIDEO_MODE_TEXT80C 3 /* 80x60, per-cell invert + colour */
-#define VIDEO_MODE_PIXEL 10  /* 320x240 direct pixels, 256-entry palette */
+#define VIDEO_MODE_PIXEL 10    /* 320x240 direct pixels, 256-entry palette */
+#define VIDEO_MODE_PIXEL_LO 11 /* 160x120 direct pixels, shown 4x4 */
+#define VIDEO_FB_LO_COLS 160
+#define VIDEO_FB_LO_ROWS 120
 
 #define VIDEO_ATTR_TRANSPARENT 0x40
 
@@ -69,8 +78,9 @@ typedef struct {
     uint8_t tiles[256][8];
     uint8_t tile_defined[256];
 
-    /* Mode 10 only: 320x240 palette indexes into core 0's shared pixel
-     * buffer, attached when the mode is entered. */
+    /* Modes 10 and 11: palette indexes into core 0's shared pixel
+     * buffer, row-major with the mode's pixel width as the stride (320
+     * or 160), attached when the mode is entered. */
     uint8_t *framebuf;
 
     uint32_t palette[256]; /* RGB888 */
@@ -91,7 +101,7 @@ typedef enum {
     VIDEO_OP_OVER_CLEAR, /* overlay: a = fill char */
     VIDEO_OP_TILE,       /* a = index; d,e = the 8 row bytes */
     VIDEO_OP_PALETTE,    /* a = index; d = 0xRRGGBB */
-    VIDEO_OP_PLOT,       /* a,b = x,y; d = colour (mode 10) */
+    VIDEO_OP_PLOT,       /* pixel: a = colour; d = x | y<<16 (int16 each) */
     VIDEO_OP_SLOT,       /* a = screen slot for the ops that follow */
 
     /* Block ops (text modes): one op per rectangle instead of one per
@@ -108,7 +118,33 @@ typedef enum {
                         free-running end of its staging bytes: `len` bytes
                         ending there, written from (x,y) onwards, wrapping
                         to the next row */
+
+    /* Pixel ops (modes 10 and 11), in pixel coordinates. Coordinates are
+     * int16 packed as lo | hi<<16 and clipped by core 0, so shapes may
+     * run off the edge. `a` is the colour. */
+    VIDEO_OP_PRECT,   /* d = x|y<<16; e = w|h<<16; b = VIDEO_PX_FILLED */
+    VIDEO_OP_PLINE,   /* d = x0|y0<<16; e = x1|y1<<16 */
+    VIDEO_OP_PCIRCLE, /* d = cx|cy<<16; e = radius; b = VIDEO_PX_FILLED */
+    VIDEO_OP_PSCROLL, /* d = x|y<<16; e = w|h<<16; b,c = (int8) dx,dy;
+                         a = the colour uncovered pixels get */
+    /* Staged pixel ops, like TEXT: d = the staged byte count, e = the
+     * free-running end of the staged bytes, which start with x, y (int16
+     * LE each). */
+    VIDEO_OP_BLIT,    /* staged: x, y, w, h (int16 LE) then w*h pixels;
+                         b = VIDEO_PX_KEYED: pixels equal to `a` are
+                         skipped (a sprite's transparent colour) */
+    VIDEO_OP_PTEXT,   /* staged: x, y (int16 LE) then the text; a = colour;
+                         b = VIDEO_PX_FILLED: paint the glyph background
+                         with `c` (else it is left alone), plus the scale
+                         1-4 in VIDEO_PX_SCALE bits (glyph pixels drawn
+                         scale x scale) */
 } video_op_kind_t;
+
+/* Pixel op flags (`b`). */
+#define VIDEO_PX_FILLED 0x01
+#define VIDEO_PX_KEYED 0x01
+#define VIDEO_PX_SCALE_SHIFT 4 /* PTEXT: (scale - 1) << 4 */
+#define VIDEO_PX_SCALE_MASK 0x30
 
 /* Block op flags (the top byte of `d`). */
 #define VIDEO_BLK_OVERLAY 0x01 /* overlay layer instead of the base */
@@ -188,14 +224,24 @@ uint32_t video_ops_overlay_out_count(void);
 int video_lua_mode(void);
 
 /* Reset a state to its power-on contents (mode 0, blank maps, default
- * palette). Host tests use it to build render inputs. */
+ * palette). Host tests use it to build render inputs. The default
+ * palette is 256 colours in the xterm layout: 0-15 the C64-style text
+ * colours, 16-231 a 6x6x6 colour cube (index 16 + 36r + 6g + b, r/g/b
+ * 0-5), 232-255 a 24-step grey ramp. */
 void video_state_init(video_state_t *v);
+
+/* The ROM font in SRAM (core 0 must not read flash): 256 glyphs of 8 row
+ * bytes, bit 0 the leftmost pixel. Filled by video_font_init(), which
+ * video_screens_init() and render332_init() both call. */
+extern uint8_t video_font[256][8];
+void video_font_init(void);
 
 /* Mode geometry. Inline so core 0's SRAM-resident render path can use
  * them without a call into flash. */
 bool video_mode_valid(int mode);
 
-/* True for the modes the scanout doubles (320x240 logical). */
+/* True for the modes the scanout shows as 240 logical rows, each on two
+ * output lines (mode 11's 120 pixel rows are rendered twice over). */
 static inline bool video_mode_2x(int mode) {
     return mode != VIDEO_MODE_TEXT80 && mode != VIDEO_MODE_TEXT80C;
 }
@@ -205,14 +251,34 @@ static inline bool video_mode_colour(int mode) {
     return mode == VIDEO_MODE_TEXT40C || mode == VIDEO_MODE_TEXT80C;
 }
 
-/* Active cells (text modes) or pixels (mode 10) across and down. */
-static inline int video_mode_cols(int mode) {
+/* Modes with a text (cell) screen, and modes with a pixel buffer. */
+static inline bool video_mode_has_pixels(int mode) {
+    return mode == VIDEO_MODE_PIXEL || mode == VIDEO_MODE_PIXEL_LO;
+}
+
+static inline bool video_mode_has_text(int mode) {
+    return !video_mode_has_pixels(mode);
+}
+
+/* The pixel buffer's size in a pixel mode (0x0 in the text modes). */
+static inline int video_pixel_width(int mode) {
     if (mode == VIDEO_MODE_PIXEL) return VIDEO_FB_COLS;
+    return mode == VIDEO_MODE_PIXEL_LO ? VIDEO_FB_LO_COLS : 0;
+}
+
+static inline int video_pixel_height(int mode) {
+    if (mode == VIDEO_MODE_PIXEL) return VIDEO_FB_ROWS;
+    return mode == VIDEO_MODE_PIXEL_LO ? VIDEO_FB_LO_ROWS : 0;
+}
+
+/* Active cells (text modes) or pixels (pixel modes) across and down. */
+static inline int video_mode_cols(int mode) {
+    if (video_mode_has_pixels(mode)) return video_pixel_width(mode);
     return video_mode_2x(mode) ? VIDEO_COLS_2X : VIDEO_COLS_1X;
 }
 
 static inline int video_mode_rows(int mode) {
-    if (mode == VIDEO_MODE_PIXEL) return VIDEO_FB_ROWS;
+    if (video_mode_has_pixels(mode)) return video_pixel_height(mode);
     return video_mode_2x(mode) ? VIDEO_ROWS_2X : VIDEO_ROWS_1X;
 }
 

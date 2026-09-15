@@ -27,7 +27,19 @@
  *   OverlayClear([char])             -> true
  *   Overlay{Box,Fill,FillAttr,Copy,Move,Scroll,Write,WriteAttr}
  *                                    -> as the Screen versions
- *   ScreenPlot(x, y, colour)         -> true | nil, err (mode 10)
+ *   ScreenPlot(x, y, colour)         -> true | nil, err (modes 10, 11)
+ *   ScreenPixelRect(x, y, w, h, colour [, filled])      -> true | nil, err
+ *   ScreenPixelLine(x0, y0, x1, y1, colour)             -> true | nil, err
+ *   ScreenPixelCircle(cx, cy, r, colour [, filled])     -> true | nil, err
+ *   ScreenPixelScroll(x, y, w, h, dx, dy [, fill])      -> true | nil, err
+ *   ScreenBlit(x, y, w, h, pixels [, key])              -> true | nil, err
+ *   ScreenPixelText(x, y, text, colour [, bg [, scale]]) -> true | nil, err
+ *
+ * The pixel calls draw on the pixel buffer of mode 10 (320x240) or mode
+ * 11 (160x120). Each is one queued op; core 0 clips, so shapes and
+ * sprites may run off the edges. ScreenBlit and ScreenPixelText carry
+ * their bytes through the staging ring (a blit is at most 8184 pixels;
+ * the Graphics framework splits larger images).
  *
  * The block calls (Box, Fill, FillAttr, Copy, Move, Scroll, Write) each
  * queue ONE op, whatever the rectangle's size: core 0 does the work at
@@ -37,8 +49,8 @@
  * Screen* calls draw on the base layer; Overlay* calls draw on the
  * single overlay layer, whose untouched cells show the base. Mode table:
  * 0 = 40x30 B&W, 1 = 40x30 colour, 2 = 80x60 B&W, 3 = 80x60 colour,
- * 10 = 320x240 pixels. Cell coordinates are checked against the mode the
- * program last selected. The RP2040 dev board supports modes 0 and 1
+ * 10 = 320x240 pixels, 11 = 160x120 pixels. Cell and pixel coordinates
+ * are checked against the mode the program last selected. The RP2040 dev board supports modes 0 and 1
  * only (no pixel buffer memory there).
  */
 #include "screen_lua.h"
@@ -98,7 +110,7 @@ static int screen_mode(lua_State *L) {
 #endif
     if (!video_mode_valid(mode)) {
         lua_pushnil(L);
-        lua_pushfstring(L, "mode %d is not available (0-3 or 10)", mode);
+        lua_pushfstring(L, "mode %d is not available (0-3, 10 or 11)", mode);
         return 2;
     }
     video_note_mode(mode);
@@ -113,7 +125,7 @@ static int screen_out(lua_State *L) {
     int y = (int)luaL_checkinteger(L, 2);
     int ch = (int)luaL_checkinteger(L, 3);
     int attr = (int)luaL_optinteger(L, 4, 0);
-    if (video_lua_mode() == VIDEO_MODE_PIXEL) {
+    if (video_mode_has_pixels(video_lua_mode())) {
         return luaL_error(L, "ScreenOut needs a text mode (call ScreenMode first)");
     }
     if (x < 0 || x >= lua_cols() || y < 0 || y >= lua_rows() ||
@@ -238,7 +250,7 @@ static int overlay_out(lua_State *L) {
     int y = (int)luaL_checkinteger(L, 2);
     int ch = (int)luaL_checkinteger(L, 3);
     int attr = (int)luaL_optinteger(L, 4, 0);
-    if (video_lua_mode() == VIDEO_MODE_PIXEL) {
+    if (video_mode_has_pixels(video_lua_mode())) {
         return luaL_error(L, "OverlayOut needs a text mode (call ScreenMode first)");
     }
     if (x < 0 || x >= lua_cols() || y < 0 || y >= lua_rows() ||
@@ -285,7 +297,7 @@ static bool rect_args(lua_State *L, int *x, int *y, int *w, int *h) {
     *y = (int)luaL_checkinteger(L, 2);
     *w = (int)luaL_checkinteger(L, 3);
     *h = (int)luaL_checkinteger(L, 4);
-    if (video_lua_mode() == VIDEO_MODE_PIXEL) {
+    if (video_mode_has_pixels(video_lua_mode())) {
         luaL_error(L, "block ops need a text mode (call ScreenMode first)");
     }
     int x1 = *x + *w, y1 = *y + *h;
@@ -324,7 +336,7 @@ static int box_common(lua_State *L, bool overlay) {
     int h = (int)luaL_checkinteger(L, 4);
     int style = (int)luaL_optinteger(L, 5, 1);
     int attr = (int)luaL_optinteger(L, 6, 0);
-    if (video_lua_mode() == VIDEO_MODE_PIXEL) {
+    if (video_mode_has_pixels(video_lua_mode())) {
         return luaL_error(L, "block ops need a text mode (call ScreenMode first)");
     }
     if (w < 2 || h < 2) {
@@ -446,7 +458,7 @@ static int scroll_common(lua_State *L, bool overlay) {
 static int write_common(lua_State *L, bool overlay, bool attrs_only) {
     check_program(L);
     int x, y;
-    if (video_lua_mode() == VIDEO_MODE_PIXEL) {
+    if (video_mode_has_pixels(video_lua_mode())) {
         return luaL_error(L, "block ops need a text mode (call ScreenMode first)");
     }
     if (!cell_arg(L, 1, &x, &y)) {
@@ -512,25 +524,196 @@ static int screen_load_image(lua_State *L) {
     return 2;
 }
 
+/* ---------------- pixel ops (modes 4 and 10) ---------------- */
+
+/* Pushes nil, err and returns false unless a pixel mode is selected. */
+static bool pixel_mode(lua_State *L) {
+    if (video_mode_has_pixels(video_lua_mode())) {
+        return true;
+    }
+    lua_pushnil(L);
+    lua_pushliteral(L, "needs a pixel mode (ScreenMode 10 or 11)");
+    return false;
+}
+
+/* A coordinate as the int16 the op carries. */
+static int coord_arg(lua_State *L, int idx) {
+    lua_Integer v = luaL_checkinteger(L, idx);
+    if (v < -32768) v = -32768;
+    if (v > 32767) v = 32767;
+    return (int)v;
+}
+
+static uint32_t pack16(int lo, int hi) {
+    return (uint32_t)(uint16_t)(int16_t)lo | ((uint32_t)(uint16_t)(int16_t)hi << 16);
+}
+
+static int colour_arg(lua_State *L, int idx) {
+    return (int)(luaL_checkinteger(L, idx) & 0xff);
+}
+
 static int screen_plot(lua_State *L) {
     check_program(L);
-    int x = (int)luaL_checkinteger(L, 1);
-    int y = (int)luaL_checkinteger(L, 2);
-    int c = (int)luaL_checkinteger(L, 3);
-    if (video_lua_mode() != VIDEO_MODE_PIXEL) {
-        lua_pushnil(L);
-        lua_pushliteral(L, "ScreenPlot needs mode 10");
+    int x = coord_arg(L, 1);
+    int y = coord_arg(L, 2);
+    int c = colour_arg(L, 3);
+    if (!pixel_mode(L)) {
         return 2;
     }
-    if (x < 0 || x >= VIDEO_FB_COLS || y < 0 || y >= VIDEO_FB_ROWS ||
-        c < 0 || c > 255) {
+    int mode = video_lua_mode();
+    if (x < 0 || x >= video_pixel_width(mode) || y < 0 || y >= video_pixel_height(mode)) {
         lua_pushnil(L);
         lua_pushliteral(L, "out of range");
         return 2;
     }
-    put(VIDEO_OP_PLOT, x, y, 0, (uint32_t)c, 0);
-    lua_pushboolean(L, true);
-    return 1;
+    put(VIDEO_OP_PLOT, c, 0, 0, pack16(x, y), 0);
+    return push_true(L);
+}
+
+static int screen_pixel_rect(lua_State *L) {
+    check_program(L);
+    int x = coord_arg(L, 1), y = coord_arg(L, 2);
+    int w = coord_arg(L, 3), h = coord_arg(L, 4);
+    int c = colour_arg(L, 5);
+    int filled = lua_toboolean(L, 6) ? VIDEO_PX_FILLED : 0;
+    if (!pixel_mode(L)) {
+        return 2;
+    }
+    put(VIDEO_OP_PRECT, c, filled, 0, pack16(x, y), pack16(w, h));
+    return push_true(L);
+}
+
+static int screen_pixel_line(lua_State *L) {
+    check_program(L);
+    int x0 = coord_arg(L, 1), y0 = coord_arg(L, 2);
+    int x1 = coord_arg(L, 3), y1 = coord_arg(L, 4);
+    int c = colour_arg(L, 5);
+    if (!pixel_mode(L)) {
+        return 2;
+    }
+    put(VIDEO_OP_PLINE, c, 0, 0, pack16(x0, y0), pack16(x1, y1));
+    return push_true(L);
+}
+
+static int screen_pixel_circle(lua_State *L) {
+    check_program(L);
+    int cx = coord_arg(L, 1), cy = coord_arg(L, 2);
+    lua_Integer r = luaL_checkinteger(L, 3);
+    int c = colour_arg(L, 4);
+    int filled = lua_toboolean(L, 5) ? VIDEO_PX_FILLED : 0;
+    if (!pixel_mode(L)) {
+        return 2;
+    }
+    if (r < 0 || r > 1024) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "radius out of range (0-1024)");
+        return 2;
+    }
+    put(VIDEO_OP_PCIRCLE, c, filled, 0, pack16(cx, cy), (uint32_t)r);
+    return push_true(L);
+}
+
+static int screen_pixel_scroll(lua_State *L) {
+    check_program(L);
+    int x = coord_arg(L, 1), y = coord_arg(L, 2);
+    int w = coord_arg(L, 3), h = coord_arg(L, 4);
+    lua_Integer dx = luaL_checkinteger(L, 5), dy = luaL_checkinteger(L, 6);
+    int fill = (int)(luaL_optinteger(L, 7, 0) & 0xff);
+    if (!pixel_mode(L)) {
+        return 2;
+    }
+    if (dx < -127) dx = -127;
+    if (dx > 127) dx = 127;
+    if (dy < -127) dy = -127;
+    if (dy > 127) dy = 127;
+    put(VIDEO_OP_PSCROLL, fill, (int)dx & 0xff, (int)dy & 0xff, pack16(x, y), pack16(w, h));
+    return push_true(L);
+}
+
+/* Queue a staged pixel op: `header` (int16 LE values) then `body`. */
+static void put_staged(uint8_t kind, int a, int b, int c, const int16_t *header,
+                       int header_count, const char *body, size_t body_len) {
+    if (s_muted) {
+        return;
+    }
+    uint32_t len = (uint32_t)(header_count * 2) + (uint32_t)body_len;
+    uint32_t end;
+    uint8_t *dst = video_staging_acquire(len, &end);
+    for (int i = 0; i < header_count; i++) {
+        dst[i * 2] = (uint8_t)((uint16_t)header[i] & 0xff);
+        dst[i * 2 + 1] = (uint8_t)((uint16_t)header[i] >> 8);
+    }
+    memcpy(dst + header_count * 2, body, body_len);
+    video_op_t op = {
+        .op = kind, .a = (uint8_t)a, .b = (uint8_t)b, .c = (uint8_t)c,
+        .d = len, .e = end,
+    };
+    video_op_put(&op);
+}
+
+/* ScreenBlit(x, y, w, h, pixels [, key]): w*h palette bytes, row by
+ * row; with `key` that colour is transparent (sprites). */
+static int screen_blit(lua_State *L) {
+    check_program(L);
+    int x = coord_arg(L, 1), y = coord_arg(L, 2);
+    lua_Integer w = luaL_checkinteger(L, 3), h = luaL_checkinteger(L, 4);
+    size_t len = 0;
+    const char *pixels = luaL_checklstring(L, 5, &len);
+    bool keyed = !lua_isnoneornil(L, 6);
+    int key = keyed ? colour_arg(L, 6) : 0;
+    if (!pixel_mode(L)) {
+        return 2;
+    }
+    if (w < 1 || h < 1 || w > VIDEO_FB_COLS || h > VIDEO_FB_ROWS) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "size out of range");
+        return 2;
+    }
+    size_t count = (size_t)(w * h);
+    if (count + 8 > VIDEO_STAGING_BYTES) {
+        lua_pushnil(L);
+        lua_pushfstring(L, "blit too large (%d pixels at most)", (int)VIDEO_STAGING_BYTES - 8);
+        return 2;
+    }
+    if (len < count) {
+        lua_pushnil(L);
+        lua_pushfstring(L, "pixels: %d bytes for %dx%d", (int)len, (int)w, (int)h);
+        return 2;
+    }
+    int16_t header[4] = {(int16_t)x, (int16_t)y, (int16_t)w, (int16_t)h};
+    put_staged(VIDEO_OP_BLIT, key, keyed ? VIDEO_PX_KEYED : 0, 0, header, 4, pixels, count);
+    return push_true(L);
+}
+
+/* ScreenPixelText(x, y, text, colour [, bg [, scale]]): 8x8 glyphs (the
+ * font or the program's tiles) drawn into the pixel buffer, each glyph
+ * pixel scale x scale (1-4); with `bg` the glyph cells are painted,
+ * otherwise only the lit pixels are. */
+static int screen_pixel_text(lua_State *L) {
+    check_program(L);
+    int x = coord_arg(L, 1), y = coord_arg(L, 2);
+    size_t len = 0;
+    const char *text = luaL_checklstring(L, 3, &len);
+    int c = colour_arg(L, 4);
+    bool filled = !lua_isnoneornil(L, 5);
+    int bg = filled ? colour_arg(L, 5) : 0;
+    lua_Integer scale = luaL_optinteger(L, 6, 1);
+    if (!pixel_mode(L)) {
+        return 2;
+    }
+    if (scale < 1 || scale > 4) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "scale must be 1-4");
+        return 2;
+    }
+    if (len > 64) len = 64; /* 512 pixels: past the edge anyway */
+    if (len == 0) {
+        return push_true(L);
+    }
+    int flags = (filled ? VIDEO_PX_FILLED : 0) | (((int)scale - 1) << VIDEO_PX_SCALE_SHIFT);
+    int16_t header[2] = {(int16_t)x, (int16_t)y};
+    put_staged(VIDEO_OP_PTEXT, c, flags, bg, header, 2, text, len);
+    return push_true(L);
 }
 
 static const luaL_Reg screen_funcs[] = {
@@ -562,6 +745,12 @@ static const luaL_Reg screen_funcs[] = {
     {"OverlayWrite", overlay_write},
     {"OverlayWriteAttr", overlay_write_attr},
     {"ScreenPlot", screen_plot},
+    {"ScreenPixelRect", screen_pixel_rect},
+    {"ScreenPixelLine", screen_pixel_line},
+    {"ScreenPixelCircle", screen_pixel_circle},
+    {"ScreenPixelScroll", screen_pixel_scroll},
+    {"ScreenBlit", screen_blit},
+    {"ScreenPixelText", screen_pixel_text},
     {NULL, NULL},
 };
 

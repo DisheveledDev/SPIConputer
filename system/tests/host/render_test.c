@@ -196,8 +196,8 @@ static void test_render_mode10(void) {
     CHECK(v->framebuf != NULL, "mode 10 attaches the pixel buffer");
 
     v->palette[7] = 0x112233;
-    video_op_t plot1 = {.op = VIDEO_OP_PLOT, .a = 0, .b = 0, .d = 7};
-    video_op_t plot2 = {.op = VIDEO_OP_PLOT, .a = 1, .b = 0, .d = 7};
+    video_op_t plot1 = {.op = VIDEO_OP_PLOT, .a = 7, .d = 0};
+    video_op_t plot2 = {.op = VIDEO_OP_PLOT, .a = 7, .d = 1};
     video_op_put(&plot1);
     video_op_put(&plot2);
     video_ops_drain();
@@ -443,6 +443,113 @@ static void test_mode80_layout(void) {
     video_screens_init();
 }
 
+/* ---------------- test 8c: mode 11 (160x120, 4x4 pixels) ---------------- */
+
+static void test_render_mode11(void) {
+    video_state_t v;
+    static uint8_t fb[VIDEO_FB_COLS * VIDEO_FB_ROWS];
+    uint8_t line[RENDER_LINE_BYTES];
+
+    video_state_init(&v);
+    v.mode = VIDEO_MODE_PIXEL_LO;
+    v.framebuf = fb;
+    for (int i = 0; i < VIDEO_FB_COLS * VIDEO_FB_ROWS; i++) fb[i] = 0;
+    /* Default palette: 16 + 36r + 6g + b is the 6x6x6 cube, 232.. grey. */
+    CHECK(v.palette[16 + 36 * 5] == 0xff0000 && v.palette[231] == 0xffffff &&
+              v.palette[16 + 5] == 0x0000ff && v.palette[232] == 0x080808,
+          "default 256-colour palette: cube and grey ramp");
+
+    /* Pixel (0, 0) is output pixels 0..3 on logical rows 0 and 1;
+     * pixel (159, 119) is 636..639 on logical rows 238 and 239. */
+    fb[0] = 16 + 36 * 5;                     /* red */
+    fb[119 * VIDEO_FB_LO_COLS + 159] = 231;  /* white */
+    render_line(&v, 0, line);
+    CHECK(line[0] == 0xff && line[1] == 0x00 && line[3 * 3] == 0xff && line[4 * 3] == 0x00,
+          "mode 11 pixel 0 is four output pixels");
+    render_line(&v, 1, line);
+    CHECK(line[0] == 0xff, "mode 11 pixel row 0 covers logical rows 0 and 1");
+    render_line(&v, 239, line);
+    CHECK(line[639 * 3] == 0xff && line[639 * 3 + 2] == 0xff && line[635 * 3] == 0x00,
+          "mode 11 last pixel at the bottom-right");
+    render_line(&v, 237, line);
+    CHECK(line[639 * 3] == 0x00, "mode 11 logical row 237 is pixel row 118");
+}
+
+/* The pixel API in mode 11 (160x120), mode 10 (the x > 255 fix) and
+ * its refusals in the text modes. */
+static const char *PIXEL_LUA =
+    "function setup()\n"
+    "  assert(ScreenPlot(0, 0, 1) == nil)\n"              /* mode 0: no pixels */
+    "  assert(ScreenMode(11) == true)\n"
+    "  assert(ScreenPlot(159, 119, 200) == true)\n"
+    "  assert(ScreenPlot(160, 0, 1) == nil)\n"            /* 160 wide */
+    "  assert(ScreenPlot(0, 120, 1) == nil)\n"            /* 120 high */
+    "  assert(ScreenPixelRect(10, 10, 5, 4, 30, true) == true)\n"
+    "  assert(ScreenPixelRect(20, 10, 5, 4, 31) == true)\n"
+    "  assert(ScreenPixelLine(0, 50, 9, 59, 40) == true)\n"
+    "  assert(ScreenPixelCircle(100, 100, 5, 50, true) == true)\n"
+    "  assert(ScreenPixelCircle(150, 100, 5, 51) == true)\n"
+    "  assert(ScreenBlit(-1, 110, 3, 2, '\\1\\2\\3\\4\\0\\6', 0) == true)\n"
+    "  assert(ScreenPixelText(120, 20, 'A', 60, 61) == true)\n"
+    "  assert(ScreenPixelText(0, 80, 'A', 62, nil, 2) == true)\n"
+    "  assert(ScreenPixelRect(140, 0, 20, 1, 70, true) == true)\n"
+    "  assert(ScreenPixelScroll(140, 0, 20, 1, 2, 0, 71) == true)\n"
+    "  assert(ScreenBlit(0, 0, 100, 100, string.rep('x', 10000)) == nil)\n"
+    "  ExitProgram()\n"
+    "end\n"
+    "function tick() end\n";
+
+static const char *PIXEL10_LUA =
+    "function setup()\n"
+    "  assert(ScreenMode(10) == true)\n"
+    "  assert(ScreenPlot(300, 239, 9) == true)\n"
+    "  ExitProgram()\n"
+    "end\n"
+    "function tick() end\n";
+
+static void test_pixel_ops(void) {
+    video_screens_init();
+    mock_set_file("px.lua", PIXEL_LUA);
+    CHECK(program_boot("px.lua", NULL), "pixel program boots");
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "pixel program exited (all asserts held)");
+    video_ops_drain();
+    const video_state_t *v = video_screen();
+    const uint8_t *fb = v->framebuf;
+    CHECK(v->mode == VIDEO_MODE_PIXEL_LO && fb != NULL, "mode 11 with a pixel buffer");
+#define PX(x, y) (fb[(y) * VIDEO_FB_LO_COLS + (x)])
+    CHECK(PX(159, 119) == 200, "plot at the last pixel (160-byte stride)");
+    CHECK(PX(10, 10) == 30 && PX(14, 13) == 30 && PX(15, 13) == 0, "filled rect");
+    CHECK(PX(20, 10) == 31 && PX(24, 13) == 31 && PX(22, 11) == 0, "outline rect");
+    CHECK(PX(0, 50) == 40 && PX(5, 55) == 40 && PX(9, 59) == 40 && PX(1, 50) == 0, "line");
+    CHECK(PX(100, 100) == 50 && PX(105, 100) == 50 && PX(100, 106) == 0, "filled circle");
+    CHECK(PX(155, 100) == 51 && PX(150, 100) == 0, "circle outline");
+    /* Blit at x = -1: column 0 of the sprite is off screen; key 0 skips
+     * the fifth pixel (row 1, column 1). */
+    CHECK(PX(0, 110) == 2 && PX(1, 110) == 3 && PX(0, 111) == 0 && PX(1, 111) == 6,
+          "blit clipped at the left edge with a transparent key");
+    /* 'A' row 0 = 0x0C: pixels 2, 3 lit, the rest background. */
+    CHECK(PX(122, 20) == 60 && PX(120, 20) == 61 && PX(124, 20) == 61, "pixel text");
+    /* At scale 2 the lit pixels 2, 3 become 4..7, two rows deep. */
+    CHECK(PX(4, 80) == 62 && PX(7, 81) == 62 && PX(3, 80) == 0 && PX(8, 80) == 0,
+          "pixel text at scale 2");
+    /* Scroll right 2: 140..141 get the fill, 142..159 the old 70s. */
+    CHECK(PX(140, 0) == 71 && PX(141, 0) == 71 && PX(142, 0) == 70 && PX(159, 0) == 70,
+          "pixel scroll fills the uncovered pixels");
+#undef PX
+    video_screens_init();
+
+    mock_set_file("px10.lua", PIXEL10_LUA);
+    CHECK(program_boot("px10.lua", NULL), "mode 10 program boots");
+    program_scheduler_step();
+    video_ops_drain();
+    v = video_screen();
+    CHECK(v->framebuf && v->framebuf[239 * VIDEO_FB_COLS + 300] == 9 &&
+              v->framebuf[239 * VIDEO_FB_COLS + 44] == 0,
+          "ScreenPlot x above 255 lands at x, not x & 255");
+    video_screens_init();
+}
+
 /* ---------------- test 9: Box / Fill (via a program) ---------------- */
 
 static const char *BOX_LUA =
@@ -636,6 +743,8 @@ int main(void) {
     test_render_mode80();
     test_mode80_api();
     test_mode80_layout();
+    test_render_mode11();
+    test_pixel_ops();
     test_box_fill();
     test_block_ops();
     test_text_staging();

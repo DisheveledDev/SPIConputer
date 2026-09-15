@@ -572,8 +572,8 @@ static void dump_text_screen(const char *path) {
         return;
     }
     int cols = video_mode_cols(v->mode), rows = video_mode_rows(v->mode);
-    if (v->mode == VIDEO_MODE_PIXEL) {
-        cols = 0;
+    if (video_mode_has_pixels(v->mode)) {
+        cols = 0; /* a pixel mode has no text: --dump-frame shows it */
         rows = 0;
     }
     for (int y = 0; y < rows; y++) {

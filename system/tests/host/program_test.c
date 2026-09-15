@@ -736,6 +736,28 @@ static void test_noninteractive_utility(void) {
     expect_log("false:table:wc: 3 file(s):3:true:3:b \"quoted\"\n:1.5:nil\n");
 }
 
+/* The pixel buffer is single-program: a mode-11 program cannot stack
+ * another on top (it could claim the same buffer). */
+static const char *HYBRID_LAUNCH_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "function setup()\n"
+    "  ScreenMode(11)\n"
+    "  local ok, err = Launch('b.lua')\n"
+    "  log(tostring(ok) .. ':' .. tostring(err) .. '\\n')\n"
+    "  ExitProgram()\n"
+    "end\n";
+
+static void test_pixel_launch_refused(void) {
+    video_screens_init();
+    mock_set_file("hybrid-launch.lua", HYBRID_LAUNCH_LUA);
+    boot("hybrid-launch.lua");
+    for (int i = 0; i < 4 && program_top() != NULL; i++) {
+        program_scheduler_step();
+    }
+    expect_log("nil:cannot launch from a pixel mode (10 or 11)\n");
+    video_screens_init();
+}
+
 /* Keys typed while a utility runs reach the interactive parent. */
 static const char *SLOW_UTIL_LUA =
     "__spi_interactive = false\n"
@@ -991,6 +1013,7 @@ int main(void) {
     test_interactive_result();
     test_big_result();
     test_typeahead_under_utility();
+    test_pixel_launch_refused();
     test_compiled_programs();
     test_retire_graveyard();
     test_wait_vsync();
