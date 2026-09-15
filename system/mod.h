@@ -12,8 +12,12 @@
  *    the long ones, so every note starts at once. The rest of a long
  *    sample streams through a per-channel ring (MOD_RING_BYTES) that
  *    core 1 fills ahead of the read position from the file, between
- *    scheduler steps (mod_service). A note that outruns its ring plays
- *    silence until the data arrives (mod->underruns counts them).
+ *    scheduler steps (mod_service), MOD_RING_CHUNK bytes a read. The
+ *    ring is addressed by a stream position that keeps counting across
+ *    loop wraps, so a long loop streams on without a break; a loop whose
+ *    streamed stretch fits the ring is kept there and not read again. A
+ *    note that outruns its ring plays silence until the data arrives
+ *    (mod->underruns counts them).
  *  - Patterns: the one playing and the next in the order list; the
  *    player asks core 1 for the next pattern as it enters one, and for
  *    the target of a jump when it happens.
@@ -40,10 +44,12 @@
 #define MOD_PATTERN_BYTES (MOD_ROWS * MOD_CHANNELS * 4)
 #define MOD_HEADER_BYTES 1084
 
-#define MOD_POOL_BYTES (40u * 1024u) /* resident samples and heads */
-#define MOD_HEAD_BYTES 1024u          /* resident start of a streamed sample */
-#define MOD_RING_BYTES 4096u          /* per-channel streaming window */
-#define MOD_RING_CHUNK 1024u          /* bytes read per service call per channel */
+/* Memory: the pool, four rings and two patterns come from the system
+ * heap, about 82 KB per loaded module (see AGENTS.md for the budget). */
+#define MOD_POOL_BYTES (48u * 1024u) /* resident samples and heads */
+#define MOD_HEAD_BYTES 2048u          /* resident start of a streamed sample */
+#define MOD_RING_BYTES 8192u          /* per-channel streaming window */
+#define MOD_RING_CHUNK 4096u          /* bytes read per service call per channel (<= RPC staging) */
 
 typedef struct {
     uint32_t length;      /* frames (bytes) */
@@ -57,11 +63,15 @@ typedef struct {
 } mod_sample_t;
 
 typedef struct {
-    /* ---- streaming ring: core 1 fills ahead of core 0's reads ---- */
+    /* ---- streaming ring: core 1 fills ahead of core 0's reads ----
+     * Positions are stream positions: frames counted from the note's
+     * start, running on past a loop end (mod.c stream_frame maps one
+     * back to a sample frame). The ring holds stream position p at
+     * p % MOD_RING_BYTES. */
     int8_t *ring;
-    volatile uint32_t fill_end;    /* frames [fill_end - MOD_RING_BYTES, fill_end) are valid */
-    volatile uint32_t fill_start;  /* first valid frame (after a restart) */
-    volatile uint32_t read_pos;    /* core 0: the frame it is playing */
+    volatile uint32_t fill_end;    /* positions [fill_end - MOD_RING_BYTES, fill_end) are valid */
+    volatile uint32_t fill_start;  /* first valid position (after a restart) */
+    volatile uint32_t read_pos;    /* core 0: the position it is playing */
     volatile uint8_t ring_sample;  /* which sample the ring holds */
     volatile uint32_t restart_seq; /* core 0 bumps: refill from read_pos */
     uint32_t restart_done;         /* core 1: the seq it has honoured */
@@ -69,7 +79,8 @@ typedef struct {
     /* ---- playback (core 0) ---- */
     uint8_t sample;       /* 1..31, 0 = none */
     uint8_t note_sample;  /* sample number last seen in a cell */
-    uint32_t pos;         /* frame */
+    uint32_t pos;         /* sample frame */
+    uint32_t spos;        /* stream position: pos before the first loop wrap */
     uint32_t frac;        /* Q16 fraction of a frame */
     uint32_t step;        /* Q16 frames per output frame */
     uint16_t period;      /* current (finetuned) period */

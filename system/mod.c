@@ -221,12 +221,17 @@ mod_t *mod_load(const char *path, const char **err) {
         }
         order[b + 1] = v;
     }
+    /* Every sample gets a head even in a 31-sample module: shrink the
+     * head until they all fit the pool (a note must never start late). */
+    uint32_t head = MOD_HEAD_BYTES;
+    while (head > 256 && (uint32_t)n * head > MOD_POOL_BYTES) head /= 2;
     for (int k = 0; k < n; k++) {
         mod_sample_t *smp = &m->samples[order[k]];
-        if (m->pool_used + smp->length <= MOD_POOL_BYTES - (uint32_t)(n - k - 1) * MOD_HEAD_BYTES) {
+        uint32_t reserve = (uint32_t)(n - k - 1) * head; /* heads still to place */
+        if (m->pool_used + smp->length + reserve <= MOD_POOL_BYTES) {
             smp->resident_len = smp->length;
         } else {
-            smp->resident_len = smp->length < MOD_HEAD_BYTES ? smp->length : MOD_HEAD_BYTES;
+            smp->resident_len = smp->length < head ? smp->length : head;
             if (m->pool_used + smp->resident_len > MOD_POOL_BYTES) {
                 smp->resident_len = 0;
             }
@@ -267,6 +272,25 @@ fail:
 /* Streaming service (core 1)                                          */
 /* ------------------------------------------------------------------ */
 
+/* The sample frame at stream position `p`: the frame itself on the
+ * first pass, then round the loop. */
+static inline uint32_t stream_frame(const mod_sample_t *smp, uint32_t p) {
+    uint32_t end = smp->loop_start + smp->loop_len;
+    if (!smp->loop_len || p < end) return p;
+    return smp->loop_start + (p - end) % smp->loop_len;
+}
+
+/* True when the ring holds the loop's whole streamed stretch: the fill
+ * stopped at the loop end and every frame from the loop start (or the
+ * head's end) is still in the window. Both cores use it: the filler to
+ * stop, the reader to index the ring by frame after the wrap. */
+static inline bool loop_held(const mod_channel_t *ch, const mod_sample_t *smp) {
+    uint32_t end = smp->loop_start + smp->loop_len;
+    uint32_t lo = smp->loop_start > smp->resident_len ? smp->loop_start : smp->resident_len;
+    return smp->loop_len && ch->fill_end == end && lo >= ch->fill_start &&
+           end - lo <= MOD_RING_BYTES;
+}
+
 void mod_service(mod_t *m) {
     if (!m) return;
     /* A pattern the player asked for. */
@@ -286,9 +310,11 @@ void mod_service(mod_t *m) {
         if (sample == 0 || sample > MOD_SAMPLES) continue;
         const mod_sample_t *smp = &m->samples[sample];
         if (smp->resident_len >= smp->length) continue; /* fully resident */
+        uint32_t stop = smp->loop_len ? smp->loop_start + smp->loop_len : smp->length;
         if (rs != ch->restart_done) {
             /* Start the window where the head ends, or where the note
-             * will be when it leaves the resident part. */
+             * will be when it leaves the resident part (a restart is
+             * always a fresh pass, so positions are frames here). */
             uint32_t from = ch->read_pos;
             if (from < smp->resident_len) from = smp->resident_len;
             ch->fill_start = from;
@@ -298,19 +324,29 @@ void mod_service(mod_t *m) {
         }
         uint32_t end = ch->fill_end;
         uint32_t reader = ch->read_pos;
-        /* The stretch the ring may still hold ahead of the reader. */
-        uint32_t ahead = end > reader ? end - reader : 0;
+        if (end >= stop) {
+            /* The first pass is complete. A one-shot is done; a loop
+             * whose streamed stretch the ring holds whole stays put (the
+             * reader indexes it by frame); otherwise stream on round it. */
+            if (!smp->loop_len || loop_held(ch, smp)) continue;
+        }
+        if (reader > end) {
+            /* The reader outran the fill (an underrun): skip to it. */
+            ch->fill_start = reader;
+            ch->fill_end = reader;
+            end = reader;
+        }
+        uint32_t ahead = end - reader;
         if (ahead + MOD_RING_CHUNK > MOD_RING_BYTES) continue; /* enough ahead */
-        uint32_t stop = smp->loop_len >= 2 ? smp->loop_start + smp->loop_len : smp->length;
-        if (end >= stop) continue; /* at the end (a loop wraps in the reader) */
-        uint32_t len = stop - end;
+        uint32_t frame = stream_frame(smp, end);
+        uint32_t len = stop - frame; /* to the loop end / sample end */
         if (len > MOD_RING_CHUNK) len = MOD_RING_CHUNK;
         uint32_t idx = end % MOD_RING_BYTES;
         uint32_t first = MOD_RING_BYTES - idx;
         if (first > len) first = len;
-        bool ok = read_at(m->handle, smp->file_offset + end, ch->ring + idx, first);
+        bool ok = read_at(m->handle, smp->file_offset + frame, ch->ring + idx, first);
         if (ok && len > first) {
-            ok = read_at(m->handle, smp->file_offset + end + first, ch->ring, len - first);
+            ok = read_at(m->handle, smp->file_offset + frame + first, ch->ring, len - first);
         }
         if (!ok) continue;
         atomic_signal_fence(memory_order_seq_cst);
@@ -348,24 +384,29 @@ void mod_pause(mod_t *m) {
 /* Player (core 0)                                                     */
 /* ------------------------------------------------------------------ */
 
-/* The sample byte at `frame` of the channel's sample: from the resident
- * data, the ring, or 0 when it has not arrived. */
+/* The sample byte at frame `frame` / stream position `p` of the
+ * channel's sample: from the resident data, the ring, or 0 when it has
+ * not arrived. */
 static inline int8_t fetch(mod_t *m, mod_channel_t *ch, const mod_sample_t *smp,
-                           uint32_t frame) {
+                           uint32_t frame, uint32_t p) {
     if (frame < smp->resident_len) {
         return smp->resident[frame];
     }
     uint32_t end = ch->fill_end, start = ch->fill_start;
-    if (frame >= start && frame < end && end - frame <= MOD_RING_BYTES) {
+    if (p >= start && p < end && end - p <= MOD_RING_BYTES) {
+        return ch->ring[p % MOD_RING_BYTES];
+    }
+    if (loop_held(ch, smp) && frame >= start) {
         return ch->ring[frame % MOD_RING_BYTES];
     }
     m->underruns++;
     return 0;
 }
 
-/* Point the ring at a new position (a note-on or a loop wrap into the
- * streamed part). */
+/* Point the ring at a new position: a note-on, a sample offset or a
+ * retrigger, each a fresh pass through the sample. */
 static void ring_restart(mod_channel_t *ch, uint8_t sample, uint32_t pos) {
+    ch->spos = pos;
     ch->read_pos = pos;
     ch->ring_sample = sample;
     atomic_signal_fence(memory_order_seq_cst);
@@ -708,31 +749,23 @@ void mod_mix_frame(mod_t *m, int32_t *l, int32_t *r) {
         mod_channel_t *ch = &m->ch[c];
         if (!ch->active || ch->sample == 0) continue;
         const mod_sample_t *smp = &m->samples[ch->sample];
-        uint32_t end = smp->loop_len >= 2 ? smp->loop_start + smp->loop_len : smp->length;
+        uint32_t end = smp->loop_len ? smp->loop_start + smp->loop_len : smp->length;
         if (ch->pos >= end) {
-            if (smp->loop_len >= 2) {
+            if (smp->loop_len) {
+                /* The stream position runs on; the ring either holds the
+                 * loop or is being filled round it (mod_service). */
                 ch->pos = smp->loop_start + (ch->pos - end) % smp->loop_len;
-                /* A loop that runs into the streamed part: the ring still
-                 * holds it when the loop's streamed stretch fits and the
-                 * fill reached the loop end; otherwise stream it again
-                 * from where the loop goes (the head covers the wait
-                 * when that is the sample's start). */
-                if (end > smp->resident_len) {
-                    uint32_t lo = smp->loop_start > smp->resident_len ? smp->loop_start
-                                                                       : smp->resident_len;
-                    bool held = ch->fill_end == end && lo >= ch->fill_start &&
-                                end - lo <= MOD_RING_BYTES;
-                    if (!held) ring_restart(ch, ch->sample, ch->pos);
-                }
             } else {
                 ch->active = 0;
                 continue;
             }
         }
-        int32_t s0 = fetch(m, ch, smp, ch->pos);
-        uint32_t next = ch->pos + 1;
-        if (next >= end) next = smp->loop_len >= 2 ? smp->loop_start : ch->pos;
-        int32_t s1 = fetch(m, ch, smp, next);
+        int32_t s0 = fetch(m, ch, smp, ch->pos, ch->spos);
+        uint32_t next = ch->pos + 1, next_p = ch->spos + 1;
+        if (next >= end) {
+            if (smp->loop_len) next = smp->loop_start; else { next = ch->pos; next_p = ch->spos; }
+        }
+        int32_t s1 = fetch(m, ch, smp, next, next_p);
         int32_t s = (s0 * (int32_t)(65536 - ch->frac) + s1 * (int32_t)ch->frac) >> 8; /* 8-bit -> 16-bit */
         int vol = ch->volume + ch->trem_delta;
         if (vol < 0) vol = 0;
@@ -749,7 +782,8 @@ void mod_mix_frame(mod_t *m, int32_t *l, int32_t *r) {
         /* Advance. */
         ch->frac += ch->step;
         ch->pos += ch->frac >> 16;
+        ch->spos += ch->frac >> 16;
         ch->frac &= 0xffff;
-        ch->read_pos = ch->pos;
+        ch->read_pos = ch->spos;
     }
 }

@@ -1538,7 +1538,7 @@
       "group": "Sound",
       "signature": "ModLoad(path)",
       "summary": "Loads a ProTracker .mod (4 channels, 31 samples) from the card, streamed as it plays.",
-      "description": "One module per program (a second load replaces the first). The header, order list and two patterns are kept; samples up to a 40 KB resident budget stay in RAM (shortest first) and the rest keep a 1 KB head and stream through 4 KB per-channel rings that the OS core refills from the card between scheduler steps, about 60 KB in all. 6/8-channel and 15-sample modules are refused. Very sample-heavy modules may not stream fast enough (ModInfo reports underruns).",
+      "description": "One module per program (a second load replaces the first). The header, order list and two patterns are kept; samples up to a 48 KB resident budget stay in RAM (shortest first) and the rest keep a 2 KB head and stream through 8 KB per-channel rings that the OS core refills from the card between scheduler steps (a loop streams round without a break; one that fits the ring is kept there), about 82 KB in all, leaving the program around 65 KB of Lua heap on the device. 6/8-channel and 15-sample modules are refused. Very sample-heavy modules may not stream fast enough (ModInfo reports underruns).",
       "parameters": [
         {
           "name": "path",

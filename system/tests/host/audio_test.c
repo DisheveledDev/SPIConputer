@@ -614,10 +614,11 @@ static void put_cell(uint8_t *pat, int row, int ch, int sample, int period, int 
 /* Build a module: sample 1 a short saw (fully resident), sample 2 a long
  * looped ramp (streamed: longer than the head), two patterns. */
 #define TEST_MOD_LONG 60000u
-#define TEST_MOD_WHOLE_LOOP 42000u /* > MOD_POOL_BYTES: a head and a stream */
+#define TEST_MOD_WHOLE_LOOP 52000u /* > MOD_POOL_BYTES: a head and a stream */
+#define TEST_MOD_HELD 50000u       /* > MOD_POOL_BYTES too; its loop fits the ring */
 static uint8_t *build_mod(size_t *len_out) {
-    uint32_t s1_len = 64, s2_len = TEST_MOD_LONG, s3_len = TEST_MOD_WHOLE_LOOP;
-    size_t len = 1084 + 3 * 1024 + s1_len + s2_len + s3_len;
+    uint32_t s1_len = 64, s2_len = TEST_MOD_LONG, s3_len = TEST_MOD_WHOLE_LOOP, s4_len = TEST_MOD_HELD;
+    size_t len = 1084 + 3 * 1024 + s1_len + s2_len + s3_len + s4_len;
     uint8_t *m = calloc(1, len);
     memcpy(m, "test module", 11);
     uint8_t *s = m + 20;              /* sample 1 */
@@ -635,6 +636,12 @@ static uint8_t *build_mod(size_t *len_out) {
     s[22] = (uint8_t)((s3_len / 2) >> 8); s[23] = (uint8_t)(s3_len / 2);
     s[24] = 0; s[25] = 64; s[26] = 0; s[27] = 0;
     s[28] = (uint8_t)((s3_len / 2) >> 8); s[29] = (uint8_t)(s3_len / 2);
+    s = m + 110;                      /* sample 4: streamed, sustain loop 45000..48000 */
+    memcpy(s, "held", 4);
+    s[22] = (uint8_t)((s4_len / 2) >> 8); s[23] = (uint8_t)(s4_len / 2);
+    s[24] = 0; s[25] = 64;
+    s[26] = (uint8_t)((45000 / 2) >> 8); s[27] = (uint8_t)(45000 / 2);
+    s[28] = (uint8_t)((3000 / 2) >> 8); s[29] = (uint8_t)(3000 / 2);
     m[950] = 3;  /* orders: 0, 1, then the long-note pattern */
     m[951] = 0;
     m[952] = 0; m[953] = 1; m[954] = 2;
@@ -652,10 +659,13 @@ static uint8_t *build_mod(size_t *len_out) {
     uint8_t *p2 = p1 + 1024;
     put_cell(p2, 0, 1, 2, 214, 0, 0);      /* one long note for the streaming test */
     put_cell(p2, 0, 2, 3, 214, 0, 0);      /* and the whole-sample loop */
+    put_cell(p2, 0, 3, 4, 214, 0, 0);      /* and the held sustain loop */
+    put_cell(p2, 1, 0, 0, 0, 0xF, 33);     /* tempo 33: the pattern outlasts the loops */
     uint8_t *pcm = p2 + 1024;
     for (uint32_t i = 0; i < s1_len; i++) pcm[i] = (uint8_t)(int8_t)((int)(i * 4) - 128);
     for (uint32_t i = 0; i < s2_len; i++) pcm[s1_len + i] = (uint8_t)(int8_t)((i / 100) % 200 - 100);
     for (uint32_t i = 0; i < s3_len; i++) pcm[s1_len + s2_len + i] = (uint8_t)(int8_t)((i / 50) % 100 - 50);
+    for (uint32_t i = 0; i < s4_len; i++) pcm[s1_len + s2_len + s3_len + i] = (uint8_t)(int8_t)((i / 30) % 60 - 30);
     *len_out = len;
     return m;
 }
@@ -723,6 +733,7 @@ static void test_mod(void) {
     CHECK(!m->waiting && m->pat_num[m->cur_slot] == 2, "the jump's pattern was loaded on demand");
     CHECK(m->ch[1].sample == 2 && m->ch[1].active && m->ch[1].pos < 1000, "row 0 of it: the long note");
     CHECK(m->ch[2].sample == 3 && m->ch[2].active, "row 0 of it: the whole-sample loop");
+    CHECK(m->ch[3].sample == 4 && m->ch[3].active, "row 0 of it: the held loop");
 
     /* Streaming: channel 2 plays the long sample past its head. Serviced
      * between mixes, the ring stays ahead and nothing underruns; without
@@ -735,11 +746,12 @@ static void test_mod(void) {
     CHECK(m->ch[1].active && m->ch[1].pos > MOD_HEAD_BYTES, "long sample streamed past its head");
     CHECK(m->underruns == before, "no underruns while serviced");
     CHECK(m->ch[1].fill_end > m->ch[1].pos, "ring is ahead of the reader");
-    /* The loops wrap: play on until both positions pass their loop end.
-     * Channel 2's loop (1000..41000) restarts its stream at the wrap and
-     * waits for the next service; channel 3's (0..42000) wraps into its
-     * resident head, which covers the wait. Either way the stream picks
-     * the loop up again rather than playing silence to the loop end. */
+    /* The loops wrap: play on until every position passes its loop end.
+     * Channel 2's loop (1000..41000) and channel 3's (0..52000) are
+     * longer than the ring, so their streams run on round the loop with
+     * no break; channel 4's sustain loop (45000..48000) fits the ring,
+     * so once the fill reaches its end the ring keeps it and the card is
+     * not read for it again. */
     before = m->underruns;
     uint32_t frames_to_wrap = (uint32_t)(((uint64_t)TEST_MOD_WHOLE_LOOP << 16) / m->ch[1].step);
     for (uint32_t done = 0; done < frames_to_wrap; done += 256) {
@@ -747,10 +759,13 @@ static void test_mod(void) {
         mod_service(m);
     }
     CHECK(m->ch[1].active && m->ch[1].pos >= 1000 && m->ch[1].pos < 41000, "sample loop wrapped");
+    CHECK(m->ch[1].spos > TEST_MOD_WHOLE_LOOP && m->ch[1].fill_end > m->ch[1].spos,
+          "the stream position runs on past the loop and the ring is ahead of it");
     CHECK(m->ch[2].active && m->ch[2].pos > MOD_HEAD_BYTES && m->ch[2].pos < TEST_MOD_WHOLE_LOOP,
           "whole-sample loop wrapped and streams on");
-    CHECK(m->ch[2].fill_end > m->ch[2].pos, "the wrapped loop's ring is ahead again");
-    CHECK(m->underruns - before < 2000, "a loop wrap costs at most the service latency");
+    CHECK(m->ch[3].active && m->ch[3].pos >= 45000 && m->ch[3].pos < 48000, "sustain loop wrapped");
+    CHECK(m->ch[3].fill_end == 48000, "a loop that fits the ring is held, not read again");
+    CHECK(m->underruns == before, "no underruns across the wraps");
 
     mod_request_stop(m);
     audio_mix(&a, buf, 64);
@@ -795,7 +810,7 @@ static void test_lua_mod(void) {
         CHECK(strcmp(lua_global_string(p->L, "load2"), "true") == 0, "a second load replaces the first");
         CHECK(strcmp(lua_global_string(p->L, "play"), "true") == 0 &&
                   strcmp(lua_global_string(p->L, "playing"), "true") == 0, "ModPlay");
-        CHECK(strcmp(lua_global_string(p->L, "info"), "test module:3:3") == 0, "ModInfo");
+        CHECK(strcmp(lua_global_string(p->L, "info"), "test module:3:4") == 0, "ModInfo");
         static int16_t buf[2048 * 2];
         audio_mix(p->audio, buf, 2048);
         audio_service();

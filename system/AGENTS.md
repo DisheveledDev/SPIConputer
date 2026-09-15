@@ -578,15 +578,23 @@ are the core patch type, samples are the later addition):
   size option with a table-based decoder.
 - **Modules**: `mod.c` plays ProTracker MODs (4 channels) streamed from
   the card: header, order list and two patterns resident (the next
-  pattern prefetched, a jump's target loaded on demand), a 40 KB pool of
-  whole short samples and 1 KB heads of long ones, and a 4 KB ring per
-  channel that core 1 refills ahead of the reader (`mod_service`, called
-  every scheduler step from `lua_main.c` and the simulator loop) while
-  core 0 runs the tick clock, the effects and the mixing inside
-  `audio_mix`. Ring and pattern hand-over are volatile indices in the
-  SPSC style of the video queue; a note that outruns its ring plays
-  silence and counts an underrun. One module per program; a module and a
-  score do not play together.
+  pattern prefetched, a jump's target loaded on demand), a 48 KB pool of
+  whole short samples and 2 KB heads of long ones, and an 8 KB ring per
+  channel that core 1 refills ahead of the reader in 4 KB reads
+  (`mod_service`, called every scheduler step from `lua_main.c` and the
+  simulator loop) while core 0 runs the tick clock, the effects and the
+  mixing inside `audio_mix`. The ring is addressed by a stream position
+  that runs on across loop wraps, so a long loop streams round without
+  a restart, and a loop whose streamed stretch fits the ring is kept
+  there and never read again; only a note-on past the head (a `9xx`
+  offset) waits for a read. Ring and pattern hand-over are volatile
+  indices in the SPSC style of the video queue; a note that outruns its
+  ring plays silence and counts an underrun. One module per program; a
+  module and a score do not play together. Budget: ~82 KB of system heap
+  per loaded module (pool + rings + patterns), from the ~217 KB the
+  firmware has after its static buffers; with the shell's ~45 KB and two
+  audio states that leaves a module-playing app about 65 KB of Lua heap
+  on the device (~90 KB as the host measures it).
 - **Song files**: pre-rendered audio is not the plan (a 3 minute tune as
   22 kHz 8-bit mono PCM is ~4 MB — no RAM for it); tunes are score files,
   i.e. a Lua file returning the `MusicDefine` spec, loaded with

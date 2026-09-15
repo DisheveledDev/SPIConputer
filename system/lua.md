@@ -511,13 +511,15 @@ given.
 | `ModInfo()` | `{name, orders, patterns, samples, resident_kb, underruns}` |
 
 A module streams from the card: the header, order list and two
-patterns are in RAM; samples up to a 40 KB resident budget stay in RAM
-(shortest first), the rest keep a 1 KB head so a note starts at once
-and stream through 4 KB per-channel rings the OS core refills between
-scheduler steps. About 60 KB of system heap per loaded module. Effects
-0-9, A-F and E1/2/5/6/9/A/B/C/D/E are played; 6/8-channel modules are
-refused. A module with many long samples can outrun the card:
-`ModInfo().underruns` counts the frames a sample was late for. `MusicPlaying()` is true from the call to `MusicPlay` until the
+patterns are in RAM; samples up to a 48 KB resident budget stay in RAM
+(shortest first), the rest keep a 2 KB head so a note starts at once
+and stream through 8 KB per-channel rings the OS core refills between
+scheduler steps (a loop streams round without a break; one that fits
+the ring is kept there). About 82 KB of system heap per loaded module,
+which leaves the program itself around 65 KB of Lua heap on the device.
+Effects 0-9, A-F and E1/2/5/6/9/A/B/C/D/E are played; 6/8-channel
+modules are refused. A module with many long samples can outrun the
+card: `ModInfo().underruns` counts the frames a sample was late for. `MusicPlaying()` is true from the call to `MusicPlay` until the
 score ends or `MusicStop`/`SoundStopAll`; a paused program is silenced
 and resumes from its score position.
 
