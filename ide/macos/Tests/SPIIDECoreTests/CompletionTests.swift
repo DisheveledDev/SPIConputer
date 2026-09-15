@@ -72,6 +72,13 @@ struct CompletionTests {
         let outText = try #require(items.first { $0.name == "Screen.OutText" })
         #expect(outText.detail == "(x, y, text, [attr])")
         // Nested namespaces too.
+        // Constants complete as plain names, with no parameter list.
+        let attrs = LuaCompletion.items("Attributes.", in: "", including: sdk,
+                                        constants: SDKLibrary.constants(for: ["screen"]))
+        #expect(attrs.map(\.name).contains("Attributes.Red"))
+        #expect(attrs.map(\.name).contains("Attributes.Inverse"))
+        #expect(attrs.first { $0.name == "Attributes.Red" }?.detail == nil)
+
         let nested = LuaCompletion.items("Input.Keyboard.C", in: "", including: sdk)
         #expect(nested.map(\.name) == ["Input.Keyboard.Callback"])
         // Parameter help inside a framework call.

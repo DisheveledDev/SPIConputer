@@ -24,6 +24,7 @@ struct LuaEditorView: View {
                     text: $model.luaText,
                     diagnosticLine: diagnosticLine,
                     definedFunctions: model.projectFunctions,
+                    definedConstants: model.projectConstants,
                     syntaxHighlighting: syntaxHighlighting,
                     gutter: editorGutter)
             } else {

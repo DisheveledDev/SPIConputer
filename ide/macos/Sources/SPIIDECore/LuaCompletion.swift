@@ -59,13 +59,14 @@ public enum LuaCompletion {
 
     /// Completions whose text starts with `prefix`, including functions
     /// defined in `source` (the file being edited) and anywhere else in
-    /// the project via `definedFunctions`. Locally defined signatures win
+    /// the project via `definedFunctions`, and the frameworks' `constants`. Locally defined signatures win
     /// over the built-in tables, each name appears once, and shorter
     /// names sort first so plain names win over members.
     public static func items(
         _ prefix: String,
         in source: String,
-        including definedFunctions: [LuaSignature] = []
+        including definedFunctions: [LuaSignature] = [],
+        constants: [String] = []
     ) -> [CompletionItem] {
         var signatures: [String: LuaSignature] = [:]
         for signature in definedFunctions {
@@ -79,6 +80,10 @@ public enum LuaCompletion {
         var names = all
         var known = Set(all)
         for name in signatures.keys.sorted() where known.insert(name).inserted {
+            names.append(name)
+        }
+        // Framework constants complete like names, without a parameter list.
+        for name in constants where known.insert(name).inserted {
             names.append(name)
         }
         let matched = prefix.isEmpty ? names : names.filter { $0.hasPrefix(prefix) }

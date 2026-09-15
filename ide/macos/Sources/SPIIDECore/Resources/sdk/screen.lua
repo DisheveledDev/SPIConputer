@@ -1,6 +1,6 @@
 -- SDK: Screen
 -- Summary: Text-mode drawing on the base layer: text, boxes, fills, block moves.
--- Namespaces: Screen
+-- Namespaces: Screen, Attributes
 --
 -- A framework file the IDE injects, read-only, into programs that
 -- select it. Its format is a contract with the builder:
@@ -26,6 +26,24 @@ Screen.ROWS = 30
 Screen.SINGLE = 1      -- box style: single line
 Screen.DOUBLE = 2      -- box style: double line
 Screen.INVERT = 0x80   -- attribute bit: swap foreground and background
+
+-- Attribute values by name, for the `attr` argument of every drawing
+-- call (Screen and Overlay): a colour, plus Attributes.Inverse to paint
+-- the cell's background in that colour instead of its text. Add them:
+-- `Attributes.Red + Attributes.Inverse` is a red block behind a space.
+-- The colours are the mode-1 default palette (entries 1-8); a program
+-- that changes the palette with Screen.Palette recolours them.
+Attributes = Attributes or {}
+Attributes.Normal = 0          -- white text on the background, not inverted
+Attributes.White = 0
+Attributes.Red = 1
+Attributes.Cyan = 2
+Attributes.Purple = 3
+Attributes.Green = 4
+Attributes.Blue = 5
+Attributes.Yellow = 6
+Attributes.Orange = 7
+Attributes.Inverse = 0x80      -- swap text and background (a coloured block for a space)
 
 -- Console-style output: OutLine writes at the cursor row and moves on,
 -- scrolling the screen when it reaches the bottom.

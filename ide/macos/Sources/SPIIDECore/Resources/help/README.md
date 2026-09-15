@@ -7,8 +7,10 @@ panel) reads every `*.json` file in this folder. The three shipped are:
   opens for programs (string, table, math, coroutine, utf8, package).
 - `os.json` — the SPIComputer OS API: program contract, system calls,
   display, sound, `fs`.
-- `sdk.json` — the frameworks (`Screen`, `Overlay`, `Text`, `Timer`,
-  `Sound`/`Music`, `Input`): namespaces, constants and every function.
+- `sdk.json` — the frameworks (`Screen`/`Attributes`, `Overlay`, `Text`,
+  `Timer`, `Sound`/`Music`, `Input`): namespaces, constants and every
+  function. Constants are the column-0 `Name.CONST = value` lines of a
+  framework's preamble; each needs an entry of kind `constant`.
 
 **This folder is the documentation of record for the IDE.** When you add
 or change an API call, a framework function or a Lua facility that

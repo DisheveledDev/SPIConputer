@@ -9,11 +9,31 @@
       "framework": "screen",
       "signature": "Screen",
       "summary": "Text-mode drawing on the base layer: text, boxes, fills, block moves, lines, shades, progress bars, and pixel helpers for mode 10.",
-      "description": "Text-mode drawing on the base layer: text, boxes, fills, block moves, lines, shades, progress bars, and pixel helpers for mode 10. Region calls take inclusive corners (x1, y1, x2, y2). Constants: Screen.COLS (40), Screen.ROWS (30), Screen.SINGLE, Screen.DOUBLE, Screen.INVERT (0x80).",
+      "description": "Text-mode drawing on the base layer: text, boxes, fills, block moves, lines, shades, progress bars, and pixel helpers for mode 10. Region calls take inclusive corners (x1, y1, x2, y2). Constants: Screen.COLS (40), Screen.ROWS (30), Screen.SINGLE, Screen.DOUBLE, Screen.INVERT (0x80). The Attributes namespace (part of this framework) names the colours and the inverse bit for attr arguments.",
       "parameters": [],
       "returns": "",
       "example": "",
-      "seeAlso": []
+      "seeAlso": [
+        "Attributes"
+      ]
+    },
+    {
+      "name": "Attributes",
+      "kind": "namespace",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes",
+      "summary": "Attribute values by name for the attr argument of every Screen and Overlay call: colours plus Attributes.Inverse.",
+      "description": "An attribute byte is a colour index (bits 0-2) plus the inverse bit (0x80). Attributes.Red .. Attributes.Orange are the mode-1 default palette entries 1-8 (Screen.Palette recolours them); Attributes.Inverse swaps text and background, so a space with Attributes.Blue + Attributes.Inverse is a solid blue block. Add a colour and Inverse together; never add two colours. Defined by the Screen framework, used by Overlay calls too.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.Fill(2, 3, 37, 3, 32, Attributes.Red + Attributes.Inverse)  -- a red bar",
+      "seeAlso": [
+        "Screen.INVERT",
+        "Screen.Attr",
+        "Screen.Fill",
+        "Screen.Palette"
+      ]
     },
     {
       "name": "Overlay",
@@ -183,6 +203,166 @@
       "returns": "",
       "example": "",
       "seeAlso": []
+    },
+    {
+      "name": "Attributes.Normal",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.Normal",
+      "summary": "Colour 0: white text, not inverted (the default).",
+      "description": "Add Attributes.Inverse to paint the background instead of the text.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.OutText(0, 5, \"hello\", Attributes.Normal)",
+      "seeAlso": [
+        "Attributes",
+        "Attributes.Inverse"
+      ]
+    },
+    {
+      "name": "Attributes.White",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.White",
+      "summary": "Colour 0: white (palette entry 1).",
+      "description": "Add Attributes.Inverse to paint the background instead of the text.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.OutText(0, 5, \"hello\", Attributes.White)",
+      "seeAlso": [
+        "Attributes",
+        "Attributes.Inverse"
+      ]
+    },
+    {
+      "name": "Attributes.Red",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.Red",
+      "summary": "Colour 1: red (0x880000).",
+      "description": "Add Attributes.Inverse to paint the background instead of the text.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.OutText(0, 5, \"hello\", Attributes.Red)",
+      "seeAlso": [
+        "Attributes",
+        "Attributes.Inverse"
+      ]
+    },
+    {
+      "name": "Attributes.Cyan",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.Cyan",
+      "summary": "Colour 2: cyan (0xaaffee).",
+      "description": "Add Attributes.Inverse to paint the background instead of the text.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.OutText(0, 5, \"hello\", Attributes.Cyan)",
+      "seeAlso": [
+        "Attributes",
+        "Attributes.Inverse"
+      ]
+    },
+    {
+      "name": "Attributes.Purple",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.Purple",
+      "summary": "Colour 3: purple (0xcc44cc).",
+      "description": "Add Attributes.Inverse to paint the background instead of the text.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.OutText(0, 5, \"hello\", Attributes.Purple)",
+      "seeAlso": [
+        "Attributes",
+        "Attributes.Inverse"
+      ]
+    },
+    {
+      "name": "Attributes.Green",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.Green",
+      "summary": "Colour 4: green (0x00cc55).",
+      "description": "Add Attributes.Inverse to paint the background instead of the text.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.OutText(0, 5, \"hello\", Attributes.Green)",
+      "seeAlso": [
+        "Attributes",
+        "Attributes.Inverse"
+      ]
+    },
+    {
+      "name": "Attributes.Blue",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.Blue",
+      "summary": "Colour 5: blue (0x0000aa).",
+      "description": "Add Attributes.Inverse to paint the background instead of the text.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.OutText(0, 5, \"hello\", Attributes.Blue)",
+      "seeAlso": [
+        "Attributes",
+        "Attributes.Inverse"
+      ]
+    },
+    {
+      "name": "Attributes.Yellow",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.Yellow",
+      "summary": "Colour 6: yellow (0xeeee77).",
+      "description": "Add Attributes.Inverse to paint the background instead of the text.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.OutText(0, 5, \"hello\", Attributes.Yellow)",
+      "seeAlso": [
+        "Attributes",
+        "Attributes.Inverse"
+      ]
+    },
+    {
+      "name": "Attributes.Orange",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.Orange",
+      "summary": "Colour 7: orange (0xdd8855).",
+      "description": "Add Attributes.Inverse to paint the background instead of the text.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.OutText(0, 5, \"hello\", Attributes.Orange)",
+      "seeAlso": [
+        "Attributes",
+        "Attributes.Inverse"
+      ]
+    },
+    {
+      "name": "Attributes.Inverse",
+      "kind": "constant",
+      "group": "Attributes",
+      "framework": "screen",
+      "signature": "Attributes.Inverse",
+      "summary": "Attribute bit 0x80: swap text and background colours.",
+      "description": "The same value as Screen.INVERT. With a space character the cell becomes a solid block of the colour it is added to.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.Out(10, 10, 32, Attributes.Green + Attributes.Inverse)",
+      "seeAlso": [
+        "Attributes",
+        "Screen.INVERT"
+      ]
     },
     {
       "name": "Overlay.COLS",

@@ -24,6 +24,7 @@ struct CodeEditorView: NSViewRepresentable {
     /// Function definitions from elsewhere in the project (other
     /// components), offered alongside the functions found in the text.
     var definedFunctions: [LuaSignature] = []
+    var definedConstants: [String] = []
     /// When off, no foreground attributes are written at all.
     var syntaxHighlighting = true
     /// When off, the line-number gutter is not shown at all.
@@ -309,7 +310,8 @@ struct CodeEditorView: NSViewRepresentable {
             prefix: String, in textView: NSTextView
         ) -> [CompletionItem] {
             LuaCompletion.items(
-                prefix, in: textView.string, including: parent.definedFunctions)
+                prefix, in: textView.string, including: parent.definedFunctions,
+                constants: parent.definedConstants)
                 .filter { $0.name != prefix }
         }
 

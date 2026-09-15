@@ -12,6 +12,8 @@ struct SDKLibraryTests {
 
     Demo = Demo or {}
     Demo.Sub = Demo.Sub or {}
+    Demo.LIMIT = 3          -- a constant
+    Demo.Sub.NAME = "sub"
     local counter = 0
 
     local function helper(n)
@@ -45,6 +47,7 @@ struct SDKLibraryTests {
         #expect(sdk.preamble.contains("Demo = Demo or {}"))
         #expect(sdk.preamble.contains("local counter = 0"))
         #expect(!sdk.preamble.contains("function"))
+        #expect(sdk.constants == ["Demo.LIMIT", "Demo.Sub.NAME"])
         #expect(sdk.blocks.map(\.name) == ["helper", "Demo.One", "Demo.Two", "Demo.Sub.Three"])
         #expect(sdk.blocks[0].isLocal)
         #expect(!sdk.blocks[1].isLocal)
@@ -143,5 +146,21 @@ struct SDKLibraryTests {
                 #expect(issue == nil, "\(block.name): \(String(describing: issue))")
             }
         }
+    }
+
+    @Test func constantsAloneKeepThePreamble() {
+        let sdk = SDKLibrary.parse(id: "demo", text: sample)
+        let text = SDKLibrary.emit(sdk, usedBy: ["local n = Demo.LIMIT * 2"])
+        #expect(text?.contains("Demo.LIMIT = 3") == true)
+        #expect(text?.contains("function Demo.One") == false)
+        #expect(SDKLibrary.emit(sdk, usedBy: ["print(1)"]) == nil)
+    }
+
+    @Test func screenFrameworkDefinesTheAttributeConstants() {
+        let constants = SDKLibrary.constants(for: ["screen"])
+        for name in ["Attributes.Inverse", "Attributes.Red", "Attributes.Blue", "Screen.INVERT", "Screen.COLS"] {
+            #expect(constants.contains(name), "\(name)")
+        }
+        #expect(!constants.contains("Screen"), "namespace table is not a constant")
     }
 }

@@ -25,6 +25,8 @@ final class AppModel {
     /// Function definitions across the project's Lua components, offered
     /// by the editor's completion list and parameter help.
     var projectFunctions: [LuaSignature] = []
+    /// The selected frameworks' constants (`Attributes.Red`), completed too.
+    var projectConstants: [String] = []
 
     // Console / run state
     var console = ""
@@ -244,8 +246,10 @@ final class AppModel {
     private func refreshProjectFunctions() {
         guard let project else {
             projectFunctions = []
+            projectConstants = []
             return
         }
+        projectConstants = SDKLibrary.constants(for: project.manifest.sdks)
         // The selected frameworks' functions complete and show parameter
         // help like the program's own; components read later still win.
         var signatures: [LuaSignature] = SDKLibrary.signatures(for: project.manifest.sdks)

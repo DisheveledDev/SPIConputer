@@ -86,8 +86,16 @@ struct HelpLibraryTests {
                     problems.append("\(block.name): help says \(actual), framework says \(expected)")
                 }
             }
-            #expect(HelpLibrary.entry(named: sdk.namespaces.first ?? "")?.kind == "namespace",
-                    "\(sdk.id): namespace entry")
+            for namespace in sdk.namespaces {
+                #expect(HelpLibrary.entry(named: namespace)?.kind == "namespace",
+                        "\(sdk.id): namespace entry \(namespace)")
+            }
+            for constant in sdk.constants {
+                let entry = HelpLibrary.entry(named: constant)
+                if entry?.kind != "constant" || entry?.framework != sdk.id {
+                    problems.append("constant \(constant): \(entry == nil ? "missing" : "kind \(entry!.kind) framework \(entry!.framework ?? "nil")")")
+                }
+            }
         }
         #expect(problems.isEmpty, "\(problems.joined(separator: "\n"))")
     }

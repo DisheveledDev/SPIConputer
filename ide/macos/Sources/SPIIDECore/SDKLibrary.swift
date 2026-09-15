@@ -26,6 +26,9 @@ public struct SDK: Sendable, Equatable, Identifiable {
     public let namespaces: [String]
     /// Everything above the first block; always emitted.
     public let preamble: String
+    /// Dotted names the preamble assigns at column 0 (`Screen.COLS`,
+    /// `Attributes.Red`): completed as plain names, no parameter list.
+    public let constants: [String]
     public let blocks: [SDKBlock]
 
     public var signatures: [LuaSignature] {
@@ -71,6 +74,11 @@ public enum SDKLibrary {
     /// for completion and parameter help.
     public static func signatures(for ids: [String]) -> [LuaSignature] {
         ids.compactMap(sdk(id:)).flatMap(\.signatures)
+    }
+
+    /// The constants the selected frameworks define, for completion.
+    public static func constants(for ids: [String]) -> [String] {
+        ids.compactMap(sdk(id:)).flatMap(\.constants)
     }
 
     // MARK: Parsing
@@ -132,7 +140,30 @@ public enum SDKLibrary {
         // trailing blank lines so the emitted file stays tidy.
         while preamble.hasSuffix("\n\n") { preamble.removeLast() }
         return SDK(id: id, title: title, summary: summary, namespaces: namespaces,
-                   preamble: preamble, blocks: blocks)
+                   preamble: preamble, constants: constants(inPreamble: preamble),
+                   blocks: blocks)
+    }
+
+    /// `Name.CONST = value` lines at column 0 of the preamble. Namespace
+    /// tables (`Screen = Screen or {}`, `Input.Keyboard = ...`) are not
+    /// constants.
+    static func constants(inPreamble preamble: String) -> [String] {
+        var result: [String] = []
+        for rawLine in preamble.split(separator: "\n") {
+            let line = String(rawLine)
+            guard let first = line.first, first.isUppercase else { continue }
+            var name = ""
+            for c in line {
+                if c.isLetter || c.isNumber || c == "_" || c == "." { name.append(c) } else { break }
+            }
+            guard name.contains("."), !name.hasSuffix(".") else { continue }
+            let rest = line.dropFirst(name.count).trimmingCharacters(in: .whitespaces)
+            guard rest.hasPrefix("=") else { continue }
+            let value = rest.dropFirst().trimmingCharacters(in: .whitespaces)
+            if value.hasPrefix(name + " or") { continue }
+            result.append(name)
+        }
+        return result
     }
 
     private static func blockHeader(_ line: String) -> (name: String, isLocal: Bool)? {
@@ -274,7 +305,8 @@ public enum SDKLibrary {
                 queue.append(other.name)
             }
         }
-        guard !kept.isEmpty else { return nil }
+        // A program that only reads the constants still needs the preamble.
+        guard !kept.isEmpty || sdk.constants.contains(where: used.contains) else { return nil }
         var text = sdk.preamble
         if !text.hasSuffix("\n") { text += "\n" }
         for block in sdk.blocks where kept.contains(block.name) {
