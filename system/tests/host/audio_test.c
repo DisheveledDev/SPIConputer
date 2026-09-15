@@ -605,9 +605,10 @@ static void put_cell(uint8_t *pat, int row, int ch, int sample, int period, int 
 /* Build a module: sample 1 a short saw (fully resident), sample 2 a long
  * looped ramp (streamed: longer than the head), two patterns. */
 #define TEST_MOD_LONG 60000u
+#define TEST_MOD_WHOLE_LOOP 42000u /* > MOD_POOL_BYTES: a head and a stream */
 static uint8_t *build_mod(size_t *len_out) {
-    uint32_t s1_len = 64, s2_len = TEST_MOD_LONG;
-    size_t len = 1084 + 3 * 1024 + s1_len + s2_len;
+    uint32_t s1_len = 64, s2_len = TEST_MOD_LONG, s3_len = TEST_MOD_WHOLE_LOOP;
+    size_t len = 1084 + 3 * 1024 + s1_len + s2_len + s3_len;
     uint8_t *m = calloc(1, len);
     memcpy(m, "test module", 11);
     uint8_t *s = m + 20;              /* sample 1 */
@@ -620,6 +621,11 @@ static uint8_t *build_mod(size_t *len_out) {
     s[24] = 0; s[25] = 48;
     s[26] = (uint8_t)((1000 / 2) >> 8); s[27] = (uint8_t)(1000 / 2);
     s[28] = (uint8_t)((40000 / 2) >> 8); s[29] = (uint8_t)(40000 / 2);
+    s = m + 80;                       /* sample 3: too long for the pool, loops whole */
+    memcpy(s, "whole", 5);
+    s[22] = (uint8_t)((s3_len / 2) >> 8); s[23] = (uint8_t)(s3_len / 2);
+    s[24] = 0; s[25] = 64; s[26] = 0; s[27] = 0;
+    s[28] = (uint8_t)((s3_len / 2) >> 8); s[29] = (uint8_t)(s3_len / 2);
     m[950] = 3;  /* orders: 0, 1, then the long-note pattern */
     m[951] = 0;
     m[952] = 0; m[953] = 1; m[954] = 2;
@@ -636,9 +642,11 @@ static uint8_t *build_mod(size_t *len_out) {
     put_cell(p1, 1, 0, 0, 0, 0xB, 0x02);   /* jump to order 2 */
     uint8_t *p2 = p1 + 1024;
     put_cell(p2, 0, 1, 2, 214, 0, 0);      /* one long note for the streaming test */
+    put_cell(p2, 0, 2, 3, 214, 0, 0);      /* and the whole-sample loop */
     uint8_t *pcm = p2 + 1024;
     for (uint32_t i = 0; i < s1_len; i++) pcm[i] = (uint8_t)(int8_t)((int)(i * 4) - 128);
     for (uint32_t i = 0; i < s2_len; i++) pcm[s1_len + i] = (uint8_t)(int8_t)((i / 100) % 200 - 100);
+    for (uint32_t i = 0; i < s3_len; i++) pcm[s1_len + s2_len + i] = (uint8_t)(int8_t)((i / 50) % 100 - 50);
     *len_out = len;
     return m;
 }
@@ -654,6 +662,10 @@ static void test_mod(void) {
     CHECK(strcmp(m->name, "test module") == 0, "module name");
     CHECK(m->order_count == 3 && m->pattern_count == 3, "orders and patterns");
     CHECK(m->samples[1].length == 64 && m->samples[1].resident_len == 64, "short sample resident");
+    CHECK(m->samples[1].loop_len == 0, "the 0/2 loop marker is no loop");
+    CHECK(m->samples[3].resident_len == MOD_HEAD_BYTES && m->samples[3].loop_start == 0 &&
+              m->samples[3].loop_len == TEST_MOD_WHOLE_LOOP,
+          "whole-sample loop streams");
     CHECK(m->samples[2].length == TEST_MOD_LONG && m->samples[2].resident_len == MOD_HEAD_BYTES &&
               m->samples[2].loop_start == 1000 && m->samples[2].loop_len == 40000,
           "long sample keeps a head and streams");
@@ -676,6 +688,7 @@ static void test_mod(void) {
      * volume down 2 a tick (ticks 1 and 2): 32 -> 28. */
     audio_mix(&a, buf, 3 * 882);
     CHECK(m->row == 1, "row 1 after three ticks");
+    CHECK(!m->ch[0].active, "a one-shot sample stops at its end");
     audio_mix(&a, buf, 2 * 882);
     CHECK(m->ch[0].volume == 28, "volume slide");
     audio_mix(&a, buf, 882);
@@ -700,6 +713,7 @@ static void test_mod(void) {
     }
     CHECK(!m->waiting && m->pat_num[m->cur_slot] == 2, "the jump's pattern was loaded on demand");
     CHECK(m->ch[1].sample == 2 && m->ch[1].active && m->ch[1].pos < 1000, "row 0 of it: the long note");
+    CHECK(m->ch[2].sample == 3 && m->ch[2].active, "row 0 of it: the whole-sample loop");
 
     /* Streaming: channel 2 plays the long sample past its head. Serviced
      * between mixes, the ring stays ahead and nothing underruns; without
@@ -712,13 +726,22 @@ static void test_mod(void) {
     CHECK(m->ch[1].active && m->ch[1].pos > MOD_HEAD_BYTES, "long sample streamed past its head");
     CHECK(m->underruns == before, "no underruns while serviced");
     CHECK(m->ch[1].fill_end > m->ch[1].pos, "ring is ahead of the reader");
-    /* The loop wraps: play on until the position passes the loop end. */
-    uint32_t frames_to_wrap = (uint32_t)(((uint64_t)41000 << 16) / m->ch[1].step);
-    for (uint32_t done = 0; done < frames_to_wrap; done += 1024) {
-        audio_mix(&a, buf, 1024);
+    /* The loops wrap: play on until both positions pass their loop end.
+     * Channel 2's loop (1000..41000) restarts its stream at the wrap and
+     * waits for the next service; channel 3's (0..42000) wraps into its
+     * resident head, which covers the wait. Either way the stream picks
+     * the loop up again rather than playing silence to the loop end. */
+    before = m->underruns;
+    uint32_t frames_to_wrap = (uint32_t)(((uint64_t)TEST_MOD_WHOLE_LOOP << 16) / m->ch[1].step);
+    for (uint32_t done = 0; done < frames_to_wrap; done += 256) {
+        audio_mix(&a, buf, 256);
         mod_service(m);
     }
     CHECK(m->ch[1].active && m->ch[1].pos >= 1000 && m->ch[1].pos < 41000, "sample loop wrapped");
+    CHECK(m->ch[2].active && m->ch[2].pos > MOD_HEAD_BYTES && m->ch[2].pos < TEST_MOD_WHOLE_LOOP,
+          "whole-sample loop wrapped and streams on");
+    CHECK(m->ch[2].fill_end > m->ch[2].pos, "the wrapped loop's ring is ahead again");
+    CHECK(m->underruns - before < 2000, "a loop wrap costs at most the service latency");
 
     mod_request_stop(m);
     audio_mix(&a, buf, 64);
@@ -763,11 +786,11 @@ static void test_lua_mod(void) {
         CHECK(strcmp(lua_global_string(p->L, "load2"), "true") == 0, "a second load replaces the first");
         CHECK(strcmp(lua_global_string(p->L, "play"), "true") == 0 &&
                   strcmp(lua_global_string(p->L, "playing"), "true") == 0, "ModPlay");
-        CHECK(strcmp(lua_global_string(p->L, "info"), "test module:3:2") == 0, "ModInfo");
+        CHECK(strcmp(lua_global_string(p->L, "info"), "test module:3:3") == 0, "ModInfo");
         static int16_t buf[2048 * 2];
         audio_mix(p->audio, buf, 2048);
         audio_service();
-        CHECK(p->audio->mod && p->audio->mod->playing && p->audio->mod->ch[0].active, "the program's module plays");
+        CHECK(p->audio->mod && p->audio->mod->playing && p->audio->mod->ch[1].active, "the program's module plays");
         program_terminate(p);
     }
     free(file);

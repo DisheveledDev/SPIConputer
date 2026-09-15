@@ -48,7 +48,7 @@
 typedef struct {
     uint32_t length;      /* frames (bytes) */
     uint32_t loop_start;  /* frames */
-    uint32_t loop_len;    /* frames; < 2 means no loop */
+    uint32_t loop_len;    /* frames; 0 = no loop (the format's 0/2 marker is stored as 0) */
     uint32_t file_offset; /* of the PCM in the module file */
     int8_t finetune;      /* -8..7 */
     uint8_t volume;       /* 0..64 */

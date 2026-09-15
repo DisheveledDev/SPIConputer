@@ -156,6 +156,9 @@ mod_t *mod_load(const char *path, const char **err) {
         smp->volume = s[25] > 64 ? 64 : s[25];
         smp->loop_start = (uint32_t)be16(s + 26) * 2;
         smp->loop_len = (uint32_t)be16(s + 28) * 2;
+        /* ProTracker's "no loop" is a loop of one word at 0 (0/2): the
+         * sample plays through once, then silence. */
+        if (smp->loop_len <= 2) smp->loop_len = 0;
         if (smp->loop_start + smp->loop_len > smp->length) {
             smp->loop_len = smp->length > smp->loop_start ? smp->length - smp->loop_start : 0;
         }
@@ -709,7 +712,18 @@ void mod_mix_frame(mod_t *m, int32_t *l, int32_t *r) {
         if (ch->pos >= end) {
             if (smp->loop_len >= 2) {
                 ch->pos = smp->loop_start + (ch->pos - end) % smp->loop_len;
-                if (ch->pos >= smp->resident_len) ring_restart(ch, ch->sample, ch->pos);
+                /* A loop that runs into the streamed part: the ring still
+                 * holds it when the loop's streamed stretch fits and the
+                 * fill reached the loop end; otherwise stream it again
+                 * from where the loop goes (the head covers the wait
+                 * when that is the sample's start). */
+                if (end > smp->resident_len) {
+                    uint32_t lo = smp->loop_start > smp->resident_len ? smp->loop_start
+                                                                       : smp->resident_len;
+                    bool held = ch->fill_end == end && lo >= ch->fill_start &&
+                                end - lo <= MOD_RING_BYTES;
+                    if (!held) ring_restart(ch, ch->sample, ch->pos);
+                }
             } else {
                 ch->active = 0;
                 continue;
