@@ -376,19 +376,25 @@
       "kind": "function",
       "group": "Sound",
       "framework": "sound",
-      "signature": "Sound.Load(path)",
-      "summary": "Loads a WAV file from the card into the sample pool; returns a sound id usable with Sound.Play and in tracks.",
-      "description": "Loads a WAV file from the card into the sample pool; returns a sound id usable with Sound.Play and in tracks.",
+      "signature": "Sound.Load(path [, root])",
+      "summary": "Loads a WAV from the card as an instrument, with the note it was recorded at.",
+      "description": "Loads a WAV file from the card (8/16-bit PCM, mono or stereo, up to 48 kHz, 64 KB of samples a program) as an instrument: `root` is the note the recording is of (\"C2\" for a bass sampled at C2; default C4), and playing any other note shifts the pitch by the difference, so a single recording covers the scale. Returns a sound id for Sound.Play and Music.Track channels.",
       "parameters": [
         {
           "name": "path",
           "type": "",
           "optional": false,
           "description": ""
+        },
+        {
+          "name": "root",
+          "type": "",
+          "optional": true,
+          "description": ""
         }
       ],
       "returns": "",
-      "example": "local boom = Sound.Load(\"/data/boom.wav\")",
+      "example": "local bass = Sound.Load(app.resources .. \"/bass-c2.wav\", \"C2\")\nSound.Play(bass, \"G2\", 400)",
       "seeAlso": [
         "Sound"
       ]

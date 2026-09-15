@@ -102,7 +102,7 @@ public enum LuaSignatures {
         add("SoundDefine", "id", "spec")
         add("SoundPreset", "name")
         add("SoundPresets")
-        add("SoundLoad", "path")
+        add("SoundLoad", "path", "[root]")
         add("SoundPlay", "sound", "[note]", "[dur_ms]", "[vol]", "[pan]")
         add("SoundStop", "[voice]")
         add("SoundStopAll")

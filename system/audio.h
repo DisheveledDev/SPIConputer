@@ -127,6 +127,10 @@ typedef struct {
 typedef struct {
     uint8_t defined;
     uint8_t channels; /* 1 or 2 */
+    uint8_t root;     /* the note the recording is of (0 = C4): played
+                         at `note`, the sample is shifted by the
+                         difference, so a bass recorded at C2 plays C2
+                         unshifted and D2 two semitones up */
     uint16_t rate;    /* source sample rate */
     uint32_t frames;  /* per-channel frames */
     uint32_t offset;  /* byte offset into the pool (int16 samples) */

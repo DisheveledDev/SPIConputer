@@ -10,7 +10,8 @@
  *   SoundDefine(id, spec)          -> true | nil, err
  *   SoundPreset(name)              -> id, spec | nil, err  (the built-in bank)
  *   SoundPresets()                 -> { {name=, effect=, id=}, ... }
- *   SoundLoad(path)                -> sound id | nil, err  (WAV PCM)
+ *   SoundLoad(path [, root])       -> sound id | nil, err  (WAV PCM; root =
+ *                                     the note recorded, default C4)
  *   SoundPlay(sound [, note [, dur_ms [, vol [, pan]]]]) -> voice | nil, err
  *   SoundStop([voice])             -> bool (no arg: all one-shots)
  *   SoundStopAll()                 -> true (score + one-shots)
@@ -561,7 +562,7 @@ static bool skip_bytes(int32_t handle, uint32_t n) {
 /* Parse a PCM (8/16-bit, mono/stereo) WAV into the sample pool.
  * On success returns true and *slot_out is set. */
 static bool wav_load(lua_State *L, audio_state_t *a, const char *path,
-                     int *slot_out, const char **err) {
+                     int root, int *slot_out, const char **err) {
     int slot = -1;
     for (int i = 0; i < AUDIO_SAMPLE_MAX; i++) {
         if (!a->samples[i].defined) {
@@ -683,6 +684,7 @@ static bool wav_load(lua_State *L, audio_state_t *a, const char *path,
             audio_pcm_t *smp = &a->samples[slot];
             memset(smp, 0, sizeof(*smp));
             smp->defined = 1;
+            smp->root = (uint8_t)root;
             smp->channels = (uint8_t)channels;
             smp->rate = (uint16_t)rate;
             smp->frames = frames;
@@ -705,12 +707,16 @@ fail:
     return false;
 }
 
+/* SoundLoad(path [, root]): `root` is the note the recording is of
+ * (default C4); playing another note shifts the pitch by the
+ * difference. */
 static int sound_load(lua_State *L) {
     audio_state_t *a = current(L);
     const char *path = luaL_checkstring(L, 1);
+    int root = note_arg(L, 2, 60);
     int slot = 0;
     const char *err = NULL;
-    if (!wav_load(L, a, path, &slot, &err)) {
+    if (!wav_load(L, a, path, root, &slot, &err)) {
         lua_pushnil(L);
         lua_pushstring(L, err ? err : "load failed");
         return 2;

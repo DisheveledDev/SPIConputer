@@ -242,11 +242,15 @@ function Sound.Define(id, spec)
     return SoundDefine(id, spec)
 end
 
---- Sound.Load(path)
--- Loads a WAV file from the card into the sample pool; returns a sound
--- id usable with Sound.Play and in tracks.
-function Sound.Load(path)
-    return SoundLoad(path)
+--- Sound.Load(path [, root])
+-- Loads a WAV file from the card (8/16-bit PCM, mono or stereo, up to
+-- 48 kHz, 64 KB of samples a program) as an instrument: `root` is the
+-- note the recording is of ("C2" for a bass sampled at C2; default C4),
+-- and playing any other note shifts the pitch by the difference, so a
+-- single recording covers the scale. Returns a sound id for Sound.Play
+-- and Music.Track channels.
+function Sound.Load(path, root)
+    return SoundLoad(path, root)
 end
 
 --- Sound.Stop([voice])

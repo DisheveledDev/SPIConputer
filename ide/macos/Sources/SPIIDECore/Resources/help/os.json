@@ -1389,12 +1389,25 @@
       "name": "SoundLoad",
       "kind": "function",
       "group": "Sound",
-      "signature": "SoundLoad(path)",
+      "signature": "SoundLoad(path [, root])",
       "summary": "Loads a WAV file (8/16-bit PCM, mono/stereo, <= 48 kHz) into the program's 64 KB sample pool.",
-      "description": "",
-      "parameters": [],
+      "description": "`root` is the note the recording is of (a name or MIDI number, default C4): playing the sample at another note resamples it by the difference, so one recording of a bass at C2 plays the whole scale (an octave up doubles the rate, so keep large shifts to drums and effects where the change of character is welcome). The sample is an instrument for SoundPlay and scores, ids 32-39.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "optional": false,
+          "description": "a WAV file on the card"
+        },
+        {
+          "name": "root",
+          "type": "string|number",
+          "optional": true,
+          "description": "the note recorded, default C4"
+        }
+      ],
       "returns": "sound id usable with SoundPlay and in scores, or nil, err",
-      "example": "local jump = SoundLoad(app.resources .. \"/jump.wav\")",
+      "example": "local bass = SoundLoad(app.resources .. \"/bass-c2.wav\", \"C2\")\nSoundPlay(bass, \"E2\", 400)",
       "seeAlso": [
         "SoundPlay"
       ]

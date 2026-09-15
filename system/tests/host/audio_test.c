@@ -260,6 +260,20 @@ static void test_sample(void) {
     CHECK(a.voices[AUDIO_CHANNELS].pos == ((uint64_t)8 << 32),
           "sample plays to the end then stops");
     CHECK(!a.voices[AUDIO_CHANNELS].active, "sample voice finished");
+
+    /* A root note: a recording of C2 (36) plays unshifted at C2 and an
+     * octave faster at C3; without a root C4 is unshifted. */
+    a.samples[0].root = 36;
+    int s1 = audio_trigger(&a, AUDIO_INSTRUMENT_MAX, 36, 255, 0, 0);
+    audio_mix(&a, buf, 1);
+    CHECK(a.voices[AUDIO_CHANNELS + s1].step == ((uint64_t)1 << 32), "root note plays at the recorded rate");
+    audio_stop_all_voices(&a);
+    audio_mix(&a, buf, 1);
+    int s2 = audio_trigger(&a, AUDIO_INSTRUMENT_MAX, 48, 255, 0, 0);
+    audio_mix(&a, buf, 1);
+    CHECK(a.voices[AUDIO_CHANNELS + s2].step == ((uint64_t)2 << 32), "an octave above the root doubles the rate");
+    audio_stop_all_voices(&a);
+    audio_mix(&a, buf, 1);
     audio_state_free(&a);
 }
 

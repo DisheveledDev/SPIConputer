@@ -422,7 +422,7 @@ over HSTX (see `WaitVSync` above).
 | `SoundDefine(id, spec)` | `true`, or `nil, err` (id = 0..31) |
 | `SoundPreset(name)` | a built-in sound's id (64+) and its spec table, or `nil, err` |
 | `SoundPresets()` | the built-in bank: `{ {name=, effect=, id=}, ... }` |
-| `SoundLoad(path)` | sound id (32..39), or `nil, err` |
+| `SoundLoad(path [, root])` | sound id (32..39), or `nil, err`; `root` is the note recorded (default C4) |
 | `SoundPlay(sound [, note [, dur_ms [, vol [, pan]]]])` | voice id (1..8), or `nil, err`; `sound` is an id or a built-in name |
 | `SoundStop([voice])` | `true`/`false` (no argument: all one-shots) |
 | `SoundStopAll()` | `true` (stops the score too) |
@@ -460,7 +460,9 @@ release; omit/0 = one-shot (release after attack+decay). `vol` 0..255,
 `SoundLoad` parses a WAV file (PCM, 8/16-bit, mono/stereo, rate up to
 48 kHz) from the SD card into the program's 64 KB sample pool and returns
 a sound id (32+n) usable with `SoundPlay` and in scores. Samples play
-pitch-shifted (C4 = original rate).
+pitch-shifted from their `root` note (the note recorded, default C4):
+a bass sampled at C2 and loaded with `SoundLoad(path, "C2")` plays C2
+at its recorded rate and every other note by the difference.
 
 ### Scores
 

@@ -295,7 +295,12 @@ static void voice_start_sample(audio_voice_t *v, const audio_pcm_t *smp,
     v->active = 1;
     v->source = 1;
     v->note = (uint8_t)note;
-    v->step = ((uint64_t)smp->rate * s_pitch_q32[note & 0x7f]) / AUDIO_SAMPLE_RATE;
+    /* s_pitch_q32[n] is 2^((n-60)/12): the shift from the root note. */
+    int root = smp->root ? smp->root : 60;
+    int shift = 60 + (note & 0x7f) - root;
+    if (shift < 0) shift = 0;
+    if (shift > 127) shift = 127;
+    v->step = ((uint64_t)smp->rate * s_pitch_q32[shift]) / AUDIO_SAMPLE_RATE;
     v->hold_frames = hold;
     v->env_sustain = 65536;
     v->env_level = 65536;
