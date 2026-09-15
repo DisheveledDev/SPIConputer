@@ -473,7 +473,8 @@ void video_frame_wait_hook(void) {
 static void sim_render(SDL_Renderer *ren, SDL_Texture *tex, uint8_t *frame) {
     const video_state_t *v = sim_screen();
     for (int y = 0; y < SIM_H; y++) {
-        render_line(v, y / 2, frame + (size_t)y * SIM_W * 3);
+        render_line(v, video_mode_2x(v->mode) ? y / 2 : y,
+                    frame + (size_t)y * SIM_W * 3);
     }
     SDL_UpdateTexture(tex, NULL, frame, SIM_W * 3);
 
@@ -543,7 +544,8 @@ static void usage(const char *argv0) {
 static void dump_frame_ppm(const char *path, uint8_t *frame) {
     const video_state_t *v = sim_screen();
     for (int y = 0; y < SIM_H; y++) {
-        render_line(v, y / 2, frame + (size_t)y * SIM_W * 3);
+        render_line(v, video_mode_2x(v->mode) ? y / 2 : y,
+                    frame + (size_t)y * SIM_W * 3);
     }
     FILE *f = fopen(path, "wb");
     if (!f) {
@@ -556,7 +558,8 @@ static void dump_frame_ppm(const char *path, uint8_t *frame) {
     printf("[sim] frame written to %s\n", path);
 }
 
-/* --dump-text: the final text screen as 30 lines of 40 characters, the
+/* --dump-text: the final text screen as its rows of characters (30x40,
+ * or 60x80 in the 80-column modes), the
  * overlay composited over the base, for scripted checks that read the
  * screen instead of its pixels. Codes outside printable ASCII (box
  * drawing, blocks) are written as '#'; after a '|' each line marks its
@@ -568,10 +571,14 @@ static void dump_text_screen(const char *path) {
         fprintf(stderr, "[sim] cannot write %s\n", path);
         return;
     }
-    int cols = VIDEO_COLS, rows = VIDEO_ROWS;
+    int cols = video_mode_cols(v->mode), rows = video_mode_rows(v->mode);
+    if (v->mode == VIDEO_MODE_PIXEL) {
+        cols = 0;
+        rows = 0;
+    }
     for (int y = 0; y < rows; y++) {
-        char line[VIDEO_COLS + 1];
-        char inv[VIDEO_COLS + 1];
+        char line[VIDEO_MAX_COLS + 1];
+        char inv[VIDEO_MAX_COLS + 1];
         for (int x = 0; x < cols; x++) {
             int idx = y * cols + x;
             uint8_t ch = v->base_char[idx];

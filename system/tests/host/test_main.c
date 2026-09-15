@@ -41,9 +41,10 @@ static bool screen_contains(const video_state_t *v, const char *needle) {
         return false;
     }
     size_t n = strlen(needle);
-    for (int y = 0; y < VIDEO_ROWS; y++) {
-        for (int x = 0; x + (int)n <= VIDEO_COLS; x++) {
-            if (memcmp(&v->base_char[y * VIDEO_COLS + x], needle, n) == 0) {
+    int cols = video_mode_cols(v->mode), rows = video_mode_rows(v->mode);
+    for (int y = 0; y < rows; y++) {
+        for (int x = 0; x + (int)n <= cols; x++) {
+            if (memcmp(&v->base_char[y * cols + x], needle, n) == 0) {
                 return true;
             }
         }

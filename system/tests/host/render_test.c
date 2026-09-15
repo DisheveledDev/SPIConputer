@@ -281,10 +281,10 @@ static void test_overlay_module(void) {
 
     const video_state_t *v = video_screen();
     CHECK(v->base_char[0] == 65, "ScreenOut writes the base layer");
-    CHECK(v->overlay_attr[1 * VIDEO_COLS + 1] == VIDEO_ATTR_TRANSPARENT,
+    CHECK(v->overlay_attr[1 * VIDEO_COLS_2X + 1] == VIDEO_ATTR_TRANSPARENT,
           "OverlayClear hides earlier overlay cells");
-    CHECK(v->overlay_char[2 * VIDEO_COLS + 3] == 67 &&
-              v->overlay_attr[2 * VIDEO_COLS + 3] == 0x05,
+    CHECK(v->overlay_char[2 * VIDEO_COLS_2X + 3] == 67 &&
+              v->overlay_attr[2 * VIDEO_COLS_2X + 3] == 0x05,
           "OverlayOut writes the overlay layer");
     video_screens_init();
 }
@@ -327,6 +327,122 @@ static void test_render_rom_font(void) {
     CHECK(line[0] == 0x00, "undefined code 0x80 renders blank");
 }
 
+/* ---------------- test 8b: the 80-column modes ---------------- */
+
+static void test_render_mode80(void) {
+    video_state_t v;
+    uint8_t line[RENDER_LINE_BYTES];
+
+    video_state_init(&v);
+    v.mode = VIDEO_MODE_TEXT80;
+    /* 80 columns: cell (79, 59) is output pixels 632..639 on output
+     * lines 472..479, drawn 1:1. 'A' row 0 = 0x0C -> pixels 2,3. */
+    v.base_char[59 * VIDEO_COLS_1X + 79] = 'A';
+    render_line(&v, 59 * 8, line);
+    for (int x = 0; x < RENDER_OUT_WIDTH; x++) {
+        int on = (x == 634 || x == 635);
+        uint8_t expect = on ? 0xff : 0x00;
+        CHECK(line[x * 3] == expect, "80-column 'A' at the last cell, 1x");
+    }
+    /* Row 1 of the same cell is on the very next output line. */
+    render_line(&v, 59 * 8 + 1, line);
+    CHECK(line[633 * 3] == 0xff && line[636 * 3] == 0xff && line[632 * 3] == 0x00,
+          "80-column rows are one output line each");
+    /* The 40-column stride would put that cell elsewhere: nothing at
+     * (39, 59) in 40-column terms, i.e. output pixel 312. */
+    CHECK(line[312 * 3] == 0x00, "80-column stride, not 40");
+
+    /* Mode 2 ignores colour bits; mode 3 uses them, like 0 and 1. */
+    v.base_char[1] = '#';
+    v.base_attr[1] = 0x02; /* cyan in a colour mode */
+    /* '#' row 0 = 0x36: pixels 1, 2, 4, 5 of the cell, so x = 9 is on. */
+    render_line(&v, 0, line);
+    CHECK(line[9 * 3] == 0xff && line[9 * 3 + 2] == 0xff && line[8 * 3] == 0x00,
+          "mode 2 is B&W");
+    v.mode = VIDEO_MODE_TEXT80C;
+    render_line(&v, 0, line);
+    CHECK(line[9 * 3] == 0xaa && line[9 * 3 + 1] == 0xff && line[9 * 3 + 2] == 0xee,
+          "mode 3 colours cells");
+    CHECK(line[16 * 3] == 0x00, "cell 2 blank at 1x (8 pixels per cell)");
+}
+
+/* The API works in the 80-column geometry: cells up to (79, 59), block
+ * ops clipped at 80x60, a full-screen write of 4800 bytes. */
+static const char *MODE80_LUA =
+    "function setup()\n"
+    "  assert(ScreenMode(3) == true)\n"
+    "  assert(ScreenOut(79, 59, 65, 0x02) == true)\n"
+    "  assert(ScreenOut(80, 0, 65) == nil)\n"
+    "  assert(ScreenOut(0, 60, 65) == nil)\n"
+    "  assert(OverlayBox(0, 0, 80, 60, 2) == true)\n"
+    "  assert(ScreenWrite(0, 1, string.rep('x', 4800)) == true)\n"
+    "  assert(ScreenWrite(78, 2, 'abc') == true)\n"
+    "  assert(ScreenScroll(0, 0, 80, 60, 0, -1, 46) == true)\n"
+    "  assert(ScreenMode(1) == true)\n"
+    "  assert(ScreenOut(40, 0, 65) == nil)\n"
+    "  assert(ScreenMode(3) == true)\n"
+    "  assert(ScreenOut(40, 0, 66) == true)\n"
+    "  ExitProgram()\n"
+    "end\n"
+    "function tick() end\n";
+
+static void test_mode80_api(void) {
+    video_screens_init();
+    mock_set_file("m80.lua", MODE80_LUA);
+    CHECK(program_boot("m80.lua", NULL), "80-column program boots");
+    program_scheduler_step();
+    CHECK(program_top() == NULL, "80-column program exited");
+    video_ops_drain();
+    const video_state_t *v = video_screen();
+    CHECK(v->mode == VIDEO_MODE_TEXT80C, "mode 3 in force");
+    CHECK(v->base_char[40] == 66, "cell (40, 0) exists in mode 3");
+#define CELL80(x, y) ((y) * VIDEO_COLS_1X + (x))
+    /* Before the final mode switches (which cleared the screen), the
+     * scroll moved row 1's x's to row 0 and 'abc' wrapped from (78, 2)
+     * to (0, 3), row 59 was 'A' at the corner: check the geometry that
+     * survives, the scroll-fill row and the corner, in a second run. */
+    CHECK(v->overlay_attr[CELL80(79, 59)] == VIDEO_ATTR_TRANSPARENT,
+          "mode switch cleared the overlay");
+#undef CELL80
+    video_screens_init();
+}
+
+static const char *MODE80_LAYOUT_LUA =
+    "function setup()\n"
+    "  assert(ScreenMode(2) == true)\n"
+    "  assert(ScreenWrite(0, 1, string.rep('x', 4800)) == true)\n"
+    "  assert(ScreenWrite(78, 2, 'abc') == true)\n"
+    "  assert(ScreenScroll(0, 0, 80, 60, 0, -1, 46) == true)\n"
+    "  assert(ScreenOut(79, 59, 65, 0x02) == true)\n"
+    "  assert(OverlayBox(0, 0, 80, 60, 2, 0x80) == true)\n"
+    "  ExitProgram()\n"
+    "end\n"
+    "function tick() end\n";
+
+static void test_mode80_layout(void) {
+    video_screens_init();
+    mock_set_file("m80b.lua", MODE80_LAYOUT_LUA);
+    CHECK(program_boot("m80b.lua", NULL), "80-column layout program boots");
+    program_scheduler_step();
+    video_ops_drain();
+    const video_state_t *v = video_screen();
+#define CELL80(x, y) ((y) * VIDEO_COLS_1X + (x))
+    CHECK(v->mode == VIDEO_MODE_TEXT80, "mode 2 in force");
+    CHECK(v->base_char[CELL80(0, 0)] == 'x' && v->base_char[CELL80(79, 0)] == 'x',
+          "scroll moved the full-width row up (80-cell rows)");
+    CHECK(v->base_char[CELL80(78, 1)] == 'a' && v->base_char[CELL80(79, 1)] == 'b' &&
+              v->base_char[CELL80(0, 2)] == 'c',
+          "write wrapped at column 80, then scrolled up: 'a' at 78, 'b' 79, 'c' 0");
+    CHECK(v->base_char[CELL80(0, 59)] == '.' && v->base_char[CELL80(79, 59)] == 'A',
+          "scroll filled row 59, then the corner cell was written");
+    CHECK(v->overlay_char[CELL80(79, 59)] == 0xBC && v->overlay_char[CELL80(0, 0)] == 0xC9,
+          "overlay box spans the 80x60 screen");
+    CHECK(v->overlay_attr[CELL80(40, 30)] == VIDEO_ATTR_TRANSPARENT,
+          "inside the box stays transparent");
+#undef CELL80
+    video_screens_init();
+}
+
 /* ---------------- test 9: Box / Fill (via a program) ---------------- */
 
 static const char *BOX_LUA =
@@ -352,7 +468,7 @@ static void test_box_fill(void) {
     video_ops_drain();
 
     const video_state_t *v = video_screen();
-#define CELL(x, y) ((y) * VIDEO_COLS + (x))
+#define CELL(x, y) ((y) * VIDEO_COLS_2X + (x))
     CHECK(v->base_char[CELL(2, 3)] == 0xDA && v->base_char[CELL(11, 3)] == 0xBF &&
               v->base_char[CELL(2, 6)] == 0xC0 && v->base_char[CELL(11, 6)] == 0xD9,
           "ScreenBox single-line corners");
@@ -416,7 +532,7 @@ static void test_block_ops(void) {
     video_ops_drain();
 
     const video_state_t *v = video_screen();
-#define CELL(x, y) ((y) * VIDEO_COLS + (x))
+#define CELL(x, y) ((y) * VIDEO_COLS_2X + (x))
     CHECK(v->base_char[CELL(0, 0)] == 'H' && v->base_char[CELL(4, 0)] == 'O',
           "ScreenWrite writes the text");
     CHECK(v->base_attr[CELL(0, 0)] == 1 && v->base_attr[CELL(2, 0)] == 3 &&
@@ -465,7 +581,7 @@ static void test_block_ops(void) {
 #define STAGING_WRAP_LUA                                                    \
     "function setup()\n"                                                   \
     "  ScreenMode(1)\n"                                                    \
-    "  for pass = 1, 5 do\n"                                               \
+    "  for pass = 1, 8 do\n"                                               \
     "    ScreenWrite(0, 0, string.rep(string.char(96 + pass), 1200))\n"    \
     "  end\n"                                                              \
     "  for i = 0, 39 do ScreenWrite(i, 3, string.char(48 + i % 10)) end\n" \
@@ -485,7 +601,7 @@ static void test_text_staging(void) {
               v->base_char[29 * 40] == 'D' && v->base_char[29 * 40 + 39] == 'D',
           "every line lands from the staging ring");
 
-    /* Five full screens (6000 bytes) wrap the 4 KB ring: the producer
+    /* Eight full screens (9600 bytes) wrap the 8 KB ring: the producer
      * waits for the drain instead of overwriting unapplied text, and the
      * short writes after the wrap are applied intact. */
     video_screens_init();
@@ -495,7 +611,7 @@ static void test_text_staging(void) {
     CHECK(g_full_waits > 0, "a full ring waits for core 0");
     video_ops_drain();
     v = video_screen();
-    CHECK(v->base_char[0] == 'e' && v->base_char[1199] == 'e',
+    CHECK(v->base_char[0] == 'h' && v->base_char[1199] == 'h',
           "the last full-screen write wins after the ring wraps");
     CHECK(v->base_char[3 * 40] == '0' && v->base_char[3 * 40 + 9] == '9' &&
               v->base_char[3 * 40 + 39] == '9',
@@ -517,6 +633,9 @@ int main(void) {
     test_render_custom_tile();
     test_op_queue();
     test_render_rom_font();
+    test_render_mode80();
+    test_mode80_api();
+    test_mode80_layout();
     test_box_fill();
     test_block_ops();
     test_text_staging();

@@ -165,17 +165,8 @@ uint32_t video_ops_overlay_out_count(void) {
 
 bool VIDEO_HOT(video_mode_valid)(int mode) {
     return mode == VIDEO_MODE_TEXT40 || mode == VIDEO_MODE_TEXT40C ||
+           mode == VIDEO_MODE_TEXT80 || mode == VIDEO_MODE_TEXT80C ||
            mode == VIDEO_MODE_PIXEL;
-}
-
-int video_mode_cols(int mode) {
-    if (mode == VIDEO_MODE_PIXEL) return VIDEO_FB_COLS;
-    return VIDEO_COLS;
-}
-
-int video_mode_rows(int mode) {
-    if (mode == VIDEO_MODE_PIXEL) return VIDEO_FB_ROWS;
-    return VIDEO_ROWS;
 }
 
 /* Clear the maps and the frame geometry for a new mode; entering the
@@ -226,12 +217,14 @@ static inline uint8_t *VIDEO_HOT(layer_attrs)(video_state_t *v, uint8_t flags) {
 }
 
 /* Clip (x,y,w,h) to the screen. Returns false when nothing is left. */
-static bool VIDEO_HOT(clip_rect)(int *x, int *y, int *w, int *h) {
+static bool VIDEO_HOT(clip_rect)(const video_state_t *v, int *x, int *y,
+                                 int *w, int *h) {
+    int cols = video_mode_cols(v->mode), rows = video_mode_rows(v->mode);
     int x1 = *x + *w, y1 = *y + *h;
     if (*x < 0) *x = 0;
     if (*y < 0) *y = 0;
-    if (x1 > VIDEO_COLS) x1 = VIDEO_COLS;
-    if (y1 > VIDEO_ROWS) y1 = VIDEO_ROWS;
+    if (x1 > cols) x1 = cols;
+    if (y1 > rows) y1 = rows;
     *w = x1 - *x;
     *h = y1 - *y;
     return *w > 0 && *h > 0;
@@ -239,13 +232,14 @@ static bool VIDEO_HOT(clip_rect)(int *x, int *y, int *w, int *h) {
 
 static void VIDEO_HOT(rect_fill)(video_state_t *v, uint8_t flags, int x, int y,
                                  int w, int h, uint8_t ch, uint8_t attr) {
-    if (!clip_rect(&x, &y, &w, &h)) {
+    if (!clip_rect(v, &x, &y, &w, &h)) {
         return;
     }
+    int cols = video_mode_cols(v->mode);
     uint8_t *chars = layer_chars(v, flags);
     uint8_t *attrs = layer_attrs(v, flags);
     for (int j = y; j < y + h; j++) {
-        int idx = j * VIDEO_COLS + x;
+        int idx = j * cols + x;
         if (flags & VIDEO_BLK_CHARS) fill(chars + idx, ch, (uint32_t)w);
         if (flags & VIDEO_BLK_ATTRS) fill(attrs + idx, attr, (uint32_t)w);
     }
@@ -263,14 +257,15 @@ static void VIDEO_HOT(apply_rect)(video_state_t *v, const video_op_t *op) {
  * been read entirely before the destination was written. */
 static void VIDEO_HOT(block_copy)(video_state_t *v, uint8_t flags, int sx, int sy,
                                   int dx, int dy, int w, int h) {
+    int cols = video_mode_cols(v->mode);
     uint8_t *chars = layer_chars(v, flags);
     uint8_t *attrs = layer_attrs(v, flags);
-    uint8_t row_c[VIDEO_COLS], row_a[VIDEO_COLS];
+    uint8_t row_c[VIDEO_MAX_COLS], row_a[VIDEO_MAX_COLS];
     bool backwards = dy > sy;
     for (int i = 0; i < h; i++) {
         int r = backwards ? h - 1 - i : i;
-        int src = (sy + r) * VIDEO_COLS + sx;
-        int dst = (dy + r) * VIDEO_COLS + dx;
+        int src = (sy + r) * cols + sx;
+        int dst = (dy + r) * cols + dx;
         for (int c = 0; c < w; c++) {
             row_c[c] = chars[src + c];
             row_a[c] = attrs[src + c];
@@ -286,13 +281,14 @@ static void VIDEO_HOT(apply_copy)(video_state_t *v, const video_op_t *op) {
     uint8_t flags = (uint8_t)(op->d >> 24);
     int sx = op->a, sy = op->b, w = op->c, h = (int)(op->d & 0xff);
     int dx = (int)((op->d >> 8) & 0xff), dy = (int)((op->d >> 16) & 0xff);
+    int cols = video_mode_cols(v->mode), rows = video_mode_rows(v->mode);
     /* Clip so both the source and the destination are on screen. */
-    if (sx + w > VIDEO_COLS) w = VIDEO_COLS - sx;
-    if (dx + w > VIDEO_COLS) w = VIDEO_COLS - dx;
-    if (sy + h > VIDEO_ROWS) h = VIDEO_ROWS - sy;
-    if (dy + h > VIDEO_ROWS) h = VIDEO_ROWS - dy;
-    if (w <= 0 || h <= 0 || sx >= VIDEO_COLS || sy >= VIDEO_ROWS ||
-        dx >= VIDEO_COLS || dy >= VIDEO_ROWS) {
+    if (sx + w > cols) w = cols - sx;
+    if (dx + w > cols) w = cols - dx;
+    if (sy + h > rows) h = rows - sy;
+    if (dy + h > rows) h = rows - dy;
+    if (w <= 0 || h <= 0 || sx >= cols || sy >= rows || dx >= cols ||
+        dy >= rows) {
         return;
     }
     block_copy(v, flags, sx, sy, dx, dy, w, h);
@@ -307,8 +303,8 @@ static void VIDEO_HOT(apply_copy)(video_state_t *v, const video_op_t *op) {
                 if (i >= dx && i < dx + w && j >= dy && j < dy + h) {
                     continue;
                 }
-                chars[j * VIDEO_COLS + i] = ch;
-                attrs[j * VIDEO_COLS + i] = attr;
+                chars[j * cols + i] = ch;
+                attrs[j * cols + i] = attr;
             }
         }
     }
@@ -321,7 +317,7 @@ static void VIDEO_HOT(apply_scroll)(video_state_t *v, const video_op_t *op) {
     int x = op->a, y = op->b, w = op->c, h = (int)(op->d & 0xff);
     int dx = (int8_t)((op->d >> 8) & 0xff), dy = (int8_t)((op->d >> 16) & 0xff);
     uint8_t ch = (uint8_t)op->e, attr = (uint8_t)(op->e >> 8);
-    if (!clip_rect(&x, &y, &w, &h)) {
+    if (!clip_rect(v, &x, &y, &w, &h)) {
         return;
     }
     if (dx <= -w || dx >= w || dy <= -h || dy >= h) {
@@ -354,7 +350,8 @@ static void VIDEO_HOT(apply_box)(video_state_t *v, const video_op_t *op) {
     int x = op->a, y = op->b, w = op->c, h = (int)(op->d & 0xff);
     int style = (int)((op->d >> 8) & 0xff);
     uint8_t attr = (uint8_t)(op->d >> 16);
-    if (w < 2 || h < 2 || x >= VIDEO_COLS || y >= VIDEO_ROWS) {
+    int cols = video_mode_cols(v->mode), rows = video_mode_rows(v->mode);
+    if (w < 2 || h < 2 || x >= cols || y >= rows) {
         return;
     }
     const uint8_t *g = s_box_glyphs[style == 2 ? 1 : 0];
@@ -363,22 +360,22 @@ static void VIDEO_HOT(apply_box)(video_state_t *v, const video_op_t *op) {
     int x1 = x + w - 1, y1 = y + h - 1;
     /* Edges are clipped cell by cell: a box may extend off screen. */
     for (int i = x; i <= x1; i++) {
-        if (i >= VIDEO_COLS) break;
+        if (i >= cols) break;
         uint8_t c = (i == x) ? g[0] : (i == x1) ? g[1] : g[4];
-        chars[y * VIDEO_COLS + i] = c;
-        attrs[y * VIDEO_COLS + i] = attr;
-        if (y1 < VIDEO_ROWS) {
+        chars[y * cols + i] = c;
+        attrs[y * cols + i] = attr;
+        if (y1 < rows) {
             uint8_t cb = (i == x) ? g[2] : (i == x1) ? g[3] : g[4];
-            chars[y1 * VIDEO_COLS + i] = cb;
-            attrs[y1 * VIDEO_COLS + i] = attr;
+            chars[y1 * cols + i] = cb;
+            attrs[y1 * cols + i] = attr;
         }
     }
-    for (int j = y + 1; j < y1 && j < VIDEO_ROWS; j++) {
-        chars[j * VIDEO_COLS + x] = g[5];
-        attrs[j * VIDEO_COLS + x] = attr;
-        if (x1 < VIDEO_COLS) {
-            chars[j * VIDEO_COLS + x1] = g[5];
-            attrs[j * VIDEO_COLS + x1] = attr;
+    for (int j = y + 1; j < y1 && j < rows; j++) {
+        chars[j * cols + x] = g[5];
+        attrs[j * cols + x] = attr;
+        if (x1 < cols) {
+            chars[j * cols + x1] = g[5];
+            attrs[j * cols + x1] = attr;
         }
     }
 }
@@ -388,15 +385,17 @@ static void VIDEO_HOT(apply_text)(video_state_t *v, const video_op_t *op) {
     uint8_t attr = (uint8_t)(op->d >> 16);
     int len = (int)(op->d & 0xffff);
     uint32_t offset = (op->e - (uint32_t)len) & STAGING_MASK;
-    if (offset + (uint32_t)len > VIDEO_STAGING_BYTES || op->a >= VIDEO_COLS ||
-        op->b >= VIDEO_ROWS) {
+    int cols = video_mode_cols(v->mode), rows = video_mode_rows(v->mode);
+    if (offset + (uint32_t)len > VIDEO_STAGING_BYTES || op->a >= cols ||
+        op->b >= rows) {
         return;
     }
     const uint8_t *src = &s_staging[offset];
     uint8_t *chars = layer_chars(v, flags);
     uint8_t *attrs = layer_attrs(v, flags);
-    int idx = op->b * VIDEO_COLS + op->a;
-    for (int i = 0; i < len && idx < VIDEO_COLS * VIDEO_ROWS; i++, idx++) {
+    int idx = op->b * cols + op->a;
+    int cells = cols * rows;
+    for (int i = 0; i < len && idx < cells; i++, idx++) {
         if (flags & VIDEO_BLK_BYTES_ATTR) {
             attrs[idx] = src[i];
         } else {
@@ -404,6 +403,13 @@ static void VIDEO_HOT(apply_text)(video_state_t *v, const video_op_t *op) {
             if (flags & VIDEO_BLK_SET_ATTR) attrs[idx] = attr;
         }
     }
+}
+
+/* A single-cell op's (a, b) is a cell of the state's text mode. */
+static inline bool VIDEO_HOT(cell_in_range)(const video_state_t *v,
+                                            const video_op_t *op) {
+    return v->mode != VIDEO_MODE_PIXEL && op->a < video_mode_cols(v->mode) &&
+           op->b < video_mode_rows(v->mode);
 }
 
 /* Apply one op. Returns true when the palette changed. */
@@ -419,17 +425,15 @@ static bool VIDEO_HOT(apply_op)(video_state_t *v, const video_op_t *op) {
             return false;
         case VIDEO_OP_OUT:
             s_base_out_count++;
-            if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
-                v->mode != VIDEO_MODE_PIXEL) {
-                int idx = op->b * VIDEO_COLS + op->a;
+            if (cell_in_range(v, op)) {
+                int idx = op->b * video_mode_cols(v->mode) + op->a;
                 v->base_char[idx] = op->c;
                 v->base_attr[idx] = (uint8_t)op->d;
             }
             return false;
         case VIDEO_OP_ATTR:
-            if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
-                v->mode != VIDEO_MODE_PIXEL) {
-                v->base_attr[op->b * VIDEO_COLS + op->a] = (uint8_t)op->d;
+            if (cell_in_range(v, op)) {
+                v->base_attr[op->b * video_mode_cols(v->mode) + op->a] = (uint8_t)op->d;
             }
             return false;
         case VIDEO_OP_CLEAR:
@@ -437,17 +441,15 @@ static bool VIDEO_HOT(apply_op)(video_state_t *v, const video_op_t *op) {
             return false;
         case VIDEO_OP_OVER_OUT:
             s_overlay_out_count++;
-            if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
-                v->mode != VIDEO_MODE_PIXEL) {
-                int idx = op->b * VIDEO_COLS + op->a;
+            if (cell_in_range(v, op)) {
+                int idx = op->b * video_mode_cols(v->mode) + op->a;
                 v->overlay_char[idx] = op->c;
                 v->overlay_attr[idx] = (uint8_t)op->d;
             }
             return false;
         case VIDEO_OP_OVER_ATTR:
-            if (op->a < VIDEO_COLS && op->b < VIDEO_ROWS &&
-                v->mode != VIDEO_MODE_PIXEL) {
-                v->overlay_attr[op->b * VIDEO_COLS + op->a] = (uint8_t)op->d;
+            if (cell_in_range(v, op)) {
+                v->overlay_attr[op->b * video_mode_cols(v->mode) + op->a] = (uint8_t)op->d;
             }
             return false;
         case VIDEO_OP_OVER_CLEAR:

@@ -276,14 +276,16 @@ void __not_in_flash_func(scanout_frame_begin)(scanout_t *s) {
     s->rows_total = RENDER_OUT_HEIGHT;
     s->row_2x = false;
 #else
-    /* Logical geometry is fixed: 240 pixel rows, every row scanned
-     * twice. (Not VIDEO_ROWS, the 30 tile rows: with that the sequencer
-     * rebased the frame every 60 output lines, so most of the picture
-     * was underruns and the op drain ran mid-frame.) Core 1's queued
-     * ops are collected at this boundary (see video_hw_poll) before the
-     * next frame is rendered. */
-    s->rows_total = VIDEO_FB_ROWS;
-    s->row_2x = true;
+    /* Frame geometry from the mode on screen: 240 logical rows each
+     * scanned twice (the 2x modes), or 480 rows once (80 columns). The
+     * count is output-line based, never the tile-row count: with the
+     * latter the sequencer rebased the frame every 60 output lines.
+     * Core 1's queued ops are collected at this boundary (see
+     * render_rows), which re-reads the geometry if they changed the
+     * mode. */
+    int mode = video_screen()->mode;
+    s->rows_total = (uint32_t)video_mode_lines(mode);
+    s->row_2x = video_mode_2x(mode);
 #endif
     s_chequer_active = s_chequer_request;
     s_drain_pending = true;
@@ -493,6 +495,16 @@ static void __not_in_flash_func(render_rows)(void) {
         if (video_ops_drain()) {
             render332_invalidate_palette();
         }
+#if !defined(SPICOMPUTER_VIDEO_TEST_PATTERN)
+        /* The drain may have switched the mode (or the slot) since the
+         * frame boundary chose the geometry; nothing has been rendered
+         * for this frame yet, so the sequencer can take the new one. */
+        int mode = video_screen()->mode;
+        if (s_scanout.rows_published == 0) {
+            s_scanout.rows_total = (uint32_t)video_mode_lines(mode);
+            s_scanout.row_2x = video_mode_2x(mode);
+        }
+#endif
     }
 
     const video_state_t *video = video_screen();

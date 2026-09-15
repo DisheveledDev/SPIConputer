@@ -352,6 +352,7 @@ static void test_render332_matches_reference(void) {
     uint8_t ref[RENDER_LINE_BYTES];
     uint32_t words[RENDER332_WORDS_PER_LINE];
     const int modes[] = {VIDEO_MODE_TEXT40, VIDEO_MODE_TEXT40C,
+                         VIDEO_MODE_TEXT80, VIDEO_MODE_TEXT80C,
                          VIDEO_MODE_PIXEL};
 
     render332_init();
@@ -360,7 +361,7 @@ static void test_render332_matches_reference(void) {
         v.mode = (uint8_t)modes[m];
         v.framebuf = (v.mode == VIDEO_MODE_PIXEL) ? fb : NULL;
 
-        for (int i = 0; i < VIDEO_COLS * VIDEO_ROWS; i++) {
+        for (int i = 0; i < VIDEO_MAX_CELLS; i++) {
             v.base_char[i] = (uint8_t)('A' + (i * 7) % 26);
             v.base_attr[i] = (uint8_t)(i % 2 ? 0x85 : 0x03);
             v.overlay_attr[i] = (uint8_t)(i % 5 == 0 ? 0 : 0x40);
@@ -380,7 +381,9 @@ static void test_render332_matches_reference(void) {
             }
         }
 
-        for (int ly = 0; ly < VIDEO_ROWS; ly += 7) {
+        /* Every mode's whole frame, sampled: the 80-column modes have
+         * 480 logical rows, the others 240. */
+        for (int ly = 0; ly < video_mode_lines(v.mode); ly += 7) {
             render_line(&v, ly, ref);
             render_line_332(&v, ly, words);
 
@@ -411,6 +414,13 @@ static void test_text_cell_masks(void) {
     CHECK(words[1] == 0x0000e0e0u, "2x cell second word preserves pixel order");
     CHECK(words[2] == 0xe0e0e0e0u, "2x cell third word preserves pixel order");
     CHECK(words[3] == 0x00000000u, "2x cell fourth word preserves pixel order");
+
+    /* At 1x the same '#' row (0x66: pixels 1,2,5,6) is two words. */
+    v.mode = VIDEO_MODE_TEXT80;
+    render_line_332(&v, 0, words);
+    CHECK(words[0] == 0x00e0e000u, "1x cell first word: pixels 1 and 2");
+    CHECK(words[1] == 0x0000e0e0u, "1x cell second word: pixels 4 and 5");
+    CHECK(words[2] == 0x00000000u, "1x cell is two words wide");
 }
 
 /* ------------- test 8: palette version cache ------------- */

@@ -1,14 +1,19 @@
 /* render.c — see render.h */
 #include "render.h"
 
+#include <stdbool.h>
+
 #include "font8x8_rom.h"
 
 void render_line(const video_state_t *v, int ly, uint8_t *out) {
     int row = ly / 8;
     int sub = ly % 8;
+    bool x2 = video_mode_2x(v->mode);
+    int cols = video_mode_cols(v->mode);
+    bool colour_mode = video_mode_colour(v->mode);
 
     for (int x = 0; x < RENDER_OUT_WIDTH; x++) {
-        int lpx = x / 2; /* 2x horizontal scaling */
+        int lpx = x2 ? x / 2 : x; /* 2x modes double every pixel */
         int col = lpx / 8;
         int bit = lpx % 8;
         uint32_t colour;
@@ -18,7 +23,7 @@ void render_line(const video_state_t *v, int ly, uint8_t *out) {
                 v->framebuf ? v->framebuf[ly * VIDEO_FB_COLS + lpx] : 0;
             colour = v->palette[ci];
         } else {
-            int idx = row * VIDEO_COLS + col;
+            int idx = row * cols + col;
             uint8_t ch = v->base_char[idx];
             uint8_t attr = v->base_attr[idx];
             uint8_t oattr = v->overlay_attr[idx];
@@ -35,7 +40,7 @@ void render_line(const video_state_t *v, int ly, uint8_t *out) {
             int on = (bits >> bit) & 1;
 
             uint8_t fg, bg;
-            if (v->mode == VIDEO_MODE_TEXT40C) {
+            if (colour_mode) {
                 fg = (uint8_t)((attr & 0x07) + 1);
                 bg = 0;
             } else {

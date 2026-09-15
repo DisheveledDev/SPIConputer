@@ -36,9 +36,10 @@
  *
  * Screen* calls draw on the base layer; Overlay* calls draw on the
  * single overlay layer, whose untouched cells show the base. Mode table:
- * 0 = 40x30 B&W, 1 = 40x30 colour, 10 = 320x240 pixels. The 80-column
- * modes 2 and 3 are retired for now. The RP2040 dev board supports modes
- * 0 and 1 only (no pixel buffer memory there).
+ * 0 = 40x30 B&W, 1 = 40x30 colour, 2 = 80x60 B&W, 3 = 80x60 colour,
+ * 10 = 320x240 pixels. Cell coordinates are checked against the mode the
+ * program last selected. The RP2040 dev board supports modes 0 and 1
+ * only (no pixel buffer memory there).
  */
 #include "screen_lua.h"
 
@@ -81,6 +82,10 @@ static void put(uint8_t op, int a, int b, int c, uint32_t d, uint32_t e) {
     video_op_put(&vop);
 }
 
+/* The text geometry of the mode the program last selected. */
+static int lua_cols(void) { return video_mode_cols(video_lua_mode()); }
+static int lua_rows(void) { return video_mode_rows(video_lua_mode()); }
+
 static int screen_mode(lua_State *L) {
     check_program(L);
     int mode = (int)luaL_checkinteger(L, 1);
@@ -93,7 +98,7 @@ static int screen_mode(lua_State *L) {
 #endif
     if (!video_mode_valid(mode)) {
         lua_pushnil(L);
-        lua_pushfstring(L, "mode %d is not available (0, 1 or 10)", mode);
+        lua_pushfstring(L, "mode %d is not available (0-3 or 10)", mode);
         return 2;
     }
     video_note_mode(mode);
@@ -111,7 +116,7 @@ static int screen_out(lua_State *L) {
     if (video_lua_mode() == VIDEO_MODE_PIXEL) {
         return luaL_error(L, "ScreenOut needs a text mode (call ScreenMode first)");
     }
-    if (x < 0 || x >= VIDEO_COLS || y < 0 || y >= VIDEO_ROWS ||
+    if (x < 0 || x >= lua_cols() || y < 0 || y >= lua_rows() ||
         ch < 0 || ch > 255) {
         lua_pushnil(L);
         lua_pushliteral(L, "out of range");
@@ -127,7 +132,7 @@ static int screen_attr(lua_State *L) {
     int x = (int)luaL_checkinteger(L, 1);
     int y = (int)luaL_checkinteger(L, 2);
     int flags = (int)luaL_checkinteger(L, 3);
-    if (x < 0 || x >= VIDEO_COLS || y < 0 || y >= VIDEO_ROWS) {
+    if (x < 0 || x >= lua_cols() || y < 0 || y >= lua_rows()) {
         lua_pushnil(L);
         lua_pushliteral(L, "out of range");
         return 2;
@@ -236,7 +241,7 @@ static int overlay_out(lua_State *L) {
     if (video_lua_mode() == VIDEO_MODE_PIXEL) {
         return luaL_error(L, "OverlayOut needs a text mode (call ScreenMode first)");
     }
-    if (x < 0 || x >= VIDEO_COLS || y < 0 || y >= VIDEO_ROWS ||
+    if (x < 0 || x >= lua_cols() || y < 0 || y >= lua_rows() ||
         ch < 0 || ch > 255) {
         lua_pushnil(L);
         lua_pushliteral(L, "out of range");
@@ -252,7 +257,7 @@ static int overlay_attr(lua_State *L) {
     int x = (int)luaL_checkinteger(L, 1);
     int y = (int)luaL_checkinteger(L, 2);
     int flags = (int)luaL_checkinteger(L, 3);
-    if (x < 0 || x >= VIDEO_COLS || y < 0 || y >= VIDEO_ROWS) {
+    if (x < 0 || x >= lua_cols() || y < 0 || y >= lua_rows()) {
         lua_pushnil(L);
         lua_pushliteral(L, "out of range");
         return 2;
@@ -286,8 +291,8 @@ static bool rect_args(lua_State *L, int *x, int *y, int *w, int *h) {
     int x1 = *x + *w, y1 = *y + *h;
     if (*x < 0) *x = 0;
     if (*y < 0) *y = 0;
-    if (x1 > VIDEO_COLS) x1 = VIDEO_COLS;
-    if (y1 > VIDEO_ROWS) y1 = VIDEO_ROWS;
+    if (x1 > lua_cols()) x1 = lua_cols();
+    if (y1 > lua_rows()) y1 = lua_rows();
     *w = x1 - *x;
     *h = y1 - *y;
     if (*w < 1 || *h < 1) {
@@ -301,7 +306,7 @@ static bool rect_args(lua_State *L, int *x, int *y, int *w, int *h) {
 static bool cell_arg(lua_State *L, int idx, int *x, int *y) {
     *x = (int)luaL_checkinteger(L, idx);
     *y = (int)luaL_checkinteger(L, idx + 1);
-    return *x >= 0 && *x < VIDEO_COLS && *y >= 0 && *y < VIDEO_ROWS;
+    return *x >= 0 && *x < lua_cols() && *y >= 0 && *y < lua_rows();
 }
 
 static int push_true(lua_State *L) {
@@ -332,7 +337,7 @@ static int box_common(lua_State *L, bool overlay) {
         lua_pushliteral(L, "style must be 1 (single) or 2 (double)");
         return 2;
     }
-    if (x < 0 || y < 0 || x >= VIDEO_COLS || y >= VIDEO_ROWS) {
+    if (x < 0 || y < 0 || x >= lua_cols() || y >= lua_rows()) {
         lua_pushnil(L);
         lua_pushliteral(L, "out of range");
         return 2;
@@ -453,8 +458,9 @@ static int write_common(lua_State *L, bool overlay, bool attrs_only) {
     const char *text = luaL_checklstring(L, 3, &len);
     bool set_attr = !attrs_only && !lua_isnoneornil(L, 4);
     int attr = set_attr ? (int)luaL_checkinteger(L, 4) : 0;
-    size_t room = (size_t)(VIDEO_COLS * VIDEO_ROWS - (y * VIDEO_COLS + x));
+    size_t room = (size_t)(lua_cols() * lua_rows() - (y * lua_cols() + x));
     if (len > room) len = room;
+    if (len > VIDEO_STAGING_BYTES) len = VIDEO_STAGING_BYTES; /* never waits forever */
     if (len == 0 || s_muted) {
         return push_true(L);
     }

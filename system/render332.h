@@ -30,10 +30,11 @@ void render332_init(void);
  * palette (see video_ops_drain). */
 void render332_invalidate_palette(void);
 
-/* Render logical row ly (0..VIDEO_ROWS-1) into out
+/* Render logical row ly (0..video_mode_lines(mode)-1) into out
  * (RENDER332_WORDS_PER_LINE words). Same picture as render_line() with
- * the palette reduced to RGB332; every pixel is doubled horizontally.
- * `framebuf` NULL (mode 10 mid-switch) renders black. */
+ * the palette reduced to RGB332; the 2x modes double every pixel, the
+ * 80-column modes write one pixel per tile bit. `framebuf` NULL (mode
+ * 10 mid-switch) renders black. */
 void render_line_332(const video_state_t *v, int ly, uint32_t *out);
 
 /* RGB332 value for an RGB888 colour, exposed for palette building and

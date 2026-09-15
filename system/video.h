@@ -10,22 +10,35 @@
  * frame from that slot. Nothing else is shared between the cores, so
  * there are no frame snapshots and no cross-core copies of the screen.
  *
- * Logical geometry is fixed at 320x240: 40x30 tiles (modes 0/1) or a
- * 320x240 pixel buffer (mode 10). The scanout doubles every row and
- * column to 640x480; the 80-column modes 2 and 3 are retired.
+ * Output is always 640x480. The 2x modes are logically 320x240: 40x30
+ * tiles (modes 0/1) or the 320x240 pixel buffer (mode 10), every row
+ * and column doubled by the scanout. The 1x modes 2/3 are 80x60 tiles
+ * at the full 640x480, one output line per tile row, so a text row
+ * costs twice the cells and every row is rendered rather than every
+ * second one (see render332.c for the budget).
  */
 #pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
 
-#define VIDEO_COLS 40
-#define VIDEO_ROWS 30
+/* Tile geometry of the 2x (40x30) and 1x (80x60) text modes. The cell
+ * maps are sized for the larger; a state's stride is the cols of its
+ * mode (video_mode_cols), never a constant. */
+#define VIDEO_COLS_2X 40
+#define VIDEO_ROWS_2X 30
+#define VIDEO_COLS_1X 80
+#define VIDEO_ROWS_1X 60
+#define VIDEO_MAX_COLS 80
+#define VIDEO_MAX_ROWS 60
+#define VIDEO_MAX_CELLS (VIDEO_MAX_COLS * VIDEO_MAX_ROWS)
 #define VIDEO_FB_COLS 320
 #define VIDEO_FB_ROWS 240
 
 #define VIDEO_MODE_TEXT40 0  /* 40x30, B&W */
 #define VIDEO_MODE_TEXT40C 1 /* 40x30, per-cell invert + colour */
+#define VIDEO_MODE_TEXT80 2  /* 80x60, B&W */
+#define VIDEO_MODE_TEXT80C 3 /* 80x60, per-cell invert + colour */
 #define VIDEO_MODE_PIXEL 10  /* 320x240 direct pixels, 256-entry palette */
 
 #define VIDEO_ATTR_TRANSPARENT 0x40
@@ -36,18 +49,19 @@
 typedef struct {
     uint8_t mode; /* VIDEO_MODE_* */
 
-    /* Base layer: one 40x30 cell per entry. Attribute byte: bit 7
-     * invert; bits 0-2 colour index. Colour index c uses palette entry
-     * c+1 (0 is the background). */
-    uint8_t base_char[VIDEO_COLS * VIDEO_ROWS];
-    uint8_t base_attr[VIDEO_COLS * VIDEO_ROWS];
+    /* Base layer: one cell per entry, row-major with the mode's column
+     * count as the stride (40 or 80). Attribute byte: bit 7 invert;
+     * bits 0-2 colour index. Colour index c uses palette entry c+1 (0 is
+     * the background). */
+    uint8_t base_char[VIDEO_MAX_CELLS];
+    uint8_t base_attr[VIDEO_MAX_CELLS];
 
     /* One overlay layer, composited over the base. A cell is transparent
      * while its attribute has bit 6 set: OverlayOut/OverlayAttr clear
      * the bit for the cells they touch and OverlayClear sets it
      * everywhere. */
-    uint8_t overlay_char[VIDEO_COLS * VIDEO_ROWS];
-    uint8_t overlay_attr[VIDEO_COLS * VIDEO_ROWS];
+    uint8_t overlay_char[VIDEO_MAX_CELLS];
+    uint8_t overlay_attr[VIDEO_MAX_CELLS];
 
     /* RAM tile override set; ROM font (font8x8, ASCII-aligned) used
      * where tile_defined[i] == 0. Each tile is 8 row bytes; bit 0 of a
@@ -119,15 +133,16 @@ typedef struct {
  * contiguous, fills them and queues the op with `e` = the end it was
  * given; core 0 releases them as it applies the op. Core 0 drains once a
  * frame, so the ring bounds how much text core 1 can queue per frame
- * before it waits: 4 KB is over three full-screen writes, or hundreds of
- * status-line strings. (Two whole-screen slots used to stall core 1 for
- * a frame at the third write of any frame.) Must be a power of two. */
-#define VIDEO_STAGING_BYTES 4096u
+ * before it waits: 8 KB is a full 80x60 screen plus a 40x30 one, or
+ * hundreds of status-line strings. (Two whole-screen slots used to stall
+ * core 1 for a frame at the third write of any frame.) Must be a power
+ * of two, and at least VIDEO_MAX_CELLS. */
+#define VIDEO_STAGING_BYTES 8192u
 
 /* Append one op (core 1). */
 void video_op_put(const video_op_t *op);
 
-/* Take `len` (1..VIDEO_COLS*VIDEO_ROWS) contiguous staging bytes (core
+/* Take `len` (1..VIDEO_MAX_CELLS) contiguous staging bytes (core
  * 1): returns where to write them and sets *end for the op's `e`. Blocks
  * only while the ring is full of bytes core 0 has not applied yet. Every
  * acquire must be followed by queuing its op. */
@@ -176,7 +191,33 @@ int video_lua_mode(void);
  * palette). Host tests use it to build render inputs. */
 void video_state_init(video_state_t *v);
 
-/* Active dimensions for a mode; false when the mode is unsupported. */
-int video_mode_cols(int mode);
-int video_mode_rows(int mode);
+/* Mode geometry. Inline so core 0's SRAM-resident render path can use
+ * them without a call into flash. */
 bool video_mode_valid(int mode);
+
+/* True for the modes the scanout doubles (320x240 logical). */
+static inline bool video_mode_2x(int mode) {
+    return mode != VIDEO_MODE_TEXT80 && mode != VIDEO_MODE_TEXT80C;
+}
+
+/* True for the colour text modes (attribute bits 0-2 select a colour). */
+static inline bool video_mode_colour(int mode) {
+    return mode == VIDEO_MODE_TEXT40C || mode == VIDEO_MODE_TEXT80C;
+}
+
+/* Active cells (text modes) or pixels (mode 10) across and down. */
+static inline int video_mode_cols(int mode) {
+    if (mode == VIDEO_MODE_PIXEL) return VIDEO_FB_COLS;
+    return video_mode_2x(mode) ? VIDEO_COLS_2X : VIDEO_COLS_1X;
+}
+
+static inline int video_mode_rows(int mode) {
+    if (mode == VIDEO_MODE_PIXEL) return VIDEO_FB_ROWS;
+    return video_mode_2x(mode) ? VIDEO_ROWS_2X : VIDEO_ROWS_1X;
+}
+
+/* Logical rows the renderer produces per frame: 240 (each shown twice)
+ * or 480. */
+static inline int video_mode_lines(int mode) {
+    return video_mode_2x(mode) ? VIDEO_FB_ROWS : 2 * VIDEO_FB_ROWS;
+}

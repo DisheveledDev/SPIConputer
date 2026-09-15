@@ -18,8 +18,10 @@
 #endif
 
 /* Four output words containing 16 doubled pixels (one 8-pixel tile row
- * scaled 2x horizontally). */
+ * scaled 2x horizontally), and two words containing the 8 pixels at 1x
+ * for the 80-column modes. */
 static uint32_t s_expand2[4][256];
+static uint32_t s_expand1[2][256];
 static uint32_t s_rgb332[256];
 static bool s_palette_valid;
 
@@ -30,6 +32,7 @@ static uint8_t s_font[256][8];
 void render332_init(void) {
     memcpy(s_font, font8x8_rom, sizeof(s_font));
     memset(s_expand2, 0, sizeof(s_expand2));
+    memset(s_expand1, 0, sizeof(s_expand1));
     for (int bits = 0; bits < 256; bits++) {
         for (int word = 0; word < 4; word++) {
             uint32_t mask2 = 0;
@@ -40,6 +43,15 @@ void render332_init(void) {
                 }
             }
             s_expand2[word][bits] = mask2;
+        }
+        for (int word = 0; word < 2; word++) {
+            uint32_t mask1 = 0;
+            for (int pixel = 0; pixel < 4; pixel++) {
+                if (bits & (1 << (word * 4 + pixel))) {
+                    mask1 |= 0xffu << (pixel * 8);
+                }
+            }
+            s_expand1[word][bits] = mask1;
         }
     }
     for (int i = 0; i < 256; i++) {
@@ -73,6 +85,20 @@ static void RENDER_HOT(put_cell_2x)(uint32_t *dst, uint8_t bits,
     }
 }
 
+static void RENDER_HOT(put_cell_1x)(uint32_t *dst, uint8_t bits,
+                                    uint32_t fg, uint32_t bg) {
+    uint32_t mask = s_expand1[0][bits];
+    dst[0] = (fg & mask) | (bg & ~mask);
+    mask = s_expand1[1][bits];
+    dst[1] = (fg & mask) | (bg & ~mask);
+}
+
+/* Budget: a 40-column row is 40 cells for two output lines (63.5 us),
+ * an 80-column row 80 cells for one (31.7 us), so the 1x modes ask
+ * core 0 for four times the cells per line: about 8 loads, two LUT
+ * reads and two stores per cell, ~20 cycles, so ~13 us of the 31.7 us
+ * line at 126 MHz, inside the ring's slack (video_hw.c reports the
+ * measured row times). */
 void RENDER_HOT(render_line_332)(const video_state_t *v, int ly,
                                  uint32_t *out) {
     update_palette(v);
@@ -95,8 +121,11 @@ void RENDER_HOT(render_line_332)(const video_state_t *v, int ly,
         return;
     }
 
-    for (int col = 0; col < VIDEO_COLS; col++) {
-        int idx = row * VIDEO_COLS + col;
+    int cols = video_mode_cols(v->mode);
+    bool x2 = video_mode_2x(v->mode);
+    bool colour_mode = video_mode_colour(v->mode);
+    for (int col = 0; col < cols; col++) {
+        int idx = row * cols + col;
         uint8_t ch = v->base_char[idx];
         uint8_t attr = v->base_attr[idx];
         uint8_t oattr = v->overlay_attr[idx];
@@ -108,7 +137,7 @@ void RENDER_HOT(render_line_332)(const video_state_t *v, int ly,
                                            : s_font[ch][sub];
 
         uint8_t fg_idx, bg_idx;
-        if (v->mode == VIDEO_MODE_TEXT40C) {
+        if (colour_mode) {
             fg_idx = (uint8_t)((attr & 0x07) + 1);
             bg_idx = 0;
         } else {
@@ -122,7 +151,12 @@ void RENDER_HOT(render_line_332)(const video_state_t *v, int ly,
         }
         uint32_t fg = s_rgb332[fg_idx];
         uint32_t bg = s_rgb332[bg_idx];
-        put_cell_2x(out, bits, fg, bg);
-        out += 4;
+        if (x2) {
+            put_cell_2x(out, bits, fg, bg);
+            out += 4;
+        } else {
+            put_cell_1x(out, bits, fg, bg);
+            out += 2;
+        }
     }
 }
