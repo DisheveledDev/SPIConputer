@@ -520,13 +520,13 @@
       "group": "Display",
       "signature": "ScreenMode(mode)",
       "summary": "Selects a screen mode; switching clears both layers.",
-      "description": "0 = 40x30 tiles B&W, 1 = 40x30 tiles with per-cell invert and 7 colours, 10 = 320x240 pixels with a 256-entry palette (one program at a time; Launch from mode 10 fails).",
+      "description": "0 = 40x30 tiles B&W, 1 = 40x30 tiles with per-cell invert and 7 colours, 2 = 80x60 tiles B&W, 3 = 80x60 tiles in colour (both at the full 640x480, 8x8 cells drawn 1:1), 10 = 320x240 pixels with a 256-entry palette (one program at a time; Launch from mode 10 fails). Cell coordinates in every other call are checked against the mode selected. The RP2040 dev board has modes 0 and 1 only.",
       "parameters": [
         {
           "name": "mode",
           "type": "number",
           "optional": false,
-          "description": "0, 1 or 10"
+          "description": "0, 1, 2, 3 or 10"
         }
       ],
       "returns": "true, or nil, err",

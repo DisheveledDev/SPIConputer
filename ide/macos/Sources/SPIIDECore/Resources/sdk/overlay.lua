@@ -11,8 +11,8 @@
 -- (x1, y1, x2, y2).
 
 Overlay = Overlay or {}
-Overlay.COLS = 40
-Overlay.ROWS = 30
+Overlay.COLS = 40      -- cells across in the current mode (Screen.Mode updates)
+Overlay.ROWS = 30      -- cells down in the current mode
 Overlay.SINGLE = 1
 Overlay.DOUBLE = 2
 Overlay.INVERT = 0x80

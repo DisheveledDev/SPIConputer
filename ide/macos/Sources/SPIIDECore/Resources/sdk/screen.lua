@@ -21,8 +21,13 @@
 -- (true, or nil and a message).
 
 Screen = Screen or {}
-Screen.COLS = 40
-Screen.ROWS = 30
+Screen.COLS = 40       -- cells across in the current mode (Screen.Mode updates)
+Screen.ROWS = 30       -- cells down in the current mode
+Screen.TEXT40 = 0      -- mode: 40x30 tiles, B&W
+Screen.TEXT40C = 1     -- mode: 40x30 tiles, colour
+Screen.TEXT80 = 2      -- mode: 80x60 tiles, B&W
+Screen.TEXT80C = 3     -- mode: 80x60 tiles, colour
+Screen.PIXELS = 10     -- mode: 320x240 pixels
 Screen.SINGLE = 1      -- box style: single line
 Screen.DOUBLE = 2      -- box style: double line
 Screen.INVERT = 0x80   -- attribute bit: swap foreground and background
@@ -57,10 +62,21 @@ local function region(x1, y1, x2, y2)
 end
 
 --- Screen.Mode(mode)
--- Selects a screen mode: 0 (40x30 B&W), 1 (40x30 colour), 10 (320x240
--- pixels). Switching clears the screen.
+-- Selects a screen mode: 0 (40x30 B&W), 1 (40x30 colour), 2 (80x60
+-- B&W), 3 (80x60 colour), 10 (320x240 pixels); the Screen.TEXT40 ..
+-- Screen.PIXELS constants name them. Switching clears the screen and
+-- sets Screen.COLS/ROWS (and Overlay's) to the new geometry.
 function Screen.Mode(mode)
-    return ScreenMode(mode)
+    local ok, err = ScreenMode(mode)
+    if ok then
+        local wide = mode == 2 or mode == 3
+        Screen.COLS = wide and 80 or 40
+        Screen.ROWS = wide and 60 or 30
+        if Overlay then
+            Overlay.COLS, Overlay.ROWS = Screen.COLS, Screen.ROWS
+        end
+    end
+    return ok, err
 end
 
 --- Screen.Clear([char])

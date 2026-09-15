@@ -9,7 +9,7 @@
       "framework": "screen",
       "signature": "Screen",
       "summary": "Text-mode drawing on the base layer: text, boxes, fills, block moves, lines, shades, progress bars, and pixel helpers for mode 10.",
-      "description": "Text-mode drawing on the base layer: text, boxes, fills, block moves, lines, shades, progress bars, and pixel helpers for mode 10. Region calls take inclusive corners (x1, y1, x2, y2). Constants: Screen.COLS (40), Screen.ROWS (30), Screen.SINGLE, Screen.DOUBLE, Screen.INVERT (0x80). The Attributes namespace (part of this framework) names the colours and the inverse bit for attr arguments.",
+      "description": "Text-mode drawing on the base layer: text, boxes, fills, block moves, lines, shades, progress bars, and pixel helpers for mode 10. Region calls take inclusive corners (x1, y1, x2, y2). Constants: Screen.COLS/ROWS (the current mode's 40x30 or 80x60), the modes Screen.TEXT40 .. Screen.PIXELS, Screen.SINGLE, Screen.DOUBLE, Screen.INVERT (0x80). The Attributes namespace (part of this framework) names the colours and the inverse bit for attr arguments.",
       "parameters": [],
       "returns": "",
       "example": "",
@@ -145,8 +145,8 @@
       "group": "Screen",
       "framework": "screen",
       "signature": "Screen.COLS",
-      "summary": "Columns on the screen (40).",
-      "description": "",
+      "summary": "Columns on the screen in the current mode: 40, or 80 after Screen.Mode(2) or (3).",
+      "description": "Set by Screen.Mode; read it after switching rather than caching it at load.",
       "parameters": [],
       "returns": "",
       "example": "",
@@ -158,8 +158,8 @@
       "group": "Screen",
       "framework": "screen",
       "signature": "Screen.ROWS",
-      "summary": "Rows on the screen (30).",
-      "description": "",
+      "summary": "Rows on the screen in the current mode: 30, or 60 in the 80-column modes.",
+      "description": "Set by Screen.Mode.",
       "parameters": [],
       "returns": "",
       "example": "",
@@ -203,6 +203,81 @@
       "returns": "",
       "example": "",
       "seeAlso": []
+    },
+    {
+      "name": "Screen.TEXT40",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.TEXT40",
+      "summary": "Mode 0: 40x30 tiles, black and white.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Screen.Mode"
+      ]
+    },
+    {
+      "name": "Screen.TEXT40C",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.TEXT40C",
+      "summary": "Mode 1: 40x30 tiles with per-cell colour and inverse.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Screen.Mode"
+      ]
+    },
+    {
+      "name": "Screen.TEXT80",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.TEXT80",
+      "summary": "Mode 2: 80x60 tiles, black and white, at the full 640x480.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Screen.Mode"
+      ]
+    },
+    {
+      "name": "Screen.TEXT80C",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.TEXT80C",
+      "summary": "Mode 3: 80x60 tiles with per-cell colour and inverse, at the full 640x480.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Screen.Mode"
+      ]
+    },
+    {
+      "name": "Screen.PIXELS",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.PIXELS",
+      "summary": "Mode 10: 320x240 pixels with a 256-entry palette (one program at a time).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Screen.Mode"
+      ]
     },
     {
       "name": "Attributes.Normal",
@@ -370,7 +445,7 @@
       "group": "Overlay",
       "framework": "overlay",
       "signature": "Overlay.COLS",
-      "summary": "Columns (40).",
+      "summary": "Columns (40, or 80 in the 80-column modes; Screen.Mode updates it).",
       "description": "",
       "parameters": [],
       "returns": "",
@@ -383,7 +458,7 @@
       "group": "Overlay",
       "framework": "overlay",
       "signature": "Overlay.ROWS",
-      "summary": "Rows (30).",
+      "summary": "Rows (30, or 60 in the 80-column modes; Screen.Mode updates it).",
       "description": "",
       "parameters": [],
       "returns": "",
@@ -1995,8 +2070,8 @@
       "group": "Screen",
       "framework": "screen",
       "signature": "Screen.Mode(mode)",
-      "summary": "Selects a screen mode: 0 (40x30 B&W), 1 (40x30 colour), 10 (320x240 pixels).",
-      "description": "Selects a screen mode: 0 (40x30 B&W), 1 (40x30 colour), 10 (320x240 pixels). Switching clears the screen.",
+      "summary": "Selects a screen mode and updates Screen.COLS/ROWS; switching clears the screen.",
+      "description": "0 (Screen.TEXT40) 40x30 B&W, 1 (TEXT40C) 40x30 colour, 2 (TEXT80) 80x60 B&W, 3 (TEXT80C) 80x60 colour, 10 (PIXELS) 320x240 pixels. The 80-column modes draw at the full 640x480 (8x8 cells, 1:1) and cost core 0 about four times the rendering per line, so keep them for text screens. Sets Screen.COLS/ROWS and Overlay.COLS/ROWS to the new geometry.",
       "parameters": [
         {
           "name": "mode",
@@ -2006,7 +2081,7 @@
         }
       ],
       "returns": "",
-      "example": "Screen.Mode(1)",
+      "example": "Screen.Mode(Screen.TEXT80C)  -- 80x60 in colour",
       "seeAlso": []
     },
     {
