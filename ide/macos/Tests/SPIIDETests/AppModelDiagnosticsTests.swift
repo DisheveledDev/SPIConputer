@@ -32,6 +32,30 @@ struct AppModelDiagnosticsTests {
         #expect(model.diagnostic(for: first.id)?.message == "live error")
     }
 
+    @Test func runtimeErrorReportsWithoutSwitchingComponent() throws {
+        let model = AppModel()
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spiide-runtime-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        model.createProject(named: "Runtime", in: parent)
+        let project = try #require(model.project)
+        let editing = try #require(model.selectedComponentID)
+        let tick = try #require(project.manifest.components.first { $0.name == "tick" })
+        #expect(editing != tick.id)
+
+        // A generated line inside the tick component.
+        let product = try ProjectBuilder.renderProduct(project)
+        let span = try #require(product.lineMap.spans.first { $0.component?.componentID == tick.id })
+        model.appendConsole(
+            "program 0: tick error: [string \"runtime.lua\"]:\(span.start): boom\n")
+
+        #expect(model.runtimeDiagnostic?.location?.componentID == tick.id)
+        #expect(model.runtimeDiagnostic?.message.contains("boom") == true)
+        // The user stays where they were typing; the banner offers "Show".
+        #expect(model.selectedComponentID == editing)
+    }
+
     @Test func projectFunctionsCoverAllComponents() {
         let model = AppModel()
         let parent = FileManager.default.temporaryDirectory

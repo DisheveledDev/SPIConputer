@@ -145,6 +145,14 @@ integration test.
 
 ## Compile checking and editing
 
+Background checks never move you: the error line is marked in the gutter
+and the banner names it, and the caret and viewport stay where you are
+typing (an incomplete line is often reported far from where it was
+typed). "Go to Line" on a banner is the explicit jump. A runtime error
+from the running program shows its banner above whichever component you
+are editing, naming the component it belongs to, with "Show" to switch
+to it; it no longer switches components by itself.
+
 - The editor shows **line numbers** in a gutter per component file.
 - After a short debounce, the IDE builds the project in memory and
   compiles it with the OS's own Lua build (`spicomputer_sim --check`), so

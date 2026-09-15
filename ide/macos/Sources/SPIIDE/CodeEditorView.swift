@@ -7,6 +7,8 @@ extension Notification.Name {
     /// Posted by Edit ▸ Complete: the focused editor opens its
     /// completion list, or steps through it when it is already open.
     static let spiCompleteInEditor = Notification.Name("SPICompleteInEditor")
+    /// userInfo["line"]: 1-based line to put the caret on (error banners).
+    static let spiRevealLineInEditor = Notification.Name("SPIRevealLineInEditor")
 }
 
 /// Monospaced code editor backed by NSTextView: line-number gutter,
@@ -104,6 +106,9 @@ struct CodeEditorView: NSViewRepresentable {
             NotificationCenter.default.addObserver(
                 self, selector: #selector(completeNow(_:)),
                 name: .spiCompleteInEditor, object: nil)
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(revealLine(_:)),
+                name: .spiRevealLineInEditor, object: nil)
         }
 
         /// Edit ▸ Complete (⌃Space): opens the list, or steps through it
@@ -420,6 +425,10 @@ struct CodeEditorView: NSViewRepresentable {
 
         // MARK: Diagnostics
 
+        /// Marks the diagnostic line (gutter and background) without
+        /// moving the caret or the viewport: background checks run while
+        /// the user types, and an incomplete line is often reported far
+        /// from where they are. Navigation is explicit (revealLine).
         func applyDiagnostic(line: Int?) {
             guard let textView else { return }
             guard appliedDiagnosticLine != line else { return }
@@ -428,9 +437,18 @@ struct CodeEditorView: NSViewRepresentable {
             isHighlighting = true
             CodeEditorFactory.applyDiagnostic(line: line, to: textView)
             isHighlighting = false
-            if let line, let range = CodeEditorFactory.lineRange(line, in: textView.string) {
-                textView.scrollRangeToVisible(range)
-            }
+        }
+
+        /// "Go to line" from an error banner: puts the caret at the start
+        /// of `line`, scrolls it into view and focuses the editor.
+        @objc private func revealLine(_ notification: Notification) {
+            guard let textView,
+                  let line = notification.userInfo?["line"] as? Int,
+                  let range = CodeEditorFactory.lineRange(line, in: textView.string)
+            else { return }
+            textView.setSelectedRange(NSRange(location: range.location, length: 0))
+            textView.scrollRangeToVisible(range)
+            textView.window?.makeFirstResponder(textView)
         }
     }
 }

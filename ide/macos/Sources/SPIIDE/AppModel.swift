@@ -809,7 +809,9 @@ final class AppModel {
             explicitPath: simulatorPathPreference.isEmpty ? nil : simulatorPathPreference)
     }
 
-    private func appendConsole(_ text: String) {
+    /// Appends simulator/IDE output to the console and scans it for
+    /// runtime errors. Internal so tests can feed it output.
+    func appendConsole(_ text: String) {
         console += text
         runtimeBuffer += text
         let lines = runtimeBuffer.split(separator: "\n", omittingEmptySubsequences: false)
@@ -831,12 +833,13 @@ final class AppModel {
         guard let current = try? ProjectBuilder.renderProduct(project),
               let location = current.lineMap.source(forGeneratedLine: generatedLine)
         else { return }
+        // Report only: the banner offers "Show". Switching the selected
+        // component here pulled the user out of whatever they were typing
+        // whenever the running program failed.
         runtimeDiagnostic = CompileDiagnostic(
             message: parsed.message,
             generatedLine: generatedLine,
             location: location)
-        selectedComponentID = location.componentID
-        showingProjectSettings = false
         console += "Runtime error: \(parsed.message) at generated line \(generatedLine)\n"
     }
 }

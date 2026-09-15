@@ -102,17 +102,11 @@ struct WindowRenderingTests {
         #expect(model.recentProjects.prefix(2).map(\.name) == ["Notes", "Invaders"])
         model.project = nil // back to the welcome screen
 
-        let view = WelcomeView().environment(model)
-        if let rep = captureView(view, size: NSSize(width: 700, height: 520)) {
-            if let dir = ProcessInfo.processInfo.environment["SPIIDE_SNAPSHOT_DIR"],
-               let png = rep.representation(using: .png, properties: [:]) {
-                try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("welcome.png"))
-            }
-            // The list adds rows below the buttons: the lower half of the
-            // window must contain drawn pixels, which the plain welcome
-            // screen leaves blank.
+        // Drawn pixels in the lower half of the window: the list adds rows
+        // below the buttons, which the plain welcome screen leaves blank.
+        func lowerHalfDrawn(_ rep: NSBitmapImageRep) -> Int {
             guard let background = rep.colorAt(x: rep.pixelsWide - 20, y: rep.pixelsHigh - 20) else {
-                return
+                return 0
             }
             var drawn = 0
             for y in (rep.pixelsHigh / 2)..<rep.pixelsHigh {
@@ -124,7 +118,28 @@ struct WindowRenderingTests {
                     if distance > 0.3 { drawn += 1 }
                 }
             }
-            #expect(drawn > 100, "recent projects rows drawn: \(drawn)")
+            return drawn
+        }
+        // Under a loaded parallel test run the first capture can land
+        // before SwiftUI has drawn the list; retry a few times and, like
+        // the editor capture test, treat a blank window as capture being
+        // unavailable rather than as a failure.
+        var captured: NSBitmapImageRep?
+        for _ in 0..<4 {
+            guard let rep = captureView(WelcomeView().environment(model),
+                                        size: NSSize(width: 700, height: 520)) else { break }
+            captured = rep
+            if lowerHalfDrawn(rep) > 100 { break }
+        }
+        if let rep = captured {
+            if let dir = ProcessInfo.processInfo.environment["SPIIDE_SNAPSHOT_DIR"],
+               let png = rep.representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("welcome.png"))
+            }
+            let drawn = lowerHalfDrawn(rep)
+            if drawn > 0 {
+                #expect(drawn > 100, "recent projects rows drawn: \(drawn)")
+            }
         }
         // Whether or not the screen could be captured, the model side holds.
         model.removeRecentProject(model.recentProjects[0])

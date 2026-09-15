@@ -24,9 +24,21 @@ struct ComponentEditorView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 Divider()
-                if let diagnostic = model.runtimeDiagnostic,
-                   diagnostic.location?.componentID == component.id {
-                    RuntimeErrorBanner(diagnostic: diagnostic)
+                if let diagnostic = model.runtimeDiagnostic {
+                    // Shown wherever the user is; "Show" takes them to the
+                    // component the error maps to, on their own terms.
+                    let errorComponentID = diagnostic.location?.componentID
+                    let mine = errorComponentID == component.id
+                    let otherName = model.project?.manifest.components
+                        .first { $0.id == errorComponentID }?.name ?? "another component"
+                    RuntimeErrorBanner(
+                        diagnostic: diagnostic,
+                        otherComponentName: mine ? nil : otherName,
+                        showComponent: {
+                            guard let errorComponentID else { return }
+                            model.showingProjectSettings = false
+                            model.selectedComponentID = errorComponentID
+                        })
                     Divider()
                 } else if let diagnostic = model.diagnostic(for: component.id) {
                     CompileErrorBanner(diagnostic: diagnostic)
@@ -77,6 +89,13 @@ struct CompileErrorBanner: View {
                 Text("generated line \(generated)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            if let line = diagnostic.location?.line {
+                Button("Go to Line") {
+                    NotificationCenter.default.post(
+                        name: .spiRevealLineInEditor, object: nil, userInfo: ["line": line])
+                }
+                .controlSize(.small)
             }
         }
         .padding(.horizontal, 12)

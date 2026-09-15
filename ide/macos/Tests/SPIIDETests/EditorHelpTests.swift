@@ -78,6 +78,26 @@ struct EditorHelpTests {
         #expect(!coordinator.completionPanel.isVisible)
     }
 
+    @Test func diagnosticsNeverMoveTheCaretButGoToLineDoes() {
+        let (coordinator, editor, window) = makeCoordinator(
+            text: "local a = 1\nlocal b = 2\nlocal c = 3\n")
+        defer { window.orderOut(nil) }
+
+        // Typing at the end of the buffer while a background check marks
+        // line 1: the caret stays put.
+        putCaretAtEnd(editor.textView)
+        let caret = editor.textView.selectedRange()
+        coordinator.applyDiagnostic(line: 1)
+        #expect(editor.textView.selectedRange() == caret)
+        coordinator.applyDiagnostic(line: 2)
+        #expect(editor.textView.selectedRange() == caret)
+
+        // "Go to Line" is the explicit request that moves it.
+        NotificationCenter.default.post(
+            name: .spiRevealLineInEditor, object: nil, userInfo: ["line": 2])
+        #expect(editor.textView.selectedRange() == NSRange(location: 12, length: 0))
+    }
+
     @Test func completionOffersFrameworkNamespaces() {
         var view = CodeEditorView(text: .constant("Screen.Cente"), diagnosticLine: nil)
         view.definedFunctions = SDKLibrary.signatures(for: ["screen"])
