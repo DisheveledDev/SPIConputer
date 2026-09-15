@@ -511,6 +511,7 @@ given.
 | `ModInfo()` | `{name, orders, patterns, samples, resident_kb, underruns}` |
 | `ModChannels([t])` | a list of four `{sample, note, period, volume, level, active}` (`t` is refilled when given) |
 | `ModRows(pattern [, from [, count]])` | rows of a pattern in RAM as `"C-2 05 C40 ..."` strings, or `nil, err` |
+| `ModSamples()` | the 31 sample slots as `{name, length, volume, loop}` |
 | `SoundSpectrum([t])` | ten band levels 0..255 of everything playing (`t` refilled when given) |
 | `SoundSpectrumBands()` | the bands' centre frequencies: 60, 100, 160, 250, 400, 630, 1000, 1600, 2500, 4000 Hz |
 

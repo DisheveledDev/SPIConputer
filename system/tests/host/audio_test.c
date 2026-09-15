@@ -679,6 +679,7 @@ static void test_mod(void) {
     CHECK(m != NULL, "module loads");
     if (!m) { printf("  %s\n", err ? err : "?"); free(file); return; }
     CHECK(strcmp(m->name, "test module") == 0, "module name");
+    CHECK(strcmp(m->sample_names[1], "saw") == 0 && m->sample_names[5][0] == 0, "sample names kept, trimmed");
     CHECK(m->order_count == 3 && m->pattern_count == 3, "orders and patterns");
     CHECK(m->samples[1].length == 64 && m->samples[1].resident_len == 64, "short sample resident");
     CHECK(m->samples[1].loop_len == 0, "the 0/2 loop marker is no loop");
@@ -872,6 +873,8 @@ static const char *MOD_LUA =
     "  results.rows_bad = tostring(select(2, ModRows(2)))\n"
     "  local chs = ModChannels()\n"
     "  results.chn = #chs .. ':' .. chs[1].note .. ':' .. tostring(ModChannels(chs) == chs)\n"
+    "  local smp = ModSamples()\n"
+    "  results.smp = #smp .. ':' .. smp[2].name .. ':' .. smp[2].length .. ':' .. tostring(smp[2].loop) .. ':' .. smp[5].length\n"
     "  results.spec = #SoundSpectrum() .. ':' .. #SoundSpectrumBands() .. ':' .. SoundSpectrumBands()[1]\n"
     "end\n"
     "function tick() end\n";
@@ -894,6 +897,7 @@ static void test_lua_mod(void) {
         CHECK(strcmp(lua_global_string(p->L, "rows_bad"), "pattern not resident") == 0, "ModRows refuses a pattern not in RAM");
         CHECK(strcmp(lua_global_string(p->L, "chn"), "4:...:true") == 0, "ModChannels (silent, refills the table)");
         CHECK(strcmp(lua_global_string(p->L, "spec"), "10:10:60") == 0, "SoundSpectrum and its bands");
+        CHECK(strcmp(lua_global_string(p->L, "smp"), "31:long:60000:true:0") == 0, "ModSamples");
         static int16_t buf[2048 * 2];
         audio_mix(p->audio, buf, 2048);
         audio_service();

@@ -166,6 +166,10 @@ mod_t *mod_load(const char *path, const char **err) {
     for (int i = 1; i <= nsamples; i++) {
         const uint8_t *s = hdr + 20 + (i - 1) * 30;
         mod_sample_t *smp = &m->samples[i];
+        memcpy(m->sample_names[i], s, 22);
+        for (int k = 22; k > 0 && (m->sample_names[i][k - 1] == ' ' || m->sample_names[i][k - 1] == 0); k--) {
+            m->sample_names[i][k - 1] = 0; /* trim the padding */
+        }
         smp->length = (uint32_t)be16(s + 22) * 2;
         int ft = s[24] & 0x0f;
         smp->finetune = (int8_t)(ft >= 8 ? ft - 16 : ft);

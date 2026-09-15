@@ -367,8 +367,8 @@ end
 -- Loads a ProTracker module (.mod, 4 channels, 31 samples) from the
 -- card: one per program; a second load replaces it. Samples up to the
 -- resident budget stay in RAM, longer ones stream from the card as they
--- play. Returns a module object with Play, Stop, Playing, Position and
--- Info methods, or nil, err.
+-- play. Returns a module object with Play, Stop, Playing, Position, Info,
+-- Channels, Rows and Samples methods, or nil, err.
 function Music.LoadMod(path)
     local ok, err = ModLoad(path)
     if not ok then return nil, err end
@@ -380,6 +380,7 @@ function Music.LoadMod(path)
         Info = function() return Music.ModInfo() end,
         Channels = function(_, channels) return Music.ModChannels(channels) end,
         Rows = function(_, pattern, from, count) return Music.ModRows(pattern, from, count) end,
+        Samples = function() return Music.ModSamples() end,
     } })
 end
 
@@ -433,4 +434,12 @@ end
 -- is not resident.
 function Music.ModRows(pattern, from, count)
     return ModRows(pattern, from, count)
+end
+
+--- Music.ModSamples()
+-- The module's 31 sample slots as { name, length (frames), volume
+-- (0..64), loop }: sample numbers index the list, an unused slot has
+-- length 0. Loaded once, so keep the list rather than call it a frame.
+function Music.ModSamples()
+    return ModSamples()
 end

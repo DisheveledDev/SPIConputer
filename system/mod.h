@@ -107,6 +107,7 @@ typedef struct mod_s {
     int32_t handle;                 /* open file (core 1) */
     char name[21];
     mod_sample_t samples[MOD_SAMPLES + 1]; /* 1-based like the format */
+    char sample_names[MOD_SAMPLES + 1][23]; /* trimmed, for a tracker view */
     uint8_t order_count, restart_pos;
     uint8_t order[MOD_ORDERS];
     uint8_t pattern_count;

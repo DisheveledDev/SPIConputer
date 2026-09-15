@@ -1716,6 +1716,21 @@
       ]
     },
     {
+      "name": "ModSamples",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModSamples()",
+      "summary": "The module's 31 sample slots as { name, length, volume, loop }; an unused slot has length 0.",
+      "description": "",
+      "parameters": [],
+      "returns": "a list of 31 tables, or nil",
+      "example": "print(ModSamples()[1].name)",
+      "seeAlso": [
+        "ModInfo",
+        "ModChannels"
+      ]
+    },
+    {
       "name": "ModUnload",
       "kind": "function",
       "group": "Sound",

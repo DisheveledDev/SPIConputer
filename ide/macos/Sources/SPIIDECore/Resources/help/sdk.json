@@ -766,6 +766,23 @@
       ]
     },
     {
+      "name": "Music.ModSamples",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.ModSamples()",
+      "summary": "The module's 31 sample slots as { name, length, volume, loop }, indexed by sample number.",
+      "description": "The module's 31 sample slots as { name, length (frames), volume (0..64), loop }: sample numbers index the list, an unused slot has length 0. Loaded once, so keep the list rather than call it a frame.",
+      "parameters": [],
+      "returns": "",
+      "example": "local samples = Music.ModSamples()\nprint(samples[1].name)",
+      "seeAlso": [
+        "Music",
+        "Music.ModChannels",
+        "Music.ModInfo"
+      ]
+    },
+    {
       "name": "Input",
       "kind": "namespace",
       "group": "Input",

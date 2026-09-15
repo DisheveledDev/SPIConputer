@@ -111,6 +111,7 @@ public enum LuaSignatures {
         add("ModInfo")
         add("ModChannels", "[channels]")
         add("ModRows", "pattern", "[from]", "[count]")
+        add("ModSamples")
         add("ModUnload")
         add("SoundSpectrum", "[levels]")
         add("SoundSpectrumBands")

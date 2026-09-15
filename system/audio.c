@@ -128,8 +128,13 @@ void audio_state_init(audio_state_t *a) {
 
 void audio_spectrum(const audio_state_t *a, uint8_t out[AUDIO_SPECTRUM_BANDS]) {
     for (int b = 0; b < AUDIO_SPECTRUM_BANDS; b++) {
+        /* Music spreads over the bands, so a band rarely nears the
+         * full-scale-sine peak: four times the raw level (a centred
+         * full-scale tone saturates) less a floor that hides the low
+         * bands' rounding ripple. */
         uint32_t v = a ? a->spec_level[b] : 0;
-        out[b] = (uint8_t)(v >> 7); /* 0..32767 -> 0..255 */
+        v = v > 512 ? (v - 512) >> 5 : 0;
+        out[b] = (uint8_t)(v > 255 ? 255 : v);
     }
 }
 

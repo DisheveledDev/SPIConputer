@@ -932,6 +932,27 @@ static int mod_rows_lua(lua_State *L) {
     return 1;
 }
 
+/* ModSamples() -> { { name, length, volume, loop }, ... } for samples
+ * 1..31 (an unused slot has length 0). */
+static int mod_samples_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    if (!a->mod) {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_createtable(L, MOD_SAMPLES, 0);
+    for (int i = 1; i <= MOD_SAMPLES; i++) {
+        const mod_sample_t *smp = &a->mod->samples[i];
+        lua_createtable(L, 0, 4);
+        lua_pushstring(L, a->mod->sample_names[i]); lua_setfield(L, -2, "name");
+        lua_pushinteger(L, (lua_Integer)smp->length); lua_setfield(L, -2, "length");
+        lua_pushinteger(L, smp->volume); lua_setfield(L, -2, "volume");
+        lua_pushboolean(L, smp->loop_len > 0); lua_setfield(L, -2, "loop");
+        lua_rawseti(L, -2, i);
+    }
+    return 1;
+}
+
 /* SoundSpectrum([t]) -> t: the analyser's ten band levels, 0..255. A
  * table passed in is refilled. */
 static int sound_spectrum(lua_State *L) {
@@ -998,6 +1019,7 @@ static const luaL_Reg sound_funcs[] = {
     {"ModInfo", mod_info_lua},
     {"ModChannels", mod_channels_lua},
     {"ModRows", mod_rows_lua},
+    {"ModSamples", mod_samples_lua},
     {"ModUnload", mod_unload_lua},
     {"SoundSpectrum", sound_spectrum},
     {"SoundSpectrumBands", sound_spectrum_bands},
