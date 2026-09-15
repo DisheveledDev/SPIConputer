@@ -266,6 +266,7 @@ static int sys_wait_vsync(lua_State *L) {
         if (frames != start) {
             break;
         }
+        video_frame_wait_hook();
     } while (os_time_us() < deadline);
 
     p->vsync_last_frames = frames;
@@ -386,19 +387,164 @@ static int sys_compile(lua_State *L) {
     return 2;
 }
 
+/* ---------------- utility results ---------------- */
+
+/* A utility's result crosses Lua states, so a table is serialised to
+ * Lua source ("{[\"n\"]=1,...}") in the utility's state and loaded again
+ * in the caller's. Strings, numbers, booleans and nested tables with
+ * string or integer keys are kept; anything else (functions, userdata)
+ * becomes nil. Bounded in size and depth. */
+#define UTILITY_RESULT_MAX 8192
+#define UTILITY_DEPTH_MAX 8
+
+typedef struct {
+    char *data;
+    size_t len;
+    size_t cap;
+    bool failed;
+} dyn_buf_t;
+
+static void dyn_append(dyn_buf_t *b, const char *s, size_t n) {
+    if (b->failed) return;
+    if (b->len + n + 1 > b->cap) {
+        size_t ncap = b->cap ? b->cap * 2 : 256;
+        while (ncap < b->len + n + 1) ncap *= 2;
+        if (ncap > UTILITY_RESULT_MAX + 256) {
+            b->failed = true;
+            return;
+        }
+        char *nd = (char *)realloc(b->data, ncap);
+        if (!nd) {
+            b->failed = true;
+            return;
+        }
+        b->data = nd;
+        b->cap = ncap;
+    }
+    memcpy(b->data + b->len, s, n);
+    b->len += n;
+    b->data[b->len] = '\0';
+}
+
+static void dyn_puts(dyn_buf_t *b, const char *s) {
+    dyn_append(b, s, strlen(s));
+}
+
+static void dyn_quote(dyn_buf_t *b, const char *s, size_t n) {
+    dyn_puts(b, "\"");
+    for (size_t i = 0; i < n; i++) {
+        unsigned char c = (unsigned char)s[i];
+        char tmp[8];
+        if (c == '"' || c == '\\') {
+            tmp[0] = '\\';
+            tmp[1] = (char)c;
+            dyn_append(b, tmp, 2);
+        } else if (c == '\n') {
+            dyn_puts(b, "\\n");
+        } else if (c < 32 || c == 127) {
+            snprintf(tmp, sizeof(tmp), "\\%03u", c);
+            dyn_puts(b, tmp);
+        } else {
+            dyn_append(b, (const char *)&s[i], 1);
+        }
+    }
+    dyn_puts(b, "\"");
+}
+
+static void serialize_value(lua_State *L, int idx, dyn_buf_t *b, int depth) {
+    idx = lua_absindex(L, idx);
+    char tmp[64];
+    switch (lua_type(L, idx)) {
+        case LUA_TBOOLEAN:
+            dyn_puts(b, lua_toboolean(L, idx) ? "true" : "false");
+            return;
+        case LUA_TNUMBER:
+            if (lua_isinteger(L, idx)) {
+                snprintf(tmp, sizeof(tmp), LUA_INTEGER_FMT, lua_tointeger(L, idx));
+            } else {
+                snprintf(tmp, sizeof(tmp), "%.17g", (double)lua_tonumber(L, idx));
+            }
+            dyn_puts(b, tmp);
+            return;
+        case LUA_TSTRING: {
+            size_t n;
+            const char *s = lua_tolstring(L, idx, &n);
+            dyn_quote(b, s, n);
+            return;
+        }
+        case LUA_TTABLE: {
+            if (depth >= UTILITY_DEPTH_MAX) {
+                dyn_puts(b, "nil");
+                return;
+            }
+            dyn_puts(b, "{");
+            bool first = true;
+            lua_pushnil(L);
+            while (lua_next(L, idx)) {
+                int key = lua_absindex(L, -2);
+                int value = lua_absindex(L, -1);
+                bool keyed = false;
+                if (lua_isinteger(L, key)) {
+                    snprintf(tmp, sizeof(tmp), "[" LUA_INTEGER_FMT "]=",
+                             lua_tointeger(L, key));
+                    if (!first) dyn_puts(b, ",");
+                    dyn_puts(b, tmp);
+                    keyed = true;
+                } else if (lua_type(L, key) == LUA_TSTRING) {
+                    size_t n;
+                    const char *s = lua_tolstring(L, key, &n);
+                    if (!first) dyn_puts(b, ",");
+                    dyn_puts(b, "[");
+                    dyn_quote(b, s, n);
+                    dyn_puts(b, "]=");
+                    keyed = true;
+                }
+                if (keyed) {
+                    serialize_value(L, value, b, depth + 1);
+                    first = false;
+                }
+                lua_pop(L, 1);
+            }
+            dyn_puts(b, "}");
+            return;
+        }
+        default:
+            dyn_puts(b, "nil");
+            return;
+    }
+}
+
+/* UtilityResult(ok [, value]): value is a string (default "") or a
+ * table; the utility exits after the current callback. */
 static int sys_utility_result(lua_State *L) {
     program_t *p = program_of(L);
     if (p->interactive) {
         return luaL_error(L, "UtilityResult requires a noninteractive program");
     }
+    dyn_buf_t b = {0};
+    bool is_table = lua_type(L, 2) == LUA_TTABLE;
+    if (is_table) {
+        serialize_value(L, 2, &b, 0);
+    } else {
+        const char *message = luaL_optstring(L, 2, "");
+        dyn_puts(&b, message);
+    }
+    if (b.failed || !b.data) {
+        free(b.data);
+        return luaL_error(L, "utility result too large (max %d bytes)",
+                          UTILITY_RESULT_MAX);
+    }
+    free(p->utility_output);
+    p->utility_output = b.data;
+    p->utility_is_table = is_table;
     p->utility_result_set = true;
     p->utility_ok = lua_toboolean(L, 1) != 0;
-    const char *message = luaL_optstring(L, 2, "");
-    snprintf(p->utility_output, sizeof(p->utility_output), "%s", message);
     p->exit_requested = true;
     return 0;
 }
 
+/* UtilityPoll() -> ok, value | nil: the child's result, once. A table
+ * result is rebuilt in this state. */
 static int sys_utility_poll(lua_State *L) {
     program_t *p = program_of(L);
     if (!p->child_result_pending) {
@@ -406,9 +552,30 @@ static int sys_utility_poll(lua_State *L) {
         return 1;
     }
     lua_pushboolean(L, p->child_result_ok);
-    lua_pushstring(L, p->child_result_output);
+    const char *output = p->child_result_output ? p->child_result_output : "";
+    bool pushed = false;
+    if (p->child_result_is_table) {
+        size_t n = strlen(output);
+        char *chunk = (char *)malloc(n + 8);
+        if (chunk) {
+            memcpy(chunk, "return ", 7);
+            memcpy(chunk + 7, output, n + 1);
+            if (luaL_loadbufferx(L, chunk, n + 7, "=utility", "t") == LUA_OK &&
+                lua_pcall(L, 0, 1, 0) == LUA_OK) {
+                pushed = true;
+            } else {
+                lua_pop(L, 1); /* the error message */
+            }
+            free(chunk);
+        }
+    }
+    if (!pushed) {
+        lua_pushstring(L, output);
+    }
+    free(p->child_result_output);
+    p->child_result_output = NULL;
+    p->child_result_is_table = false;
     p->child_result_pending = false;
-    p->child_result_output[0] = '\0';
     return 2;
 }
 

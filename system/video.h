@@ -134,6 +134,12 @@ void video_op_put_staged(const video_op_t *op);
  * the firmware, a drain in the single-threaded simulator. */
 void video_queue_full_hook(void);
 
+/* Weak hook run while WaitVSync spins on the frame counter: a no-op on
+ * the firmware (core 0 advances the counter), while the simulator
+ * advances it with real time and drains the queue, so a program that
+ * waits for frames keeps pace instead of timing out. */
+void video_frame_wait_hook(void);
+
 /* Latch a mode change into the core-1-side shadow (video_lua_mode()),
  * used by the process model to know when a pixel-mode program is on
  * top. Also used by the API layer when it queues VIDEO_OP_MODE/RESET. */

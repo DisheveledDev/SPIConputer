@@ -101,9 +101,21 @@ so `local filename = ...` keeps working.
 
 Noninteractive utilities set `__spi_interactive = false` in their generated
 program. They run in an isolated Lua state but do not allocate or replace a
-video/audio state. They should call `UtilityResult(true, message)` or
-`UtilityResult(false, message)` once; the launching shell receives it through
-`UtilityPoll()` after the utility exits.
+video/audio state. They call `UtilityResult(ok, value)` once, where `value`
+is a string or a table (strings, numbers, booleans and nested tables with
+string or integer keys survive the crossing; anything else becomes nil;
+8 KB at most); the launching program receives `ok, value` through
+`UtilityPoll()` after the utility exits, the table rebuilt in its own
+state. The shell prints a table's `message` field first and every other
+field as `KEY = VALUE`. Installed in `utils/` as `name.util`, a utility
+is a shell command: `HELLO one two` runs `utils/hello.util` with
+`args = {"one", "two"}`.
+
+Games are the other special kind: launched with `Launch(path, arg, true)`
+by the shell, so the shell's state is released and the game has the
+machine to itself. When the last program on the stack exits (a game, or
+the shell itself) the device restarts (the simulator boots again), so a
+game ends with `ExitProgram()` and never returns to a shell.
 
 Every program also receives an `app` table with `app.root`, `app.program`,
 `app.metadata`, and `app.resources` paths when launched from an `.app`
@@ -504,30 +516,37 @@ are SPIEdit projects developed alongside it and copied onto the SD card
 (the same way any other SPIComputer program is). The OS itself only
 provides the runtime and this contract.
 
-In this workspace those projects live in `software/` (`os`, `editor`,
-`boot`); building them writes matching source and compiled card files into
-`software/core/` for the system and `software/apps/` for installed apps.
-Copy those directories, plus a writable `data/` directory, into the
-simulator's `sdcard/` or onto a real card.
+In this workspace those projects live in `software/` (`os`, `boot`,
+`editor`, `bench`, `demo`, `hello`, `spin`). Each builds into its own
+`build/` folder; `software/install.sh [folder]` builds them all and
+installs the products into a card image (default `software/sdcard/`,
+ignored by git) laid out like the card. Copy that folder to a real card,
+or point the IDE's Settings > SD card image at it.
 
-The card layout separates protected system files from user data:
+The card layout separates the system, installed programs and user data:
 
-- `core/` contains `boot.lua`/`boot.prg`, `os.lua`/`os.prg`, and other
-  system-installed programs. The shell cannot manipulate this directory.
-- `apps/` contains installed applications as `.app` directories. Each app
-  contains `app.prg`, `app.json`, an optional `icon.*`, and a `resources/`
-  directory. `app.json` carries `name`, `version`, `description` (one
-  line, set in the IDE's project settings), `type`, `interactive`,
-  `video`, `audio`, `entry` and `icon`. The shell's `APPS` command opens a
-  picker listing every app's name and description; RETURN runs the
-  selected one. Programs can also be launched by app name or explicit
-  `app.prg` path.
+- `core/` contains `boot.prg`/`boot.lua` and `os.prg`/`os.lua` (raw
+  programs whose projects install to `core`). The shell cannot manipulate
+  this directory.
+- `apps/` contains applications as `name.app` directories: `app.prg`,
+  `app.json`, an optional `icon.*` and `resources/`. `app.json` carries
+  `name`, `version`, `description` (one line, set in the IDE's project
+  settings), `type` (`application`, `utility` or `game`), `interactive`,
+  `video`, `audio`, `entry` and `icon`. The shell's `APPS` picker lists
+  apps and games by name and description; RETURN runs the selected one.
+- `utils/` contains utilities as `name.util` directories (same contents).
+  A utility is a shell command: typing its name runs it with the rest of
+  the line as `args`, and its result table is printed.
+- `games/` contains games as `name.game` directories. A game replaces the
+  shell when launched and the device restarts when it exits.
 - `data/` is the user area. `DIR`, `CD`, `MD`, `RD`, `DEL`, `REN`, `MOVE`,
-  `COPY`, `TYPE`, and `STAT` are restricted to this directory.
+  `COPY`, `TYPE`, `STAT` and `COMPILE` are restricted to this directory.
+  Raw programs (`name.prg`/`name.lua`) here run by name.
 
 At power-on firmware boots `core/boot.lua`, preferring `core/boot.prg` when
-both exist. The shell launches programs from both `apps/` and `data/`, with
-compiled `.prg` files preferred. The simulator's `sdcard` folder is that
+both exist. A command name resolves to `utils/`, then `apps/`, then
+`games/`, then a `.prg`/`.lua` file in `apps/` or `data/`, compiled `.prg`
+preferred. The simulator's `sdcard` folder is that
 card; it creates `core/`, `apps/`, and `data/` when needed.
 ## Example
 

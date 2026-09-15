@@ -75,30 +75,66 @@ local function find_app_program(root, entry)
     return nil
 end
 
-local function find_program(name)
-    local roots = { "/apps", "/data" }
-    local lower = name:lower()
-    local names = { name }
-    if not lower:match("%.lua$") and not lower:match("%.prg$") then
-        names = { name .. ".prg", name .. ".lua", name .. ".app" }
-    end
-    for _, root in ipairs(roots) do
-        for _, candidate in ipairs(names) do
-            local found = fs.find(candidate, root)
-            if found then
-                local app = find_app_program(root, found)
-                if app then return app end
-                local info = fs.stat(root .. "/" .. found)
-                if info and not info.dir then return root .. "/" .. found end
-            end
+-- A bundle's program: /<root>/<name><ext>/app.prg (or app.lua).
+local function find_bundle(root, name, ext)
+    local found = fs.find(name .. ext, root)
+    if not found then return nil end
+    return find_app_program(root, found)
+end
+
+-- A loose program file in /apps or /data.
+local function find_program_file(name)
+    for _, root in ipairs({ "/apps", "/data" }) do
+        local found = fs.find(name, root)
+        if found then
+            local info = fs.stat(root .. "/" .. found)
+            if info and not info.dir then return root .. "/" .. found end
         end
     end
     return nil
 end
 
-local function run_program(path, args)
+-- What a command name runs, and how. Utilities (/utils/<name>.util) come
+-- first, so they extend the command set like OS commands; then installed
+-- apps (/apps/<name>.app), games (/games/<name>.game) and loose .prg or
+-- .lua files in /apps or /data. Returns the program path and its kind:
+-- "utility", "application", "game" or "program".
+local function find_program(name)
+    local lower = name:lower()
+    if lower:match("%.lua$") or lower:match("%.prg$") then
+        local path = find_program_file(name)
+        return path, path and "program" or nil
+    end
+    local util = find_bundle("/utils", name, ".util")
+    if util then return util, "utility" end
+    local app = find_bundle("/apps", name, ".app")
+    if app then return app, "application" end
+    local game = find_bundle("/games", name, ".game")
+    if game then return game, "game" end
+    for _, candidate in ipairs({ name .. ".prg", name .. ".lua" }) do
+        local path = find_program_file(candidate)
+        if path then return path, "program" end
+    end
+    return nil
+end
+
+-- Run a program found by find_program. A game takes the machine over:
+-- the shell's state is released (Launch with replace) and the OS
+-- restarts when the game exits. Everything else runs on top of the
+-- shell and returns to it.
+local function run_program(path, args, kind)
     if args[1] and args[1]:sub(1, 1) ~= "/" then
         args[1] = full_path(args[1])
+    end
+    if kind == "game" then
+        local ok, err = Launch(path, args[1], true)
+        if not ok then
+            out("?" .. tostring(err))
+        else
+            -- The shell has been replaced: nothing more to print.
+            needs_repaint = true
+        end
+        return
     end
     local ok, err = Execute(path, table.unpack(args))
     if not ok then
@@ -365,19 +401,19 @@ local function execute(command_line)
             out("USAGE: RUN <PROGRAM> [ARGS]")
             return
         end
-        local path = find_program(program)
+        local path, kind = find_program(program)
         if not path then
             out("?FILE NOT FOUND: " .. program)
             return
         end
-        run_program(path, tail(words, 3))
+        run_program(path, tail(words, 3), kind)
     else
-        local path = find_program(name)
+        local path, kind = find_program(name)
         if not path then
             out("?FILE NOT FOUND: " .. name)
             return
         end
-        run_program(path, tail(words, 2))
+        run_program(path, tail(words, 2), kind)
     end
 end
 

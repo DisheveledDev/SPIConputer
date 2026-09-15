@@ -100,6 +100,7 @@ void VIDEO_HOT(video_state_init)(video_state_t *v) {
  * overrides it to play core 0's part, otherwise a program that queues
  * more than a frame's worth of ops in one tick would spin forever. */
 __attribute__((weak)) void video_queue_full_hook(void) {}
+__attribute__((weak)) void video_frame_wait_hook(void) {}
 
 void video_op_put(const video_op_t *op) {
     /* Full queue: wait for core 0's frame-boundary drain. A dead video

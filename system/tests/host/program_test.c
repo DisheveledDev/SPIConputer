@@ -691,6 +691,28 @@ static const char *UTILITY_PARENT_LUA =
     "  if ok ~= nil then log(tostring(ok) .. ':' .. message .. '\\n') ExitProgram() end\n"
     "end\n";
 
+static const char *UTILITY_TABLE_LUA =
+    "__spi_interactive = false\n"
+    "function setup()\n"
+    "  UtilityResult(false, {message = 'wc: 3 file(s)', files = 3, ok = true,\n"
+    "    names = {'a.txt', 'b \"quoted\"\\n', 'c'}, nested = {deep = {x = 1.5}},\n"
+    "    skipped = print})\n"
+    "end\n"
+    "function tick() end\n";
+
+static const char *UTILITY_TABLE_PARENT_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "function setup() Launch('utable.lua') end\n"
+    "function tick()\n"
+    "  local ok, r = UtilityPoll()\n"
+    "  if ok ~= nil then\n"
+    "    log(tostring(ok) .. ':' .. type(r) .. ':' .. r.message .. ':' .. r.files ..\n"
+    "        ':' .. tostring(r.ok) .. ':' .. #r.names .. ':' .. r.names[2] ..\n"
+    "        ':' .. r.nested.deep.x .. ':' .. tostring(r.skipped) .. '\\n')\n"
+    "    ExitProgram()\n"
+    "  end\n"
+    "end\n";
+
 static void test_noninteractive_utility(void) {
     mock_set_file("utility.lua", UTILITY_LUA);
     mock_set_file("utility-parent.lua", UTILITY_PARENT_LUA);
@@ -700,6 +722,18 @@ static void test_noninteractive_utility(void) {
     }
     CHECK(program_top() == NULL, "utility parent exits");
     expect_log("true:1 file(s) copied\n");
+
+    /* A table result crosses into the parent's state: strings with
+     * quotes and newlines, numbers, booleans, arrays and nested tables
+     * survive; a function becomes nil. */
+    mock_set_file("utable.lua", UTILITY_TABLE_LUA);
+    mock_set_file("utable-parent.lua", UTILITY_TABLE_PARENT_LUA);
+    boot("utable-parent.lua");
+    for (int i = 0; i < 6 && program_top() != NULL; i++) {
+        program_scheduler_step();
+    }
+    CHECK(program_top() == NULL, "table utility parent exits");
+    expect_log("false:table:wc: 3 file(s):3:true:3:b \"quoted\"\n:1.5:nil\n");
 }
 
 static void test_compiled_programs(void) {

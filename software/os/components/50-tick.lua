@@ -2,9 +2,26 @@
 -- launched program returns.
 
 function tick()
-    local utility_ok, utility_message = UtilityPoll()
+    -- A utility's result: a message, or a table whose `message` field
+    -- prints first and whose other fields print as KEY = VALUE lines.
+    local utility_ok, utility_result = UtilityPoll()
     if utility_ok ~= nil then
-        out((utility_ok and "" or "?") .. utility_message)
+        local prefix = utility_ok and "" or "?"
+        if type(utility_result) == "table" then
+            if utility_result.message ~= nil then
+                out(prefix .. tostring(utility_result.message))
+            end
+            local keys = {}
+            for key in pairs(utility_result) do
+                if key ~= "message" then keys[#keys + 1] = key end
+            end
+            table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+            for _, key in ipairs(keys) do
+                out(string.format("%s = %s", tostring(key):upper(), tostring(utility_result[key])))
+            end
+        else
+            out(prefix .. tostring(utility_result))
+        end
         needs_repaint = true
     end
     if needs_repaint then

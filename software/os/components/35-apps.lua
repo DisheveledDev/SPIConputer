@@ -128,40 +128,50 @@ local function json_decode(text)
     return nil
 end
 
--- Scan /apps: bundles (folders with app.json) carry their metadata,
+-- Scan one root: bundles (folders with app.json) carry their metadata,
 -- loose .prg/.lua programs are listed by file name.
-local function load_apps()
-    local found = {}
-    local entries = fs.ls("/apps")
+local function scan_root(root, ext, kind, found)
+    local entries = fs.ls(root)
     if not entries then
-        return found
+        return
     end
     for _, entry in ipairs(entries) do
         local lower = entry.name:lower()
         if entry.dir then
-            local program = find_app_program("/apps", entry.name)
+            local program = find_app_program(root, entry.name)
             if program then
                 local meta = {}
-                local text = fs.readall("/apps/" .. entry.name .. "/app.json")
+                local text = fs.readall(root .. "/" .. entry.name .. "/app.json")
                 if text then
                     meta = json_decode(text) or {}
                 end
                 found[#found + 1] = {
-                    name = tostring(meta.name or entry.name:gsub("%.app$", "")),
+                    name = tostring(meta.name or entry.name:gsub(ext .. "$", "")),
                     version = meta.version and tostring(meta.version) or "",
                     description = tostring(meta.description or ""),
                     path = program,
+                    kind = kind,
                 }
             end
-        elseif lower:match("%.prg$") or lower:match("%.lua$") then
+        elseif kind == "application" and (lower:match("%.prg$") or lower:match("%.lua$")) then
             found[#found + 1] = {
                 name = entry.name:gsub("%.[^.]+$", ""),
                 version = "",
                 description = "",
-                path = "/apps/" .. entry.name,
+                path = root .. "/" .. entry.name,
+                kind = "program",
             }
         end
     end
+end
+
+-- Installed apps (/apps) and games (/games), sorted by name. A game
+-- shows "GAME" in place of its version and takes the machine over when
+-- run (see run_program).
+local function load_apps()
+    local found = {}
+    scan_root("/apps", "%.app", "application", found)
+    scan_root("/games", "%.game", "game", found)
     table.sort(found, function(a, b) return a.name:lower() < b.name:lower() end)
     return found
 end
@@ -194,9 +204,10 @@ local function draw_dialog()
         end
         local name = app.name:upper():sub(1, inner_w - 10)
         dialog_text(inner_x + 2, row, name, attr)
-        if app.version ~= "" then
-            local ver = ("V" .. app.version):sub(1, 7)
-            dialog_text(inner_x + inner_w - #ver, row, ver, attr)
+        local tag = app.kind == "game" and "GAME" or (app.version ~= "" and ("V" .. app.version) or "")
+        if tag ~= "" then
+            tag = tag:sub(1, 7)
+            dialog_text(inner_x + inner_w - #tag, row, tag, attr)
         end
         dialog_text(inner_x + 2, row + 1, app.description:sub(1, inner_w - 3), attr)
     end
@@ -243,7 +254,7 @@ local function dialog_key(key)
         local app = apps[selected]
         close_apps_dialog()
         if app then
-            run_program(app.path, {})
+            run_program(app.path, {}, app.kind)
         else
             out("READY.")
         end

@@ -130,6 +130,7 @@ static program_t *s_replaced[PROGRAM_REPLACED_MAX];
 static int s_replaced_count;
 
 static void program_defer_replaced(program_t *p) {
+    p->replaced = true;
     if (s_replaced_count >= PROGRAM_REPLACED_MAX) {
         /* Unreachable: a replace needs a running program, and at most
          * PROGRAM_MAX exist. Leak rather than close a live state. */
@@ -210,6 +211,8 @@ static program_t *pool_alloc(void) {
 }
 
 static void pool_free(program_t *p) {
+    free(p->utility_output);
+    free(p->child_result_output);
     memset(p, 0, sizeof(*p));
 }
 
@@ -498,11 +501,20 @@ void program_terminate(program_t *p) {
     }
     program_log_event(p, "terminate", p->exit_requested ? "requested" : "error");
     if (!p->interactive && p->next) {
-        p->next->child_result_pending = true;
-        p->next->child_result_ok = p->utility_result_set && p->utility_ok;
-        snprintf(p->next->child_result_output,
-                 sizeof(p->next->child_result_output), "%s",
-                 p->utility_result_set ? p->utility_output : "utility exited without a result");
+        /* Hand the result to the parent; a result it never polled is
+         * replaced. */
+        program_t *parent = p->next;
+        free(parent->child_result_output);
+        parent->child_result_pending = true;
+        parent->child_result_ok = p->utility_result_set && p->utility_ok;
+        if (p->utility_result_set && p->utility_output) {
+            parent->child_result_output = p->utility_output;
+            parent->child_result_is_table = p->utility_is_table;
+            p->utility_output = NULL;
+        } else {
+            parent->child_result_output = strdup("utility exited without a result");
+            parent->child_result_is_table = false;
+        }
     }
     /* finish() runs for any program that completed setup(). */
     if (p->finish_ref != LUA_NOREF) {
@@ -681,7 +693,7 @@ bool program_utility_result(program_t *p, bool *ok, const char **output) {
         return false;
     }
     if (ok) *ok = p->utility_ok;
-    if (output) *output = p->utility_output;
+    if (output) *output = p->utility_output ? p->utility_output : "";
     p->utility_result_set = false;
     return true;
 }

@@ -316,6 +316,19 @@ void core1_entry(void)
         program_scheduler_step();
         crumb_phase(PHASE_LOOP);
 
+        /* An empty program stack means the last program (a game that
+         * replaced the shell, or the shell itself) has exited: there is
+         * nothing left to run, so restart the machine cleanly. */
+        if (!boot_failed && program_top() == NULL) {
+            sd_log("program stack empty: rebooting");
+            crumb_phase(PHASE_LOG);
+            sd_log_flush();
+            watchdog_reboot(0, 0, 0);
+            for (;;) {
+                tight_loop_contents();
+            }
+        }
+
         uint64_t now = time_us_64();
         uint32_t frames = g_system_state.video_frame_count;
         if (frames != last_frames) {

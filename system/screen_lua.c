@@ -50,6 +50,12 @@
 #include "program.h"
 #include "video.h"
 
+/* True while the calling program has been replaced (Launch with
+ * replace): the screen slot already belongs to the new program, so the
+ * remaining calls of the old program's Lua frame are dropped rather
+ * than painted over it. Set by check_program, read by put(). */
+static bool s_muted;
+
 static void check_program(lua_State *L) {
     lua_getfield(L, LUA_REGISTRYINDEX, "_spi_program");
     program_t *p = (program_t *)lua_touserdata(L, -1);
@@ -57,9 +63,13 @@ static void check_program(lua_State *L) {
     if (!p || !p->requires_video) {
         luaL_error(L, "Screen API called outside a program");
     }
+    s_muted = p->replaced;
 }
 
 static void put(uint8_t op, int a, int b, int c, uint32_t d, uint32_t e) {
+    if (s_muted) {
+        return;
+    }
     video_op_t vop = {
         .op = op,
         .a = (uint8_t)a,
@@ -445,7 +455,7 @@ static int write_common(lua_State *L, bool overlay, bool attrs_only) {
     int attr = set_attr ? (int)luaL_checkinteger(L, 4) : 0;
     size_t room = (size_t)(VIDEO_COLS * VIDEO_ROWS - (y * VIDEO_COLS + x));
     if (len > room) len = room;
-    if (len == 0) {
+    if (len == 0 || s_muted) {
         return push_true(L);
     }
     int slot;

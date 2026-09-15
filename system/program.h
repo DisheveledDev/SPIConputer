@@ -53,16 +53,26 @@ typedef struct program_s {
      * are looked up at dispatch time, not cached here, so a program or a
      * framework can install or replace them after load (e.g. in setup). */
     bool exit_requested;
+    /* Set when a Launch(..., replace) has taken this program's place:
+     * it is still inside its own Lua frame until that call returns, and
+     * the screen now belongs to the new program, so its Screen* calls
+     * are ignored (screen_lua.c) until it is reaped. */
+    bool replaced;
     bool interactive;
     bool requires_video;
     bool requires_audio;
+    /* Utility result (UtilityResult): a message or a table serialised
+     * as Lua source, malloc'd; ownership moves to the parent's
+     * child_result_* when the utility exits, and UtilityPoll frees it. */
     bool utility_result_set;
     bool utility_ok;
-    char utility_output[256];
+    char *utility_output;
+    bool utility_is_table;
     bool child_result_pending;
     bool child_result_ok;
+    char *child_result_output;
+    bool child_result_is_table;
     bool scheduler_started;
-    char child_result_output[256];
     char cwd[260];
 
     /* -- heap budget -- */

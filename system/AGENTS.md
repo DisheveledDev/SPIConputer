@@ -26,7 +26,7 @@ or new detail is captured.
 | Filesystem call layer | `rpc.c`/`rpc.h` define the op codes, request/response shapes and the 4 KB staging buffer. Both sides run on the OS core, so `rpc_call` normally dispatches straight into `fs_core0_execute`; the original two-core slot transport survives only for builds that split them (host harness, desktop simulator) |
 | Boot flow | Core 0 (video) brings up HSTX and launches core 1 (OS). Core 1 owns stdio, mounts SD, starts the input tick, boots `core/boot.lua` (a timer-driven screen that hands the machine to `core/os.lua` with `Launch(..., replace)`, so boot's Lua state is released) and runs the scheduler, feeding the watchdog |
 | Process model | `program.c` — 4-program stack, per-program Lua state (96 KB heap cap, `PROGRAM_HEAP_CAP`), optional heap-allocated audio state, timers, per-program event rings; `Launch(..., replace)` hands the stack over and releases the replaced state; noninteractive utilities keep their isolated Lua state but return `UtilityResult` text to the parent via `UtilityPoll`; `sys_lua.c` exposes TimeNow/Pid/ExitProgram/Launch/Execute/ExecuteString/UtilityResult/UtilityPoll/TimerCreate/TimerStop/InputPoll/InputControl/WaitVSync/Compile (Compile builds a `.prg` from a `.lua` on the card in a scratch `lua_State` on the system heap, same output as the IDE; the shell's `COMPILE` command wraps it) |
-| Shell / card programs | **Not in this repo.** `core/boot.lua`/`core/boot.prg`, the shell (`core/os.lua`/`core/os.prg`), installed apps, and other programs are SPIEdit projects developed outside the OS source tree (this workspace builds system outputs into `software/core/`, apps into `software/apps/`, and reserves `data/` for user files). The shell protects `core/`, offers the installed apps in a picker dialog (`APPS`: name and description from each `app.json`, cursor keys, RETURN runs), restricts file operations to `data/`, and launches programs from `apps/` or `data/`. It has no exit command: the shell is the OS. The OS only provides the runtime, `lua.md` the contract |
+| Shell / card programs | **Not in this repo.** `core/boot.prg`, the shell (`core/os.prg`), apps, utilities and games are SPIEdit projects developed outside the OS source tree (this workspace keeps them in `software/`; each builds into its own `build/`, and `software/install.sh` assembles a card image in `software/sdcard/`, git-ignored). Card layout: `core/` (system, raw programs), `apps/` (`name.app`), `utils/` (`name.util`: commands that run once with `args` and return a table via `UtilityResult`), `games/` (`name.game`: launched with `Launch(..., replace)`, so the shell is freed; the device reboots when the last program exits, see `lua_main.c`), `data/` (user files, the only area the shell's file commands touch). The shell resolves a command name to `utils/`, `apps/`, `games/`, then loose programs; `APPS` is a picker of apps and games. It has no exit command: the shell is the OS. The OS only provides the runtime, `lua.md` the contract |
 | Lua API reference | `lua.md` — the developer contract (entry points, OS/functions/fs/input, limits); keep in sync with the implementation and use as the basis for the future IDE |
 | Display | `render.c` (scanline renderer, host-tested golden output) + `screen_lua.c` (ScreenMode/Out/Attr/OverlayOut/OverlayAttr/DefineTile/Palette/Clear/Plot) with a base layer plus one overlay. Product-board scanout: `render332.c` (RGB332 fast path, host-tested against `render.c`) + `scanout.c` (HSTX scanline sequencer, host-tested) + `core0/video_hw.c` (TMDS expander, ping/pong DMA, render pump into an 8-line ring) |
 | Audio | `audio.c` (8-voice stereo synth, score scheduler, WAV sample voices) + `sound_lua.c` (Sound*/Music* API); per-program state like video; host-tested. HDMI data-island feed deferred to Phase 7 |
@@ -809,12 +809,13 @@ bridge logic stays testable without hardware.
     display resets the system.
 16. ~~Timer details~~ settled: 1 ms minimum resolution, callbacks take no
     arguments, `TimerCreate(fn, ms [, oneshot])` / `TimerStop(id)`.
-17. **SD program storage layout:** `core/` contains protected boot and OS
-    programs, `apps/` contains installed applications, and `data/` is the
-    writable user area. The shell's `APPS` command lists installed apps,
-    program lookup searches `apps/` then `data/`, and file manipulation
-    commands are restricted to `data/`. The programs themselves are
-    external projects, not part of the OS source tree.
+17. **SD program storage layout:** `core/` (boot and the shell),
+    `apps/` (`name.app`), `utils/` (`name.util` commands), `games/`
+    (`name.game`), `data/` (the writable user area). A command name
+    resolves to `utils/`, `apps/`, `games/`, then loose programs in
+    `apps/`/`data/`; file manipulation commands are restricted to
+    `data/`. The programs themselves are external projects, not part of
+    the OS source tree.
 
 ### Serial / dev interface
 18. ~~Stream framing~~ settled: line-oriented text records; the client
