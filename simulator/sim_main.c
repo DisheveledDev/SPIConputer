@@ -46,6 +46,7 @@ typedef struct {
     const char *sdcard;
     const char *boot_file;
     const char *dump_frame;
+    const char *dump_text;
     const char *check_file;
     const char *compile_in;
     const char *compile_out;
@@ -522,6 +523,7 @@ static void usage(const char *argv0) {
         "  --boot FILE         program to boot (default: core/boot.lua; a .prg is fine)\n"
         "  --ticks N           scheduler ticks per frame (default: 64)\n"
         "  --dump-frame FILE   write the final 640x480 frame as a PPM\n"
+        "  --dump-text FILE    write the final text screen (40x30, overlay on top)\n"
         "  --check FILE        compile FILE with the OS Lua and exit\n"
         "  --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit\n"
         "  --headless          no window/audio (smoke tests)\n"
@@ -547,6 +549,43 @@ static void dump_frame_ppm(const char *path, uint8_t *frame) {
     fwrite(frame, 1, (size_t)SIM_W * SIM_H * 3, f);
     fclose(f);
     printf("[sim] frame written to %s\n", path);
+}
+
+/* --dump-text: the final text screen as 30 lines of 40 characters, the
+ * overlay composited over the base, for scripted checks that read the
+ * screen instead of its pixels. Codes outside printable ASCII (box
+ * drawing, blocks) are written as '#'; after a '|' each line marks its
+ * inverted cells with '^', so highlights can be checked too. */
+static void dump_text_screen(const char *path) {
+    const video_state_t *v = sim_screen();
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        fprintf(stderr, "[sim] cannot write %s\n", path);
+        return;
+    }
+    int cols = VIDEO_COLS, rows = VIDEO_ROWS;
+    for (int y = 0; y < rows; y++) {
+        char line[VIDEO_COLS + 1];
+        char inv[VIDEO_COLS + 1];
+        for (int x = 0; x < cols; x++) {
+            int idx = y * cols + x;
+            uint8_t ch = v->base_char[idx];
+            uint8_t attr = v->base_attr[idx];
+            if ((v->overlay_attr[idx] & VIDEO_ATTR_TRANSPARENT) == 0) {
+                ch = v->overlay_char[idx];
+                attr = v->overlay_attr[idx];
+            }
+            line[x] = (ch >= 32 && ch < 127) ? (char)ch : '#';
+            inv[x] = (attr & 0x80) ? '^' : ' ';
+        }
+        line[cols] = inv[cols] = '\0';
+        int end = cols;
+        while (end > 0 && inv[end - 1] == ' ') end--;
+        inv[end] = '\0';
+        fprintf(f, "%s|%s\n", line, inv);
+    }
+    fclose(f);
+    printf("[sim] text written to %s\n", path);
 }
 
 static void rpc_wait_sim(void) {
@@ -592,6 +631,8 @@ int main(int argc, char **argv) {
             o.ticks_per_frame = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--dump-frame") == 0 && i + 1 < argc) {
             o.dump_frame = argv[++i];
+        } else if (strcmp(argv[i], "--dump-text") == 0 && i + 1 < argc) {
+            o.dump_text = argv[++i];
         } else if (strcmp(argv[i], "--check") == 0 && i + 1 < argc) {
             o.check_file = argv[++i];
         } else if (strcmp(argv[i], "--compile") == 0 && i + 2 < argc) {
@@ -812,6 +853,9 @@ int main(int argc, char **argv) {
 
     if (o.dump_frame) {
         dump_frame_ppm(o.dump_frame, frame);
+    }
+    if (o.dump_text) {
+        dump_text_screen(o.dump_text);
     }
 
     /* Smoke summary (useful with --headless). */
