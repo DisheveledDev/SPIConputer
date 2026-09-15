@@ -1,0 +1,53 @@
+{
+  "components" : [
+    {
+      "file" : "components/00-header.lua",
+      "id" : "457EBF0F-CDBE-4D36-99DF-A8B18ABC651B",
+      "kind" : "lua",
+      "name" : "header"
+    },
+    {
+      "file" : "components/10-board.lua",
+      "id" : "DFE2EEF7-CB57-4A7A-B5D9-0934E931D252",
+      "kind" : "lua",
+      "name" : "board"
+    },
+    {
+      "file" : "components/20-play.lua",
+      "id" : "96A146B7-FA78-46E5-B882-796977E3E793",
+      "kind" : "lua",
+      "name" : "play"
+    },
+    {
+      "file" : "components/30-snake.lua",
+      "id" : "2727E1D4-FADB-4B44-9F19-D6990A554A0E",
+      "kind" : "lua",
+      "name" : "snake"
+    },
+    {
+      "file" : "components/40-input.lua",
+      "id" : "53069418-C9F1-4B14-A3A6-E99F03B4F573",
+      "kind" : "lua",
+      "name" : "input"
+    },
+    {
+      "file" : "components/50-main.lua",
+      "id" : "7B96BA3F-E40F-424D-BE8B-0CF89B94E115",
+      "kind" : "lua",
+      "name" : "main"
+    }
+  ],
+  "description" : "Eat, grow, dodge walls; 4 levels",
+  "format_version" : 2,
+  "kind" : "game",
+  "name" : "snake",
+  "requires_audio" : true,
+  "requires_video" : true,
+  "sdks" : [
+    "screen",
+    "overlay",
+    "sound",
+    "input"
+  ],
+  "version" : "1.0"
+}
