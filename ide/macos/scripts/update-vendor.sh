@@ -7,8 +7,10 @@
 #   simulator with its SDL2 library beside it, rewritten to load the
 #   library from its own folder (@rpath = @loader_path) and ad-hoc
 #   signed, so the same files work from the package and inside the app;
-# - Sources/SPIIDECore/Resources/sdcard/core/: boot and the shell, built
-#   with spibuild from the workspace's software/boot and software/os.
+# - Sources/SPIIDECore/Resources/sdcard/: a minimal working card: core/
+#   (boot, the shell and the APPS launcher) and utils/ (every utility
+#   project: the shell's DIR, COPY, HELP ... are utilities), built with
+#   spibuild from the workspace's software/ folder.
 #
 # The workspace root defaults to the folder that contains this
 # repository (the layout while the IDE lived in the OS repository); pass
@@ -40,7 +42,8 @@ fi
 "$CMAKE_BIN" -S "$WORKSPACE/simulator" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
 "$CMAKE_BIN" --build "$BUILD_DIR"
 
-mkdir -p "$VENDOR/simulator" "$VENDOR/sdcard/core"
+rm -rf "$VENDOR/sdcard"
+mkdir -p "$VENDOR/simulator" "$VENDOR/sdcard/core" "$VENDOR/sdcard/utils"
 SIM="$VENDOR/simulator/spicomputer_sim"
 cp "$BUILD_DIR/spicomputer_sim" "$SIM"
 chmod 755 "$SIM"
@@ -55,15 +58,19 @@ if [ -n "$SDL_PATH" ] && [ -f "$SDL_PATH" ]; then
     codesign --force --sign - "$SIM" "$VENDOR/simulator/$SDL_NAME"
 fi
 
-# The OS: boot and the shell, built by this package's own spibuild
-# (which will use the simulator just vendored for the .prg step).
+# The OS: boot, the shell and the launcher, plus every utility project,
+# built and installed by this package's own spibuild (which uses the
+# simulator just vendored for the .prg step).
 cd "$IDE_DIR"
-for project in boot os; do
-    swift run spibuild "$WORKSPACE/software/$project"
-    for f in "$project.prg" "$project.lua"; do
-        cp "$WORKSPACE/software/$project/build/$f" "$VENDOR/sdcard/core/$f"
-    done
+for project in boot os apps; do
+    swift run spibuild --install "$VENDOR/sdcard" "$WORKSPACE/software/$project"
+done
+for manifest in "$WORKSPACE"/software/*/project.spiproj; do
+    if grep -Eq '"kind" *: *"utility"' "$manifest"; then
+        swift run spibuild --install "$VENDOR/sdcard" "$(dirname "$manifest")"
+    fi
 done
 
 printf 'vendored simulator: %s\n' "$("$SIM" --help 2>&1 | head -1)"
 ls -la "$VENDOR/simulator" "$VENDOR/sdcard/core"
+ls "$VENDOR/sdcard/utils"

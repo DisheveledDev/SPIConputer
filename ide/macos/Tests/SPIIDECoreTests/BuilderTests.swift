@@ -233,6 +233,9 @@ struct BuilderTests {
         try FileManager.default.createDirectory(at: core, withIntermediateDirectories: true)
         try Data("-- boot".utf8).write(to: core.appendingPathComponent("boot.prg"))
         try Data("-- os".utf8).write(to: core.appendingPathComponent("os.prg"))
+        let dir = card.appendingPathComponent("utils/dir.util")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("-- dir".utf8).write(to: dir.appendingPathComponent("app.prg"))
         return card
     }
 
@@ -300,6 +303,8 @@ struct BuilderTests {
         let fm = FileManager.default
         #expect(fm.fileExists(atPath: session.sdcardURL.appendingPathComponent("core/os.prg").path))
         #expect(fm.fileExists(atPath: session.sdcardURL.appendingPathComponent("apps/Demo.app/app.prg").path))
+        // The shell's external commands come from the image too.
+        #expect(fm.fileExists(atPath: session.sdcardURL.appendingPathComponent("utils/dir.util/app.prg").path))
         for folder in ["utils", "games", "data"] {
             #expect(fm.fileExists(atPath: session.sdcardURL.appendingPathComponent(folder).path))
         }

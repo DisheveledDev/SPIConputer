@@ -36,8 +36,11 @@ public enum RunError: Error, LocalizedError, Equatable {
 ///   the run card (`data/` or `games/`) and the simulator boots it with
 ///   no OS underneath.
 /// - Applications and utilities run under the OS: `core/` is copied
-///   from the user's SD card image, the bundle is installed where the
-///   shell will find it, and the simulator boots `core/boot`.
+///   from the user's SD card image together with its installed
+///   `utils/` (the shell's DIR, COPY, HELP ... are utilities), `apps/`
+///   and `games/`, the bundle is installed where the shell will find it,
+///   and the simulator boots `core/boot`. The run card's `data/` is
+///   kept between runs.
 public enum Runner {
     public static func runDirectory(for project: Project) -> URL {
         project.buildDirectoryURL.appendingPathComponent("run")
@@ -61,10 +64,20 @@ public enum Runner {
                 fm.fileExists(atPath: imageCore.appendingPathComponent($0).path)
             }
             guard hasBoot else { throw RunError.cardImageHasNoOS(cardImage.path) }
-            // The OS from the image, fresh each run.
+            // The OS from the image, fresh each run: core/, and the
+            // installed programs the shell runs by name (its external
+            // commands are utilities). The project installs on top.
+            for folder in ["core", "utils", "apps", "games"] {
+                let target = sdcard.appendingPathComponent(folder, isDirectory: true)
+                let source = cardImage.appendingPathComponent(folder, isDirectory: true)
+                try? fm.removeItem(at: target)
+                if fm.fileExists(atPath: source.path) {
+                    try fm.copyItem(at: source, to: target)
+                } else {
+                    try fm.createDirectory(at: target, withIntermediateDirectories: true)
+                }
+            }
             let core = sdcard.appendingPathComponent("core", isDirectory: true)
-            try? fm.removeItem(at: core)
-            try fm.copyItem(at: imageCore, to: core)
             try ProjectInstaller.install(project, into: sdcard)
             let boot = fm.fileExists(atPath: core.appendingPathComponent("boot.prg").path)
                 ? "core/boot.prg" : "core/boot.lua"
