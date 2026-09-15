@@ -1,0 +1,20 @@
+-- apps.lua — the APPS launcher (core/apps.prg).
+--
+-- The shell's APPS command runs this program. It lists the installed
+-- applications (/apps/*.app) and games (/games/*.game) by name, version
+-- and description (from each bundle's app.json) on a full screen of its
+-- own. RETURN ends it with the choice, UtilityResult(true, { run = path,
+-- kind = kind }), and the shell runs that program exactly as if it had
+-- been typed, so a game still replaces the shell. ESC, Q or RUN/STOP
+-- ends it without a choice.
+--
+-- It lives outside the shell so the resident shell stays small: the
+-- list, its metadata and this code are only in memory while the
+-- launcher is open.
+--
+-- Keys: UP/DOWN move, HOME first, RETURN run, ESC close. Moving the
+-- selection redraws the two entries involved; only a scroll redraws the
+-- list.
+--
+-- Built from the SPIEdit project in this folder: `swift run
+-- --package-path ide/macos spibuild software/apps` (installs to core/).

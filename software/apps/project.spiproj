@@ -1,0 +1,30 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "CF5BAA12-C249-49AD-8C12-CA55B2CCBB57",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "932582A5-973D-4F07-82DD-9F38F8B56C13",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "The APPS launcher: pick an installed app or game",
+  "format_version": 2,
+  "install_directory": "core",
+  "kind": "raw",
+  "name": "apps",
+  "requires_audio": false,
+  "requires_video": true,
+  "sdks": [
+    "screen",
+    "text",
+    "input"
+  ],
+  "version": "1.0",
+  "strip_debug": true
+}
