@@ -2,7 +2,7 @@
 
 local function draw_hud()
     Screen.Clean(0, 0, COLS - 1, 0)
-    Screen.OutText(1, 0, "SCORE " .. Text.Zero(score, 5), Attributes.Yellow)
+    Screen.OutText(1, 0, string.format("SCORE %05d", score), Attributes.Yellow)
     Screen.CenterText(0, "BREAKOUT", Attributes.Cyan)
     Screen.RightText(0, "LIVES " .. lives .. "  LV " .. level .. " ", Attributes.Green)
 end

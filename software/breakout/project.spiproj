@@ -36,5 +36,12 @@
   "kind" : "game",
   "name" : "breakout",
   "requires_audio" : true,
-  "sdks" : [ "screen", "overlay", "text", "sound", "input" ]
+  "requires_video" : true,
+  "sdks" : [
+    "screen",
+    "overlay",
+    "sound",
+    "input"
+  ],
+  "version" : "1.0"
 }
