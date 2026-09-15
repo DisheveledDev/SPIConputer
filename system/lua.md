@@ -491,8 +491,11 @@ MusicPlay("tune")
 Event fields: `at` (ms from the start), `sound` (an id or a built-in
 name, required), `note` (default: the sound's own note, else C4), `dur`
 (ms; omit/0 = one-shot envelope), `vol` (0..255), `pan` (-64..63).
-The Sound framework's `Music.Track` writes a score as MML note strings
-(`"o4 l8 c d e f g a b > c"`) per channel instead.
+A channel may instead be a string of packed 10-byte records,
+`string.pack("<I4BBI2Bb", at, sound_id, note, dur, vol, pan)` each, which
+costs a few bytes of heap per note where a table costs a hundred. The
+Sound framework's `Music.Track` writes a score as MML note strings
+(`"o4 l8 c d e f g a b > c"`) per channel and compiles them to that.
 Events may be written in any order (they are sorted per channel).
 `MusicPlay` overrides the score's own `loop` when the second argument is
 given.

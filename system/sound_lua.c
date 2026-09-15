@@ -42,7 +42,8 @@
  * Score spec:  {loop=bool, channels={{event, ...}, ...}} with up to 8
  * channels and events {at=ms, sound=id, note=name|midi, dur=ms,
  * vol=0..255, pan=-64..63}. `note` defaults to C4, `vol` to 255,
- * `pan` to 0; `dur` 0/absent means the one-shot envelope.
+ * `pan` to 0; `dur` 0/absent means the one-shot envelope. A channel may
+ * instead be a packed string of 10-byte records (see music_define).
  */
 #include "sound_lua.h"
 
@@ -331,16 +332,25 @@ static int music_define(lua_State *L) {
         nch = AUDIO_CHANNEL_MAX;
     }
 
+    /* A channel is a table of event tables, or a packed string of
+     * 10-byte records (the Sound framework's Music.Track emits those:
+     * far less heap than a table per note): at (u32 LE), sound (u8),
+     * note (u8), dur (u16 LE), vol (u8), pan (s8). */
     int counts[AUDIO_CHANNEL_MAX] = {0};
     int total = 0;
     for (int c = 0; c < nch; c++) {
         lua_rawgeti(L, ch_idx, c + 1);
-        if (!lua_istable(L, -1)) {
+        if (lua_type(L, -1) == LUA_TSTRING) {
+            size_t n = 0;
+            lua_tolstring(L, -1, &n);
+            counts[c] = (int)(n / 10);
+        } else if (lua_istable(L, -1)) {
+            counts[c] = (int)lua_rawlen(L, -1);
+        } else {
             lua_pushnil(L);
-            lua_pushfstring(L, "channel %d is not a table", c + 1);
+            lua_pushfstring(L, "channel %d is not a table or a packed string", c + 1);
             return 2;
         }
-        counts[c] = (int)lua_rawlen(L, -1);
         lua_pop(L, 1);
         total += counts[c];
     }
@@ -351,55 +361,69 @@ static int music_define(lua_State *L) {
     }
 
     audio_score_t *sc = &a->scores[slot];
-    memset(sc, 0, sizeof(*sc));
+    memset(sc, 0, sizeof(sc[0]));
     uint16_t cursor = a->events_used;
     uint32_t length_ms = 0;
 
     for (int c = 0; c < nch; c++) {
         lua_rawgeti(L, ch_idx, c + 1);
         int ch_tbl = lua_gettop(L);
+        bool packed = lua_type(L, ch_tbl) == LUA_TSTRING;
+        const uint8_t *rec = packed ? (const uint8_t *)lua_tostring(L, ch_tbl) : NULL;
         sc->ch[c].start = cursor;
         sc->ch[c].count = (uint16_t)counts[c];
         for (int i = 0; i < counts[c]; i++) {
-            lua_rawgeti(L, ch_tbl, i + 1);
-            if (!lua_istable(L, -1)) {
-                lua_pushnil(L);
-                lua_pushfstring(L, "channel %d event %d is not a table", c + 1,
-                                i + 1);
-                return 2;
-            }
             audio_event_t ev;
             memset(&ev, 0, sizeof(ev));
-            ev.time_ms = (uint32_t)clamp_int(field_int(L, -1, "at", 0), 0,
-                                            0x7fffffff);
-            ev.dur_ms = (uint32_t)clamp_int(field_int(L, -1, "dur", 0), 0, 65535);
-            lua_getfield(L, -1, "sound");
-            int sound_id = lua_isnil(L, -1) ? -1 : sound_arg(L, lua_gettop(L));
-            lua_pop(L, 1);
-            ev.sound = (uint8_t)clamp_int(sound_id, 0, 255);
-            if (sound_id < 0) {
-                lua_pushnil(L);
-                lua_pushfstring(L, "channel %d event %d: unknown sound", c + 1, i + 1);
-                return 2;
-            }
-            ev.volume =
-                (uint8_t)clamp_int(field_int(L, -1, "vol", AUDIO_DEFAULT_VOLUME),
-                                   0, 255);
-            ev.pan = (int8_t)clamp_int(field_int(L, -1, "pan", 0), -64, 63);
-            lua_getfield(L, -1, "note");
-            if (lua_isnil(L, -1)) {
-                const audio_instrument_t *ei = audio_instrument(a, sound_id);
-                ev.note = (uint8_t)((ei && ei->note) ? ei->note : 60); /* the sound's own, or C4 */
-            } else if (lua_type(L, -1) == LUA_TSTRING) {
-                int n = audio_note_parse(lua_tostring(L, -1));
-                if (n < 0) {
-                    return luaL_error(L, "bad note name: %s", lua_tostring(L, -1));
-                }
-                ev.note = (uint8_t)n;
+            int sound_id;
+            if (packed) {
+                const uint8_t *r = rec + i * 10;
+                ev.time_ms = (uint32_t)r[0] | ((uint32_t)r[1] << 8) | ((uint32_t)r[2] << 16) | ((uint32_t)r[3] << 24);
+                sound_id = r[4];
+                ev.note = r[5];
+                ev.dur_ms = (uint32_t)r[6] | ((uint32_t)r[7] << 8);
+                ev.volume = r[8];
+                ev.pan = (int8_t)r[9];
+                ev.sound = (uint8_t)sound_id;
             } else {
-                ev.note = (uint8_t)clamp_int(luaL_checkinteger(L, -1), 0, 127);
+                lua_rawgeti(L, ch_tbl, i + 1);
+                if (!lua_istable(L, -1)) {
+                    lua_pushnil(L);
+                    lua_pushfstring(L, "channel %d event %d is not a table", c + 1,
+                                    i + 1);
+                    return 2;
+                }
+                ev.time_ms = (uint32_t)clamp_int(field_int(L, -1, "at", 0), 0,
+                                                0x7fffffff);
+                ev.dur_ms = (uint32_t)clamp_int(field_int(L, -1, "dur", 0), 0, 65535);
+                lua_getfield(L, -1, "sound");
+                sound_id = lua_isnil(L, -1) ? -1 : sound_arg(L, lua_gettop(L));
+                lua_pop(L, 1);
+                ev.sound = (uint8_t)clamp_int(sound_id, 0, 255);
+                if (sound_id < 0) {
+                    lua_pushnil(L);
+                    lua_pushfstring(L, "channel %d event %d: unknown sound", c + 1, i + 1);
+                    return 2;
+                }
+                ev.volume =
+                    (uint8_t)clamp_int(field_int(L, -1, "vol", AUDIO_DEFAULT_VOLUME),
+                                       0, 255);
+                ev.pan = (int8_t)clamp_int(field_int(L, -1, "pan", 0), -64, 63);
+                lua_getfield(L, -1, "note");
+                if (lua_isnil(L, -1)) {
+                    const audio_instrument_t *ei = audio_instrument(a, sound_id);
+                    ev.note = (uint8_t)((ei && ei->note) ? ei->note : 60); /* the sound's own, or C4 */
+                } else if (lua_type(L, -1) == LUA_TSTRING) {
+                    int n = audio_note_parse(lua_tostring(L, -1));
+                    if (n < 0) {
+                        return luaL_error(L, "bad note name: %s", lua_tostring(L, -1));
+                    }
+                    ev.note = (uint8_t)n;
+                } else {
+                    ev.note = (uint8_t)clamp_int(luaL_checkinteger(L, -1), 0, 127);
+                }
+                lua_pop(L, 2); /* note value + event table */
             }
-            lua_pop(L, 2); /* note value + event table */
             if (!audio_sound_defined(a, ev.sound)) {
                 lua_pushnil(L);
                 lua_pushfstring(L, "channel %d event %d: sound %d not defined",
@@ -421,7 +445,7 @@ static int music_define(lua_State *L) {
                 length_ms = end;
             }
         }
-        lua_pop(L, 1); /* channel table */
+        lua_pop(L, 1); /* channel table or string */
     }
     lua_pop(L, 1); /* channels table */
 

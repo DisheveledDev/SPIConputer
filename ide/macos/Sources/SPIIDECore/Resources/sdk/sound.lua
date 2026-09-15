@@ -69,7 +69,10 @@ end
 -- Semitone of each note letter within an octave.
 local NOTE_SEMI = { c = 0, d = 2, e = 4, f = 5, g = 7, a = 9, b = 11 }
 
--- Compile one MML string into a channel's event list. State: tempo
+-- Compile one MML string into a channel: a packed string of 10-byte
+-- event records (at, sound, note, dur, vol, pan: what MusicDefine
+-- reads), a few KB for a whole tune where a table per note would be
+-- tens of KB of heap. State: tempo
 -- (shared across channels, the last T wins), octave, default length,
 -- volume 0..15 (starting at state.volume: the fewer the channels, the
 -- louder each starts, so a full mix does not clip), gate 1..8. With `fixed_note` (a drum or effect's own pitch)
@@ -77,6 +80,7 @@ local NOTE_SEMI = { c = 0, d = 2, e = 4, f = 5, g = 7, a = 9, b = 11 }
 -- events and the channel's length in ms.
 local function mml_channel(text, sound, state, fixed_note)
     local events = {}
+    local pack = string.pack
     local pos, t = 1, 0
     local octave, length, volume, gate = 4, 4, state.volume, 7
     local repeat_stack = {}
@@ -128,8 +132,8 @@ local function mml_channel(text, sound, state, fixed_note)
                     break
                 end
             end
-            events[#events + 1] = { at = t, sound = sound, note = note, dur = hold,
-                                    vol = math.floor(volume * 17) }
+            events[#events + 1] = pack("<I4BBI2Bb", t, sound, note,
+                                       math.min(hold, 65535), math.floor(volume * 17), 0)
             t = t + total
         elseif c == "r" or c == "p" then
             t = t + ms(duration(length))
@@ -163,7 +167,7 @@ local function mml_channel(text, sound, state, fixed_note)
         end
         -- Anything else (spaces, bar lines, newlines) is ignored.
     end
-    return events, t
+    return table.concat(events), t
 end
 
 --- Sound.Tone(hz, ms [, volume])
@@ -290,7 +294,8 @@ end
 -- Spaces and bar lines are ignored. On a drum or effect channel (a
 -- sound with a pitch of its own, like "kick") every note is a hit at
 -- that pitch, so "c c r c" is a rhythm. Returns true (and the compiled
--- score), or nil, err.
+-- score: each channel a packed string of 10-byte at/sound/note/dur/vol/
+-- pan records), or nil, err.
 function Music.Track(name, spec)
     local n = math.max(1, #(spec.channels or {}))
     -- A starting volume that leaves the mix headroom: 15 for one
@@ -301,13 +306,13 @@ function Music.Track(name, spec)
     local score = { loop = spec.loop and true or false, channels = {} }
     for i, ch in ipairs(spec.channels or {}) do
         if i > 8 then break end
-        local sound = ch.sound or "lead"
-        -- A drum or effect has a pitch of its own: its notes are hits.
-        local own = type(sound) == "string" and SoundPreset(sound)
-        local fixed = nil
-        if own then
-            local _, spec_ = SoundPreset(sound)
-            fixed = spec_ and spec_.note
+        local sound, fixed = ch.sound or "lead", nil
+        if type(sound) == "string" then
+            -- A built-in by name: its id; a drum or effect has a pitch of
+            -- its own, so its notes are hits.
+            local id, spec_ = SoundPreset(sound)
+            if not id then return nil, "unknown sound '" .. sound .. "'" end
+            sound, fixed = id, spec_ and spec_.note
         end
         score.channels[i] = mml_channel(ch.mml or "", sound, state, fixed)
     end

@@ -561,7 +561,9 @@ are the core patch type, samples are the later addition):
   the index), played by name through `SoundPlay("coin")`, copied and
   tweaked with `SoundPreset`/`SoundDefine{base=}`. The Sound framework's
   `Music.Track` compiles MML note strings into scores, so tunes need no
-  samples and no event tables.
+  samples and no event tables: each channel is compiled to a packed
+  string of 10-byte records (`MusicDefine` accepts those alongside event
+  tables), a few KB of heap for a whole tune.
 - **Scores** are per-channel timelines of `(time, sound, note, length,
   volume/pan, effect)` events; they play to the end or loop. Scores are
   defined once (`MusicDefine`) and played by name, so a program can
