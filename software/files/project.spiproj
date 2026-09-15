@@ -1,0 +1,58 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "749EB482-32B7-4E0B-817C-EA375467AA48",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-list.lua",
+      "id": "4F26E398-8CFE-4403-8A9A-0C178FD6AA86",
+      "kind": "lua",
+      "name": "list"
+    },
+    {
+      "file": "components/20-screen.lua",
+      "id": "62EAC7B4-13FE-44BD-8CCC-67517CAAE29A",
+      "kind": "lua",
+      "name": "screen"
+    },
+    {
+      "file": "components/30-dialogs.lua",
+      "id": "D266FDB6-A287-4D5E-8331-CA79959772BF",
+      "kind": "lua",
+      "name": "dialogs"
+    },
+    {
+      "file": "components/40-actions.lua",
+      "id": "2A30F7B1-9C6F-4D03-A309-D148CC14265B",
+      "kind": "lua",
+      "name": "actions"
+    },
+    {
+      "file": "components/50-input.lua",
+      "id": "95C4E30A-2EB1-4AF4-AC36-79436392A2C5",
+      "kind": "lua",
+      "name": "input"
+    },
+    {
+      "file": "components/60-main.lua",
+      "id": "1525E3A6-B34E-4704-80ED-FC9B883724C2",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "File manager for the data folder",
+  "format_version": 2,
+  "kind": "application",
+  "name": "files",
+  "requires_audio": false,
+  "sdks": [
+    "screen",
+    "overlay",
+    "text",
+    "input"
+  ],
+  "version": "1.0"
+}

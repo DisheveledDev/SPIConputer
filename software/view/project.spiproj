@@ -1,0 +1,51 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "2C3C8B1D-3180-4BCF-B0BE-80278585C8C8",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-index.lua",
+      "id": "13430EB6-49CF-4981-8580-C23EAD172F2A",
+      "kind": "lua",
+      "name": "index"
+    },
+    {
+      "file": "components/20-screen.lua",
+      "id": "F6CAD67F-8606-4A15-A43D-E8DF278CD087",
+      "kind": "lua",
+      "name": "screen"
+    },
+    {
+      "file": "components/30-search.lua",
+      "id": "9582C886-F183-4D94-A77B-9FF82FFB6E36",
+      "kind": "lua",
+      "name": "search"
+    },
+    {
+      "file": "components/40-input.lua",
+      "id": "026290CD-6A4E-4C36-8573-C70F6CBD0243",
+      "kind": "lua",
+      "name": "input"
+    },
+    {
+      "file": "components/50-main.lua",
+      "id": "64D1EB13-679D-4240-AE38-C92EA11FC7EE",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Text file viewer with search",
+  "format_version": 2,
+  "kind": "application",
+  "name": "view",
+  "requires_audio": false,
+  "sdks": [
+    "screen",
+    "overlay",
+    "input"
+  ],
+  "version": "1.0"
+}
