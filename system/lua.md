@@ -521,9 +521,16 @@ and stream through 8 KB per-channel rings the OS core refills between
 scheduler steps (a loop streams round without a break; one that fits
 the ring is kept there). About 82 KB of system heap per loaded module,
 which leaves the program itself around 65 KB of Lua heap on the device.
-Effects 0-9, A-F and E1/2/5/6/9/A/B/C/D/E are played; 6/8-channel
-modules are refused. A module with many long samples can outrun the
-card: `ModInfo().underruns` counts the frames a sample was late for. `MusicPlaying()` is true from the call to `MusicPlay` until the
+Effects 0-9, A-F and E1/2/5/6/9/A/B/C/D/E are played; the old
+15-sample Soundtracker layout loads too; 6/8-channel modules are refused. A module with many long samples can outrun the
+card: `ModInfo().underruns` counts the frames a sample was late for.
+
+For visuals, `SoundSpectrum` is a ten-band analyser on the mixed output
+(ten resonators fed one frame in four; each band a peak that decays over
+about 50 ms), and `ModChannels` gives each module channel's note, sample
+and a decaying level; `ModRows` formats pattern rows for a tracker view.
+All three refill a table passed in, so a view polling every frame makes
+no garbage. `MusicPlaying()` is true from the call to `MusicPlay` until the
 score ends or `MusicStop`/`SoundStopAll`; a paused program is silenced
 and resumes from its score position.
 

@@ -793,6 +793,67 @@ static void test_mod(void) {
     mock_set_file_bytes("eight.mod", bad, sizeof(bad));
     CHECK(mod_load("eight.mod", &err) == NULL && strstr(err, "4-channel"), "8-channel refused");
     CHECK(mod_load("missing.mod", &err) == NULL, "missing file refused");
+
+    /* A 15-sample Soundtracker module: no tag, orders at 470, patterns
+     * from 600. */
+    size_t st_len = 600 + 1024 + 64;
+    uint8_t *st = calloc(1, st_len);
+    memcpy(st, "old school", 10);
+    st[20 + 22] = 0; st[20 + 23] = 32; st[20 + 25] = 64; st[20 + 29] = 1; /* sample 1: 64 bytes */
+    st[470] = 1; st[471] = 0; st[472] = 0;
+    put_cell(st + 600, 0, 0, 1, 428, 0, 0);
+    for (int i = 0; i < 64; i++) st[600 + 1024 + i] = (uint8_t)(i * 2);
+    mock_set_file_bytes("old.mod", st, st_len);
+    mod_t *o = mod_load("old.mod", &err);
+    CHECK(o != NULL && o->pattern_count == 1 && o->samples[1].length == 64 &&
+              o->samples[1].file_offset == 600 + 1024 && o->pattern_base == 600 &&
+              strcmp(o->name, "old school") == 0,
+          "a 15-sample Soundtracker module loads");
+    CHECK(o && o->samples[1].resident && o->samples[1].resident[3] == 6, "its sample was read from after the patterns");
+    mod_free(o);
+    free(st);
+}
+
+/* ---------------- spectrum analyser ---------------- */
+
+static int spectrum_top_band(audio_state_t *a) {
+    uint8_t lv[AUDIO_SPECTRUM_BANDS];
+    audio_spectrum(a, lv);
+    int best = 0;
+    for (int b = 1; b < AUDIO_SPECTRUM_BANDS; b++) {
+        if (lv[b] > lv[best]) best = b;
+    }
+    return lv[best] > 60 ? best : -1;
+}
+
+static void test_spectrum(void) {
+    audio_state_t a;
+    audio_state_init(&a);
+    audio_instrument_t *ins = &a.instruments[0];
+    memset(ins, 0, sizeof(*ins));
+    ins->defined = 1;
+    ins->wave = AUDIO_WAVE_SINE;
+    ins->sustain = 255;
+    ins->volume = 255;
+    static int16_t buf[4096 * 2];
+    uint8_t lv[AUDIO_SPECTRUM_BANDS];
+    audio_spectrum(&a, lv);
+    int quiet = 1;
+    for (int b = 0; b < AUDIO_SPECTRUM_BANDS; b++) quiet &= lv[b] == 0;
+    CHECK(quiet, "silence: every band at 0");
+    CHECK(audio_spectrum_hz[4] == 400 && audio_spectrum_hz[7] == 1600, "band centres");
+
+    audio_trigger(&a, 0, 69, 255, 0, 2000); /* A4, 440 Hz */
+    for (int i = 0; i < 4; i++) audio_mix(&a, buf, 4096);
+    CHECK(spectrum_top_band(&a) == 4, "a 440 Hz sine peaks in the 400 Hz band");
+    audio_stop_all_voices(&a);
+    audio_mix(&a, buf, 4096);
+    audio_trigger(&a, 0, 93, 255, 0, 2000); /* A6, 1760 Hz */
+    for (int i = 0; i < 4; i++) audio_mix(&a, buf, 4096);
+    CHECK(spectrum_top_band(&a) == 7, "a 1760 Hz sine peaks in the 1600 Hz band");
+    audio_stop_all_voices(&a);
+    for (int i = 0; i < 8; i++) audio_mix(&a, buf, 4096);
+    CHECK(spectrum_top_band(&a) == -1, "the levels decay once the sound stops");
 }
 
 static const char *MOD_LUA =

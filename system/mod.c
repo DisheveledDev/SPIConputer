@@ -135,19 +135,35 @@ mod_t *mod_load(const char *path, const char **err) {
         *err = "module too short";
         goto fail;
     }
+    /* ProTracker (31 samples, a tag at 1080) or the older 15-sample
+     * Soundtracker layout (no tag; the order list at 470, patterns from
+     * 600), told apart by the tag and a sane 15-sample header. */
     const uint8_t *sig = hdr + 1080;
+    int nsamples = MOD_SAMPLES;
+    uint32_t order_off = 950, pattern_base = MOD_HEADER_BYTES;
     if (!(memcmp(sig, "M.K.", 4) == 0 || memcmp(sig, "M!K!", 4) == 0 ||
           memcmp(sig, "4CHN", 4) == 0 || memcmp(sig, "FLT4", 4) == 0)) {
-        *err = (memcmp(sig, "6CHN", 4) == 0 || memcmp(sig, "8CHN", 4) == 0)
-                   ? "only 4-channel modules are supported"
-                   : "not a ProTracker module";
-        goto fail;
+        bool st = hdr[470] >= 1 && hdr[470] <= MOD_ORDERS;
+        for (int i = 0; i < 15 && st; i++) {
+            st = hdr[20 + i * 30 + 25] <= 64; /* sample volumes */
+        }
+        if (memcmp(sig, "6CHN", 4) == 0 || memcmp(sig, "8CHN", 4) == 0) {
+            *err = "only 4-channel modules are supported";
+            goto fail;
+        }
+        if (!st) {
+            *err = "not a ProTracker module";
+            goto fail;
+        }
+        nsamples = 15;
+        order_off = 470;
+        pattern_base = 600;
     }
     memcpy(m->name, hdr, 20);
     m->name[20] = 0;
 
     uint32_t sample_bytes = 0;
-    for (int i = 1; i <= MOD_SAMPLES; i++) {
+    for (int i = 1; i <= nsamples; i++) {
         const uint8_t *s = hdr + 20 + (i - 1) * 30;
         mod_sample_t *smp = &m->samples[i];
         smp->length = (uint32_t)be16(s + 22) * 2;
@@ -164,9 +180,9 @@ mod_t *mod_load(const char *path, const char **err) {
         }
         sample_bytes += smp->length;
     }
-    m->order_count = hdr[950];
-    m->restart_pos = hdr[951] < MOD_ORDERS ? hdr[951] : 0;
-    memcpy(m->order, hdr + 952, MOD_ORDERS);
+    m->order_count = hdr[order_off];
+    m->restart_pos = hdr[order_off + 1] < MOD_ORDERS ? hdr[order_off + 1] : 0;
+    memcpy(m->order, hdr + order_off + 2, MOD_ORDERS);
     if (m->order_count == 0 || m->order_count > MOD_ORDERS) {
         *err = "bad order list";
         goto fail;
@@ -176,7 +192,7 @@ mod_t *mod_load(const char *path, const char **err) {
         if (m->order[i] + 1 > npat) npat = m->order[i] + 1;
     }
     m->pattern_count = (uint8_t)npat;
-    m->pattern_base = MOD_HEADER_BYTES;
+    m->pattern_base = pattern_base;
     uint32_t offset = m->pattern_base + (uint32_t)npat * MOD_PATTERN_BYTES;
     for (int i = 1; i <= MOD_SAMPLES; i++) {
         m->samples[i].file_offset = offset;

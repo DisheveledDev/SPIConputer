@@ -28,13 +28,14 @@
  * share the ring/pattern indices as volatile words in the same
  * single-producer/single-consumer shape as the video queue.
  *
- * Supported: M.K., M!K!, 4CHN and FLT4 modules (4 channels, 31 samples);
- * the effects 0-9, A-F and E1/E2/E5/E6/E9/EA/EB/EC/ED/EE. 6/8-channel
- * modules and 15-sample ones are refused.
+ * Supported: M.K., M!K!, 4CHN and FLT4 modules (4 channels, 31 samples)
+ * and the older tagless 15-sample Soundtracker layout; the effects 0-9,
+ * A-F and E1/E2/E5/E6/E9/EA/EB/EC/ED/EE. 6/8-channel modules are refused.
  */
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define MOD_CHANNELS 4
