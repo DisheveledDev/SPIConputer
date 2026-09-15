@@ -3,7 +3,8 @@
 
 function tick()
     -- A utility's result: a message, or a table whose `message` field
-    -- prints first and whose other fields print as KEY = VALUE lines.
+    -- prints first, then its `lines` array in order, then every other
+    -- field as a KEY = VALUE line.
     local utility_ok, utility_result = UtilityPoll()
     if utility_ok ~= nil then
         local prefix = utility_ok and "" or "?"
@@ -11,9 +12,14 @@ function tick()
             if utility_result.message ~= nil then
                 out(prefix .. tostring(utility_result.message))
             end
+            if type(utility_result.lines) == "table" then
+                for _, line in ipairs(utility_result.lines) do
+                    out(tostring(line))
+                end
+            end
             local keys = {}
             for key in pairs(utility_result) do
-                if key ~= "message" then keys[#keys + 1] = key end
+                if key ~= "message" and key ~= "lines" then keys[#keys + 1] = key end
             end
             table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
             for _, key in ipairs(keys) do

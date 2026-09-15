@@ -5,20 +5,35 @@
 
 local cwd = "/"
 
-local function tail(words, first)
-    local args = {}
-    for i = first, #words do
-        args[#args + 1] = words[i]
+-- Words separated by spaces. "Double quotes" keep spaces inside a word
+-- and mark it as quoted: quoted words reach programs exactly as typed.
+local function split_words(text)
+    local words, quoted = {}, {}
+    local pos = 1
+    while true do
+        local s = text:find("%S", pos)
+        if not s then break end
+        if text:sub(s, s) == '"' then
+            local e = text:find('"', s + 1, true) or #text + 1
+            words[#words + 1] = text:sub(s + 1, e - 1)
+            quoted[#words] = true
+            pos = e + 1
+        else
+            local e = text:find("%s", s) or #text + 1
+            words[#words + 1] = text:sub(s, e - 1)
+            pos = e
+        end
     end
-    return args
+    return words, quoted
 end
 
-local function split_words(text)
-    local words = {}
-    for word in text:gmatch("%S+") do
-        words[#words + 1] = word
+local function tail(words, quoted, first)
+    local args, flags = {}, {}
+    for i = first, #words do
+        args[#args + 1] = words[i]
+        flags[#args] = quoted[i]
     end
-    return words
+    return args, flags
 end
 
 local function normalize(path)
@@ -118,13 +133,29 @@ local function find_program(name)
     return nil
 end
 
+-- An argument as the program should see it. Words that name a card
+-- entry relative to the current directory, or look like a file name (a
+-- slash or an extension), become full card paths ("/data/..."); real
+-- card paths that exist, options ("-n"), numbers, patterns and quoted
+-- words are passed exactly as typed.
+local function program_arg(word, quoted)
+    if quoted or word:sub(1, 1) == "-" then return word end
+    if word:sub(1, 1) == "/" and fs.exists(word) then return word end
+    local path = full_path(word)
+    if fs.exists(path) or word:find("/", 1, true) or word:match("%.%a%w*$") then
+        return path
+    end
+    return word
+end
+
 -- Run a program found by find_program. A game takes the machine over:
 -- the shell's state is released (Launch with replace) and the OS
 -- restarts when the game exits. Everything else runs on top of the
 -- shell and returns to it.
-local function run_program(path, args, kind)
-    if args[1] and args[1]:sub(1, 1) ~= "/" then
-        args[1] = full_path(args[1])
+local function run_program(path, args, kind, quoted)
+    quoted = quoted or {}
+    for i = 1, #args do
+        args[i] = program_arg(args[i], quoted[i])
     end
     if kind == "game" then
         local ok, err = Launch(path, args[1], true)
@@ -350,7 +381,7 @@ local function cmd_compile(source, destination)
 end
 
 local function execute(command_line)
-    local words = split_words(command_line)
+    local words, quoted = split_words(command_line)
     local name = words[1]
     if not name then
         return
@@ -406,14 +437,16 @@ local function execute(command_line)
             out("?FILE NOT FOUND: " .. program)
             return
         end
-        run_program(path, tail(words, 3), kind)
+        local args, flags = tail(words, quoted, 3)
+        run_program(path, args, kind, flags)
     else
         local path, kind = find_program(name)
         if not path then
             out("?FILE NOT FOUND: " .. name)
             return
         end
-        run_program(path, tail(words, 2), kind)
+        local args, flags = tail(words, quoted, 2)
+        run_program(path, args, kind, flags)
     end
 end
 
