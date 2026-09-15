@@ -1,0 +1,28 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "348820C3-C5A6-49F8-886B-1DDB357BF703",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "850570CA-B7E0-4D46-9276-5E0322FAEA3C",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Play the built-in sounds and a tune",
+  "format_version": 2,
+  "kind": "application",
+  "name": "sounds",
+  "requires_audio": true,
+  "requires_video": true,
+  "sdks": [
+    "screen",
+    "sound",
+    "input"
+  ],
+  "version": "1.0"
+}

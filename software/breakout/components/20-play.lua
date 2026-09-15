@@ -34,7 +34,7 @@ local function new_level()
 end
 
 local function lose_ball()
-    Sound.Noise(250)
+    Sound.Effect("hurt")
     hide_ball()
     lives = lives - 1
     draw_hud()
@@ -54,13 +54,14 @@ end
 -- brick removes it (and scores) as a side effect.
 local function blocked(cx, cy)
     if cx < LEFT or cx > RIGHT or cy < TOP then
-        Sound.Tone(220, 25, 120)
+        Sound.Effect("hit", 120)
         return true
     end
     local row, col = brick_at(cx, cy)
     if row then
         remove_brick(row, col)
-        Sound.Tone(660 + (#BRICK_ROWS - row) * 110, 30)
+        -- Higher rows ring higher: the "blip" effect at a row's note.
+        Sound.Play("blip", 72 + (#BRICK_ROWS - row) * 2)
         return true
     end
     return false
@@ -88,7 +89,7 @@ local function move_ball()
             if math.abs(ball_vx) < speed * 0.2 then
                 ball_vx = (offset < 0 and -1 or 1) * speed * 0.2
             end
-            Sound.Tone(440, 25)
+            Sound.Effect("bounce")
             return
         end
     end
@@ -126,7 +127,7 @@ local function step()
             if bricks_left == 0 then
                 state = "clear"
                 hide_ball()
-                Sound.Tone(880, 200)
+                Sound.Effect("powerup")
                 draw_message("LEVEL " .. level .. " CLEARED", {
                     "score " .. score,
                     "",

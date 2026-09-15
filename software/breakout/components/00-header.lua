@@ -17,6 +17,9 @@
 --   row 27       the paddle (7 cells)
 --   row 29       the ball is lost below the paddle
 --
+-- Sounds are the OS's built-in effects (Sound.Effect: "bounce", "hit",
+-- "hurt", "powerup") and "blip" played at a note per brick row.
+--
 -- Keys: cursor left/right (or Z / X, or joystick 1) move the paddle,
 -- SPACE (or fire) serves the ball, RETURN restarts after game over,
 -- ESC quits (the device restarts).

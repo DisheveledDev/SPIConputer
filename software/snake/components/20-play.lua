@@ -60,7 +60,7 @@ end
 -- Crashed: mark the head, sound, save a new high score, show the result.
 local function game_over()
     state = "over"
-    Sound.Noise(300)
+    Sound.Effect("explosion")
     draw_cell(head, 32, DEAD_ATTR)
     if new_hiscore then
         save_hiscore()
@@ -75,8 +75,7 @@ end
 
 local function next_level()
     level = level + 1
-    Sound.Tone(660, 80)
-    Sound.Tone(990, 120)
+    Sound.Effect("teleport")
     draw_level()
     serve()
 end

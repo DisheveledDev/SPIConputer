@@ -49,7 +49,7 @@ local function step()
         grow = grow + GROW_PER_FOOD
         eaten = eaten + 1
         add_score(FOOD_POINTS * level)
-        Sound.Tone(880, 30)
+        Sound.Effect("coin")
         if eaten >= FOODS_PER_LEVEL then
             draw_hud()
             next_level()
@@ -64,7 +64,7 @@ local function step()
     elseif what == BONUS then
         add_score(bonus_digit() * FOOD_POINTS * level)
         bonus_cell, bonus_steps = 0, 0     -- eaten: the head covers it
-        Sound.Tone(1320, 60)
+        Sound.Effect("powerup")
         draw_hud()
     else
         tick_bonus()

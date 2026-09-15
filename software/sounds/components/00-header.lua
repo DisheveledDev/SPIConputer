@@ -1,0 +1,13 @@
+-- sounds.lua — the built-in sound bank and a tune, to listen to.
+--
+-- Launch from the shell:  sounds   (or pick SOUNDS in APPS).
+--
+-- A list of every built-in sound: UP/DOWN move, RETURN plays the one
+-- selected (instruments at C4, effects at their own pitch), LEFT/RIGHT
+-- play an instrument a fifth down or up, M starts and stops the demo
+-- tune (Music.Track, three MML channels), ESC quits. The right-hand
+-- panel shows the selected sound's definition, so a program can copy
+-- it into Sound.Define and change it.
+--
+-- Built from the SPIEdit project in this folder: `swift run
+-- --package-path ide/macos spibuild software/sounds`.
