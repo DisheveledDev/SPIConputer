@@ -49,6 +49,13 @@ function Overlay.OutText(x, y, text, attr)
     return OverlayWrite(x, y, tostring(text), attr or 0)
 end
 
+--- Overlay.OutAttrs(x, y, attrs)
+-- Sets the attributes of consecutive overlay cells from (x, y), one
+-- byte of `attrs` per cell; characters stay. One display op.
+function Overlay.OutAttrs(x, y, attrs)
+    return OverlayWriteAttr(x, y, attrs)
+end
+
 --- Overlay.CenterText(y, text [, attr])
 -- Writes a string centred on row `y` of the overlay.
 function Overlay.CenterText(y, text, attr)

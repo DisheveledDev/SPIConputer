@@ -88,6 +88,14 @@ function Screen.OutText(x, y, text, attr)
     return ScreenWrite(x, y, tostring(text), attr)
 end
 
+--- Screen.OutAttrs(x, y, attrs)
+-- Sets the attributes of consecutive cells from (x, y), one byte of
+-- `attrs` per cell, wrapping at the right edge; characters stay. One
+-- display op: colour a row (string.char of Attributes values) at once.
+function Screen.OutAttrs(x, y, attrs)
+    return ScreenWriteAttr(x, y, attrs)
+end
+
 --- Screen.CenterText(y, text [, attr])
 -- Writes a string centred on row `y`.
 function Screen.CenterText(y, text, attr)

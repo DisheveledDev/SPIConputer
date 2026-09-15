@@ -955,6 +955,41 @@
       "seeAlso": []
     },
     {
+      "name": "Overlay.OutAttrs",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.OutAttrs(x, y, attrs)",
+      "summary": "Sets the attributes of consecutive overlay cells from (x, y), characters unchanged.",
+      "description": "The overlay twin of Screen.OutAttrs: one byte per cell, one display op.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "number",
+          "optional": false,
+          "description": "column 0-39"
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "optional": false,
+          "description": "row 0-29"
+        },
+        {
+          "name": "attrs",
+          "type": "string",
+          "optional": false,
+          "description": "one attribute byte per cell"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "Overlay.OutAttrs(2, 3, string.char(Attributes.Yellow, Attributes.Green))",
+      "seeAlso": [
+        "Overlay.OutText",
+        "Screen.OutAttrs"
+      ]
+    },
+    {
       "name": "Overlay.CenterText",
       "kind": "function",
       "group": "Overlay",
@@ -2101,6 +2136,42 @@
       "returns": "",
       "example": "Screen.OutText(2, 5, \"Hello, world!\", 0x02)",
       "seeAlso": []
+    },
+    {
+      "name": "Screen.OutAttrs",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.OutAttrs(x, y, attrs)",
+      "summary": "Sets the attributes of consecutive cells from (x, y), characters unchanged.",
+      "description": "One byte of attrs per cell, from (x, y) onwards, wrapping at the right edge; the characters stay. One display op, so a whole row can be recoloured at once: build the string with string.char and Attributes values.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "number",
+          "optional": false,
+          "description": "column 0-39"
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "optional": false,
+          "description": "row 0-29"
+        },
+        {
+          "name": "attrs",
+          "type": "string",
+          "optional": false,
+          "description": "one attribute byte per cell"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "Screen.OutAttrs(0, 5, string.rep(string.char(Attributes.Red + Attributes.Inverse), 40))",
+      "seeAlso": [
+        "Screen.OutText",
+        "Screen.FillAttr",
+        "Attributes"
+      ]
     },
     {
       "name": "Screen.CenterText",
