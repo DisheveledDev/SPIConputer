@@ -145,7 +145,12 @@ in `main` are visible to `input` and `tick`.
 can select in Project Settings. New projects, and projects whose manifest
 predates frameworks (no `sdks` key), select them all; untick to opt out.
 They are: `screen`
-(`Screen.*`), `overlay` (`Overlay.*`), `sound` (`Sound.*`, `Music.*`) and
+(`Screen.*`: text, windows, fills, block moves, lines, shades, progress
+bars, mode-10 pixel lines and rectangles), `overlay` (`Overlay.*`: the
+same on the overlay, plus dialogs), `text` (`Text.*`: alignment,
+padding, wrapping, number formatting), `timer` (`Timer.*`: timer objects
+with an id that can be cancelled, paused, resumed and restarted; `t:Pause()`
+and `Timer.Pause(t)` are the same call), `sound` (`Sound.*`, `Music.*`) and
 `input` (`Input.Keyboard.*`, `Input.Joystick.*`). They are plain Lua over
 the OS API, injected into the built program after the `__spi_*` flags
 and before the components, so their namespaces exist when the program's

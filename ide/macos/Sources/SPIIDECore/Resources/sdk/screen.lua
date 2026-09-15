@@ -278,3 +278,161 @@ end
 function Screen.LoadImage(path, x, y, w, h)
     return ScreenLoadImage(path, x, y, w, h)
 end
+
+--- Screen.OutLines(x, y, lines [, attr])
+-- Writes an array of strings on consecutive rows from (x, y). Returns
+-- the number of rows written (rows below the screen are dropped).
+function Screen.OutLines(x, y, lines, attr)
+    local n = 0
+    for i, line in ipairs(lines) do
+        local row = y + i - 1
+        if row >= Screen.ROWS then break end
+        ScreenWrite(x, row, tostring(line), attr)
+        n = n + 1
+    end
+    return n
+end
+
+-- Word-wrap helper shared by OutWrapped and Label.
+local function wrap_words(s, width)
+    local lines = {}
+    for paragraph in (tostring(s) .. "\n"):gmatch("([^\n]*)\n") do
+        local line = ""
+        for token in paragraph:gmatch("%S+") do
+            local word = token -- loop variables are const in Lua 5.5
+            while #word > width do
+                if #line > 0 then lines[#lines + 1] = line line = "" end
+                lines[#lines + 1] = word:sub(1, width)
+                word = word:sub(width + 1)
+            end
+            if #line == 0 then
+                line = word
+            elseif #line + 1 + #word <= width then
+                line = line .. " " .. word
+            else
+                lines[#lines + 1] = line
+                line = word
+            end
+        end
+        lines[#lines + 1] = line
+    end
+    return lines
+end
+
+--- Screen.OutWrapped(x, y, width, text [, attr])
+-- Word-wraps `text` to `width` cells and writes the lines from (x, y).
+-- Returns the number of rows used.
+function Screen.OutWrapped(x, y, width, text, attr)
+    local lines = wrap_words(text, width)
+    local n = 0
+    for i, line in ipairs(lines) do
+        local row = y + i - 1
+        if row >= Screen.ROWS then break end
+        ScreenFill(x, row, width, 1, 32, attr or 0)
+        ScreenWrite(x, row, line, attr)
+        n = n + 1
+    end
+    return n
+end
+
+--- Screen.Label(x, y, width, text, align [, attr])
+-- Writes `text` inside a `width`-cell field, padded and aligned "left",
+-- "center" or "right" (default left); longer text is cut to the field.
+function Screen.Label(x, y, width, text, align, attr)
+    text = tostring(text)
+    if #text > width then text = text:sub(1, width) end
+    local space = width - #text
+    local before = 0
+    if align == "center" then before = space // 2
+    elseif align == "right" then before = space end
+    local padded = string.rep(" ", before) .. text .. string.rep(" ", space - before)
+    return ScreenWrite(x, y, padded, attr)
+end
+
+--- Screen.Progress(x, y, width, fraction [, attr])
+-- A progress bar `width` cells wide: solid blocks for `fraction` (0..1)
+-- of it, light shade for the rest.
+function Screen.Progress(x, y, width, fraction, attr)
+    if fraction < 0 then fraction = 0 end
+    if fraction > 1 then fraction = 1 end
+    local filled = math.floor(width * fraction + 0.5)
+    if filled > 0 then ScreenFill(x, y, filled, 1, 219, attr or 0) end
+    if filled < width then ScreenFill(x + filled, y, width - filled, 1, 176, attr or 0) end
+    return true
+end
+
+--- Screen.Rect(x1, y1, x2, y2, char [, attr])
+-- The outline of a rectangle drawn with one character (Box draws frames
+-- with the box glyphs; this is for any character, e.g. a block).
+function Screen.Rect(x1, y1, x2, y2, char, attr)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    attr = attr or 0
+    ScreenFill(x, y, w, 1, char, attr)
+    ScreenFill(x, y + h - 1, w, 1, char, attr)
+    ScreenFill(x, y, 1, h, char, attr)
+    return ScreenFill(x + w - 1, y, 1, h, char, attr)
+end
+
+--- Screen.Line(x1, y1, x2, y2, char [, attr])
+-- A straight line of `char` cells between two cells (Bresenham).
+function Screen.Line(x1, y1, x2, y2, char, attr)
+    attr = attr or 0
+    local dx, dy = math.abs(x2 - x1), -math.abs(y2 - y1)
+    local sx, sy = x1 < x2 and 1 or -1, y1 < y2 and 1 or -1
+    local err = dx + dy
+    local x, y = x1, y1
+    while true do
+        if x >= 0 and x < Screen.COLS and y >= 0 and y < Screen.ROWS then
+            ScreenOut(x, y, char, attr)
+        end
+        if x == x2 and y == y2 then break end
+        local e2 = 2 * err
+        if e2 >= dy then err = err + dy x = x + sx end
+        if e2 <= dx then err = err + dx y = y + sy end
+    end
+    return true
+end
+
+--- Screen.Shade(x1, y1, x2, y2, level [, attr])
+-- Fills a region with a shade: level 0 (blank), 1 (light), 2 (medium),
+-- 3 (dark) or 4 (solid).
+function Screen.Shade(x1, y1, x2, y2, level, attr)
+    local glyphs = { [0] = 32, 176, 177, 178, 219 }
+    local x, y, w, h = region(x1, y1, x2, y2)
+    return ScreenFill(x, y, w, h, glyphs[math.max(0, math.min(4, math.floor(level)))], attr or 0)
+end
+
+--- Screen.PixelLine(x1, y1, x2, y2, colour)
+-- Mode 10: a straight line of pixels (Bresenham) in a palette colour.
+function Screen.PixelLine(x1, y1, x2, y2, colour)
+    local dx, dy = math.abs(x2 - x1), -math.abs(y2 - y1)
+    local sx, sy = x1 < x2 and 1 or -1, y1 < y2 and 1 or -1
+    local err = dx + dy
+    local x, y = x1, y1
+    while true do
+        if x >= 0 and x < 320 and y >= 0 and y < 240 then
+            ScreenPlot(x, y, colour)
+        end
+        if x == x2 and y == y2 then break end
+        local e2 = 2 * err
+        if e2 >= dy then err = err + dy x = x + sx end
+        if e2 <= dx then err = err + dx y = y + sy end
+    end
+    return true
+end
+
+--- Screen.PixelRect(x, y, w, h, colour [, filled])
+-- Mode 10: a rectangle outline (or filled when `filled` is true) of
+-- pixels in a palette colour.
+function Screen.PixelRect(x, y, w, h, colour, filled)
+    for py = y, y + h - 1 do
+        for px = x, x + w - 1 do
+            if filled or py == y or py == y + h - 1 or px == x or px == x + w - 1 then
+                if px >= 0 and px < 320 and py >= 0 and py < 240 then
+                    ScreenPlot(px, py, colour)
+                end
+            end
+        end
+    end
+    return true
+end

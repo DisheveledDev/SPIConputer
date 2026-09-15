@@ -207,3 +207,123 @@ function Overlay.Scroll(x1, y1, x2, y2, dx, dy, char, attr)
     local x, y, w, h = region(x1, y1, x2, y2)
     return OverlayScroll(x, y, w, h, dx, dy, char or 32, attr or 0x40)
 end
+
+--- Overlay.OutLines(x, y, lines [, attr])
+-- Writes an array of strings on consecutive overlay rows from (x, y).
+-- Returns the number of rows written.
+function Overlay.OutLines(x, y, lines, attr)
+    local n = 0
+    for i, line in ipairs(lines) do
+        local row = y + i - 1
+        if row >= Overlay.ROWS then break end
+        OverlayWrite(x, row, tostring(line), attr or 0)
+        n = n + 1
+    end
+    return n
+end
+
+local function wrap_words(s, width)
+    local lines = {}
+    for paragraph in (tostring(s) .. "\n"):gmatch("([^\n]*)\n") do
+        local line = ""
+        for token in paragraph:gmatch("%S+") do
+            local word = token -- loop variables are const in Lua 5.5
+            while #word > width do
+                if #line > 0 then lines[#lines + 1] = line line = "" end
+                lines[#lines + 1] = word:sub(1, width)
+                word = word:sub(width + 1)
+            end
+            if #line == 0 then
+                line = word
+            elseif #line + 1 + #word <= width then
+                line = line .. " " .. word
+            else
+                lines[#lines + 1] = line
+                line = word
+            end
+        end
+        lines[#lines + 1] = line
+    end
+    return lines
+end
+
+--- Overlay.OutWrapped(x, y, width, text [, attr])
+-- Word-wraps `text` to `width` cells on the overlay from (x, y).
+-- Returns the number of rows used.
+function Overlay.OutWrapped(x, y, width, text, attr)
+    local lines = wrap_words(text, width)
+    local n = 0
+    for i, line in ipairs(lines) do
+        local row = y + i - 1
+        if row >= Overlay.ROWS then break end
+        OverlayFill(x, row, width, 1, 32, attr or 0)
+        OverlayWrite(x, row, line, attr or 0)
+        n = n + 1
+    end
+    return n
+end
+
+--- Overlay.Label(x, y, width, text, align [, attr])
+-- Writes `text` in a `width`-cell field of the overlay, aligned "left",
+-- "center" or "right" (default left); longer text is cut.
+function Overlay.Label(x, y, width, text, align, attr)
+    text = tostring(text)
+    if #text > width then text = text:sub(1, width) end
+    local space = width - #text
+    local before = 0
+    if align == "center" then before = space // 2
+    elseif align == "right" then before = space end
+    local padded = string.rep(" ", before) .. text .. string.rep(" ", space - before)
+    return OverlayWrite(x, y, padded, attr or 0)
+end
+
+--- Overlay.Progress(x, y, width, fraction [, attr])
+-- A progress bar on the overlay: solid blocks for `fraction` (0..1),
+-- light shade for the rest.
+function Overlay.Progress(x, y, width, fraction, attr)
+    if fraction < 0 then fraction = 0 end
+    if fraction > 1 then fraction = 1 end
+    local filled = math.floor(width * fraction + 0.5)
+    if filled > 0 then OverlayFill(x, y, filled, 1, 219, attr or 0) end
+    if filled < width then OverlayFill(x + filled, y, width - filled, 1, 176, attr or 0) end
+    return true
+end
+
+--- Overlay.Rect(x1, y1, x2, y2, char [, attr])
+-- The outline of a rectangle on the overlay drawn with one character.
+function Overlay.Rect(x1, y1, x2, y2, char, attr)
+    local x, y, w, h = region(x1, y1, x2, y2)
+    attr = attr or 0
+    OverlayFill(x, y, w, 1, char, attr)
+    OverlayFill(x, y + h - 1, w, 1, char, attr)
+    OverlayFill(x, y, 1, h, char, attr)
+    return OverlayFill(x + w - 1, y, 1, h, char, attr)
+end
+
+--- Overlay.Line(x1, y1, x2, y2, char [, attr])
+-- A straight line of `char` cells on the overlay (Bresenham).
+function Overlay.Line(x1, y1, x2, y2, char, attr)
+    attr = attr or 0
+    local dx, dy = math.abs(x2 - x1), -math.abs(y2 - y1)
+    local sx, sy = x1 < x2 and 1 or -1, y1 < y2 and 1 or -1
+    local err = dx + dy
+    local x, y = x1, y1
+    while true do
+        if x >= 0 and x < Overlay.COLS and y >= 0 and y < Overlay.ROWS then
+            OverlayOut(x, y, char, attr)
+        end
+        if x == x2 and y == y2 then break end
+        local e2 = 2 * err
+        if e2 >= dy then err = err + dy x = x + sx end
+        if e2 <= dx then err = err + dx y = y + sy end
+    end
+    return true
+end
+
+--- Overlay.Shade(x1, y1, x2, y2, level [, attr])
+-- Fills an overlay region with a shade: level 0 (blank) to 4 (solid).
+function Overlay.Shade(x1, y1, x2, y2, level, attr)
+    local glyphs = { [0] = 32, 176, 177, 178, 219 }
+    local x, y, w, h = region(x1, y1, x2, y2)
+    return OverlayFill(x, y, w, h, glyphs[math.max(0, math.min(4, math.floor(level)))], attr or 0)
+end

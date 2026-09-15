@@ -291,9 +291,11 @@ instead of 1200 ops. They are text-mode calls; mode 10 has `ScreenPlot`.
 ### Frameworks
 
 The IDE can inject read-only frameworks (SDKs) into a program: `Screen`,
-`Overlay`, `Sound`/`Music` and `Input` namespaces with higher-level calls
-such as `Screen.CenterText(y, text)`, `Screen.Move(x1, y1, x2, y2, x3, y3)`,
-`Overlay.Dialog(title, lines)`, `Sound.Tone(hz, ms)` and
+`Overlay`, `Text`, `Timer`, `Sound`/`Music` and `Input` namespaces with
+higher-level calls such as `Screen.CenterText(y, text)`,
+`Screen.Move(x1, y1, x2, y2, x3, y3)`, `Overlay.Dialog(title, lines)`,
+`Text.Wrap(s, width)`, `Timer.Every(ms, fn)` (returning an object with
+`Cancel`/`Pause`/`Resume`), `Sound.Tone(hz, ms)` and
 `Input.Keyboard.Callback(key, fn)`. They are plain Lua over the API above,
 selected per project in the IDE's settings, and stripped at build time to
 the functions the program uses. The framework sources (and their

@@ -66,7 +66,9 @@ struct CompletionTests {
         let sdk = SDKLibrary.signatures(for: ["screen", "input"])
         // A dotted prefix matches the namespaced names, with parameters.
         let items = LuaCompletion.items("Screen.Ou", in: "", including: sdk)
-        #expect(items.map(\.name) == ["Screen.Out", "Screen.OutLine", "Screen.OutText"])
+        #expect(items.map(\.name) == [
+            "Screen.Out", "Screen.OutLine", "Screen.OutText", "Screen.OutLines", "Screen.OutWrapped",
+        ])
         let outText = try #require(items.first { $0.name == "Screen.OutText" })
         #expect(outText.detail == "(x, y, text, [attr])")
         // Nested namespaces too.

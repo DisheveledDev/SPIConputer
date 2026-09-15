@@ -92,9 +92,30 @@ struct SDKLibraryTests {
         #expect(SDKLibrary.emit(sdk, usedBy: ["local function helper() end helper()"]) == nil)
     }
 
+    @Test func methodCallsKeepTheNamespaceFunction() throws {
+        // `t:Pause()` on a Timer object dispatches to Timer.Pause, so a
+        // program that only uses the method form still needs the block.
+        let timer = try #require(SDKLibrary.sdk(id: "timer"))
+        let text = try #require(SDKLibrary.emit(
+            timer, usedBy: ["local t = Timer.Every(100, tick)\nt:Pause()\nt:Resume()"]))
+        #expect(text.contains("function Timer.Every("))
+        #expect(text.contains("function Timer.Create("), "Every calls Create")
+        #expect(text.contains("function Timer.Pause("), "kept through t:Pause()")
+        #expect(text.contains("function Timer.Resume("), "kept through t:Resume()")
+        #expect(text.contains("local function arm("), "Create calls arm")
+        #expect(text.contains("local function fire("), "arm calls fire")
+        #expect(text.contains("local function resolve("), "Pause calls resolve")
+        #expect(!text.contains("function Timer.CancelAll("))
+        // A method name that matches no block keeps nothing extra.
+        #expect(SDKLibrary.emit(timer, usedBy: ["obj:Frobnicate()"]) == nil)
+        // Identifiers: a method token is recorded with its colon.
+        let ids = SDKLibrary.identifiers(in: "x = a.b:Pause(1) -- t:Comment()")
+        #expect(ids.contains(":Pause") && ids.contains("a.b") && !ids.contains(":Comment"))
+    }
+
     @Test func bundledFrameworksLoadAndParse() throws {
         let ids = SDKLibrary.available.map(\.id)
-        #expect(ids == ["screen", "overlay", "sound", "input"])
+        #expect(ids == ["screen", "overlay", "text", "timer", "sound", "input"])
         for sdk in SDKLibrary.available {
             #expect(!sdk.blocks.isEmpty, "\(sdk.id) has functions")
             #expect(!sdk.summary.isEmpty, "\(sdk.id) has a summary")

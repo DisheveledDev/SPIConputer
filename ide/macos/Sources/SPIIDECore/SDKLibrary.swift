@@ -44,7 +44,7 @@ public struct SDK: Sendable, Equatable, Identifiable {
 public enum SDKLibrary {
     /// Bundled frameworks in presentation order.
     public static let available: [SDK] = {
-        let order = ["screen", "overlay", "sound", "input"]
+        let order = ["screen", "overlay", "text", "timer", "sound", "input"]
         var found: [String: SDK] = [:]
         if let urls = Bundle.module.urls(forResourcesWithExtension: "lua", subdirectory: "sdk") {
             for url in urls {
@@ -205,11 +205,15 @@ public enum SDKLibrary {
 
     /// Dotted and plain identifiers in `text`, with strings and comments
     /// masked out. `Screen.OutText` contributes "Screen.OutText" and
-    /// "Screen"; a plain `helper` contributes "helper".
+    /// "Screen"; a plain `helper` contributes "helper"; a method call
+    /// `t:Pause(` contributes ":Pause", which keeps any block whose last
+    /// name component is Pause (framework objects dispatch `obj:Method()`
+    /// to `Namespace.Method`).
     static func identifiers(in text: String) -> Set<String> {
         let masked = LuaSignatureHelp.maskedText(text) as String
         var result = Set<String>()
         var current = ""
+        var previousWasColon = false
         func flush() {
             if !current.isEmpty {
                 result.insert(current)
@@ -221,15 +225,30 @@ public enum SDKLibrary {
         }
         for c in masked {
             if c.isLetter || c.isNumber || c == "_" {
+                if current.isEmpty && previousWasColon {
+                    current = ":"
+                }
                 current.append(c)
-            } else if c == "." && !current.isEmpty {
+                previousWasColon = false
+            } else if c == "." && !current.isEmpty && !current.hasPrefix(":") {
                 current.append(c)
+                previousWasColon = false
             } else {
                 flush()
+                previousWasColon = (c == ":")
             }
         }
         flush()
         return result
+    }
+
+    /// Whether `used` (from identifiers(in:)) refers to the block `name`.
+    static func references(_ used: Set<String>, block name: String) -> Bool {
+        if used.contains(name) { return true }
+        if let dot = name.lastIndex(of: ".") {
+            return used.contains(":" + name[name.index(after: dot)...])
+        }
+        return false
     }
 
     // MARK: Stripping
@@ -248,11 +267,11 @@ public enum SDKLibrary {
     public static func emit(_ sdk: SDK, referenced used: Set<String>) -> String? {
         let byName = Dictionary(sdk.blocks.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         var kept = Set<String>()
-        var queue = sdk.blocks.filter { !$0.isLocal && used.contains($0.name) }.map(\.name)
+        var queue = sdk.blocks.filter { !$0.isLocal && references(used, block: $0.name) }.map(\.name)
         while let name = queue.popLast() {
             guard kept.insert(name).inserted, let block = byName[name] else { continue }
-            for reference in block.references where byName[reference] != nil && !kept.contains(reference) {
-                queue.append(reference)
+            for other in sdk.blocks where !kept.contains(other.name) && references(block.references, block: other.name) {
+                queue.append(other.name)
             }
         }
         guard !kept.isEmpty else { return nil }
