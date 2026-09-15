@@ -2,13 +2,15 @@
 --
 -- Launch from the shell:  sounds   (or pick SOUNDS in APPS).
 --
--- A list of every built-in sound: UP/DOWN move, RETURN plays the one
--- selected (instruments at C4, effects at their own pitch), LEFT/RIGHT
--- play an instrument a fifth down or up, M starts and stops the demo
--- tune (Music.Track, four MML channels), D the bundled ProTracker
--- module (resources/demo.mod, streamed from the card), ESC quits. The right-hand
--- panel shows the selected sound's definition, so a program can copy
--- it into Sound.Define and change it.
+-- Two pages, TAB switches. SOUNDS lists every built-in sound: UP/DOWN
+-- move, RETURN plays the one selected (instruments at C4, effects at
+-- their own pitch), LEFT/RIGHT play an instrument a fifth down or up,
+-- M starts and stops the demo tune (Music.Track, four MML channels).
+-- The right-hand panel shows the selected sound's definition, so a
+-- program can copy it into Sound.Define and change it. MODULES lists
+-- the .mod files in the app's resources folder: RETURN loads and plays
+-- one (streamed from the card), SPACE stops it, and the panel shows its
+-- facts, the position and the underrun count. ESC quits.
 --
 -- Built from the SPIEdit project in this folder: `swift run
 -- --package-path ide/macos spibuild software/sounds`.
