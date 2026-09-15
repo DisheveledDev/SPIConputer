@@ -78,6 +78,10 @@ struct ContentView: View {
                     }
                     .help("Build and run in the simulator")
                 }
+                Button("Install", systemImage: "square.and.arrow.down") {
+                    model.install()
+                }
+                .help("Build, then copy the product into the SD card image (Settings)")
                 Button("Reveal Build Output", systemImage: "folder") {
                     model.revealBuildOutput()
                 }

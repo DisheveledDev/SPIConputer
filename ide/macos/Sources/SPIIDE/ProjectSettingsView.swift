@@ -7,8 +7,8 @@ struct ProjectSettingsView: View {
     @State private var name = ""
     @State private var version = ""
     @State private var description = ""
-    @State private var interactive = true
-    @State private var outputKind: ProjectOutputKind = .app
+    @State private var kind: ProjectKind = .application
+    @State private var installDirectory = ""
     @State private var video = true
     @State private var audio = true
     @State private var iconFile = ""
@@ -42,26 +42,32 @@ struct ProjectSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section("Runtime") {
-                Picker("Output", selection: $outputKind) {
-                    ForEach(ProjectOutputKind.allCases, id: \.self) { kind in
+            Section("Kind") {
+                Picker("Kind", selection: $kind) {
+                    ForEach(ProjectKind.allCases, id: \.self) { kind in
                         Text(kind.displayName).tag(kind)
                     }
                 }
-                Toggle("Interactive application", isOn: $interactive)
-                Toggle("Requires video state", isOn: $video)
-                    .disabled(!interactive)
-                Toggle("Requires audio state", isOn: $audio)
-                    .disabled(!interactive)
-                Text(outputKind == .app ? "Output is an installable .app bundle." : "Output is a PRG-only system program.")
+                Text(kind.summary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle("Requires video state", isOn: $video)
+                    .disabled(!kind.interactive)
+                Toggle("Requires audio state", isOn: $audio)
+                    .disabled(!kind.interactive)
+                TextField("Install folder on the card", text: $installDirectory,
+                          prompt: Text(kind.installDirectory))
+                    .help("Leave empty for the kind's default (\(kind.installDirectory)/); the boot program and the shell use core")
             }
             Section("Output") {
+                LabeledContent("Build folder", value: "build/")
                 LabeledContent("Source", value: model.project?.programFileName ?? "")
-                LabeledContent("Bundle", value: model.project?.appBundleURL.lastPathComponent ?? "")
-                LabeledContent("Metadata", value: "app.json")
-                LabeledContent("Entry point", value: "app.prg")
+                LabeledContent("Program", value: model.project?.prgFileName ?? "")
+                if let bundle = model.project?.bundleName {
+                    LabeledContent("Bundle", value: "\(bundle)/ (app.prg, app.json, resources/)")
+                }
+                LabeledContent("Installs to",
+                               value: "\(installDirectory.isEmpty ? kind.installDirectory : installDirectory)/")
             }
             HStack {
                 Spacer()
@@ -70,8 +76,8 @@ struct ProjectSettingsView: View {
                         name: name,
                         version: version,
                         description: description,
-                        interactive: interactive,
-                        outputKind: outputKind,
+                        kind: kind,
+                        installDirectory: installDirectory,
                         requiresVideo: video,
                         requiresAudio: audio,
                         iconFile: iconFile,
@@ -92,8 +98,8 @@ struct ProjectSettingsView: View {
         name = manifest.name
         version = manifest.version
         description = manifest.description
-        interactive = manifest.interactive
-        outputKind = manifest.outputKind
+        kind = manifest.kind
+        installDirectory = manifest.installDirectory ?? ""
         video = manifest.requiresVideo
         audio = manifest.requiresAudio
         iconFile = manifest.iconFile ?? ""

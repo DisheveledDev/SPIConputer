@@ -52,6 +52,8 @@ struct SPIIDEApp: App {
                     }
                 }
                 .keyboardShortcut("r")
+                Button("Install to SD Card Image") { model.install() }
+                    .keyboardShortcut("i")
             }
             CommandMenu("Developer") {
                 Button("Dump Editor Diagnostics") {

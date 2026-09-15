@@ -1,28 +1,77 @@
 import Foundation
 
-public enum ProjectOutputKind: String, Codable, CaseIterable, Sendable {
-    case app
-    case prg
+/// What a project builds into, and how the OS runs it.
+public enum ProjectKind: String, Codable, CaseIterable, Sendable {
+    /// A `.prg` (and `.lua`) with nothing bundled: booted directly, or
+    /// installed loose (system programs such as boot and the shell).
+    case raw
+    /// An `.app` bundle the shell launches on top of itself.
+    case application
+    /// A `.util` bundle: a command with no screen or sound of its own
+    /// that runs once with arguments and returns a table to the shell.
+    case utility
+    /// A `.game` bundle: replaces the shell, owns the machine, and the
+    /// device restarts when it exits.
+    case game
 
     public var displayName: String {
         switch self {
-        case .app: "Application bundle (.app)"
-        case .prg: "System program (.prg)"
+        case .raw: "Raw program (.prg)"
+        case .application: "Application (.app)"
+        case .utility: "Command-line utility (.util)"
+        case .game: "Game (.game)"
         }
     }
+
+    public var summary: String {
+        switch self {
+        case .raw: "A bare .prg and .lua; runs directly with no OS behind it."
+        case .application: "Launched from the shell's APPS list or by name; returns to the shell."
+        case .utility: "Runs once with arguments, no screen of its own, returns a table to the shell. Installs to utils/."
+        case .game: "Takes over the machine: the shell is freed and the device restarts when it exits. Installs to games/."
+        }
+    }
+
+    /// Bundle folder extension, or nil for a raw program.
+    public var bundleExtension: String? {
+        switch self {
+        case .raw: nil
+        case .application: "app"
+        case .utility: "util"
+        case .game: "game"
+        }
+    }
+
+    /// Where an install puts the product on the card.
+    public var installDirectory: String {
+        switch self {
+        case .raw: "data"
+        case .application: "apps"
+        case .utility: "utils"
+        case .game: "games"
+        }
+    }
+
+    /// Whether the program has its own screen and sound (everything but
+    /// a utility).
+    public var interactive: Bool { self != .utility }
+
+    /// The IDE's Run: boot the product itself, or install it into a card
+    /// with the OS and boot the OS.
+    public var runsUnderOS: Bool { self == .application || self == .utility }
 }
 
 /// The project manifest (`project.spiproj`): an ordered list of
 /// components that build into one Lua program file.
 public struct ProjectManifest: Codable, Sendable, Equatable {
-    public static let currentFormatVersion = 1
+    public static let currentFormatVersion = 2
 
     public var formatVersion: Int
     public var name: String
-    /// Folder (relative to the project) the built program is written to.
-    public var outputDirectory: String
-    public var interactive: Bool
-    public var outputKind: ProjectOutputKind
+    public var kind: ProjectKind
+    /// Card folder the product installs to, overriding the kind's default
+    /// (`core` for the boot program and the shell).
+    public var installDirectory: String?
     public var requiresVideo: Bool
     public var requiresAudio: Bool
     public var version: String
@@ -34,12 +83,14 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
     public var sdks: [String]
     public var components: [ComponentRef]
 
+    /// Utilities have no screen or sound of their own.
+    public var interactive: Bool { kind.interactive }
+
     public init(
         formatVersion: Int = ProjectManifest.currentFormatVersion,
         name: String,
-        outputDirectory: String = "build",
-        interactive: Bool = true,
-        outputKind: ProjectOutputKind = .app,
+        kind: ProjectKind = .application,
+        installDirectory: String? = nil,
         requiresVideo: Bool = true,
         requiresAudio: Bool = true,
         version: String = "1.0",
@@ -50,9 +101,8 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
     ) {
         self.formatVersion = formatVersion
         self.name = name
-        self.outputDirectory = outputDirectory
-        self.interactive = interactive
-        self.outputKind = outputKind
+        self.kind = kind
+        self.installDirectory = installDirectory
         self.requiresVideo = requiresVideo
         self.requiresAudio = requiresAudio
         self.version = version
@@ -65,9 +115,8 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
     enum CodingKeys: String, CodingKey {
         case formatVersion = "format_version"
         case name
-        case outputDirectory = "output_directory"
-        case interactive
-        case outputKind = "output_kind"
+        case kind
+        case installDirectory = "install_directory"
         case requiresVideo = "requires_video"
         case requiresAudio = "requires_audio"
         case version
@@ -75,6 +124,10 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         case iconFile = "icon_file"
         case sdks
         case components
+        // Format 1 keys, read for migration only.
+        case legacyInteractive = "interactive"
+        case legacyOutputKind = "output_kind"
+        case legacyOutputDirectory = "output_directory"
     }
 
     public init(from decoder: Decoder) throws {
@@ -82,10 +135,24 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         formatVersion = try c.decodeIfPresent(Int.self, forKey: .formatVersion)
             ?? ProjectManifest.currentFormatVersion
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Untitled"
-        outputDirectory = try c.decodeIfPresent(String.self, forKey: .outputDirectory)
-            ?? "build"
-        interactive = try c.decodeIfPresent(Bool.self, forKey: .interactive) ?? true
-        outputKind = try c.decodeIfPresent(ProjectOutputKind.self, forKey: .outputKind) ?? .app
+        if let kind = try c.decodeIfPresent(ProjectKind.self, forKey: .kind) {
+            self.kind = kind
+        } else {
+            // Format 1: `output_kind: prg` was a system program, a
+            // non-interactive project a utility, anything else an app.
+            let interactive = try c.decodeIfPresent(Bool.self, forKey: .legacyInteractive) ?? true
+            let outputKind = try c.decodeIfPresent(String.self, forKey: .legacyOutputKind)
+            if outputKind == "prg" {
+                kind = .raw
+            } else {
+                kind = interactive ? .application : .utility
+            }
+        }
+        installDirectory = try c.decodeIfPresent(String.self, forKey: .installDirectory)
+        if installDirectory == nil, try c.decodeIfPresent(String.self, forKey: .legacyOutputDirectory) == "../core" {
+            installDirectory = "core" // format 1 system programs built into core/
+        }
+        let interactive = kind.interactive
         requiresVideo = try c.decodeIfPresent(Bool.self, forKey: .requiresVideo) ?? interactive
         requiresAudio = try c.decodeIfPresent(Bool.self, forKey: .requiresAudio) ?? interactive
         version = try c.decodeIfPresent(String.self, forKey: .version) ?? "1.0"
@@ -97,6 +164,21 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         sdks = try c.decodeIfPresent([String].self, forKey: .sdks)
             ?? SDKLibrary.available.map(\.id)
         components = try c.decodeIfPresent([ComponentRef].self, forKey: .components) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(ProjectManifest.currentFormatVersion, forKey: .formatVersion)
+        try c.encode(name, forKey: .name)
+        try c.encode(kind, forKey: .kind)
+        try c.encodeIfPresent(installDirectory, forKey: .installDirectory)
+        try c.encode(requiresVideo, forKey: .requiresVideo)
+        try c.encode(requiresAudio, forKey: .requiresAudio)
+        try c.encode(version, forKey: .version)
+        try c.encode(description, forKey: .description)
+        try c.encodeIfPresent(iconFile, forKey: .iconFile)
+        try c.encode(sdks, forKey: .sdks)
+        try c.encode(components, forKey: .components)
     }
 }
 

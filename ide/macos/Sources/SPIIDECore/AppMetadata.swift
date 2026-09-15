@@ -15,7 +15,7 @@ public struct AppMetadata: Codable, Sendable, Equatable {
         name = project.manifest.name
         version = project.manifest.version
         description = project.manifest.description
-        type = project.manifest.interactive ? "interactive" : "utility"
+        type = project.manifest.kind.rawValue
         interactive = project.manifest.interactive
         video = project.manifest.requiresVideo
         audio = project.manifest.requiresAudio

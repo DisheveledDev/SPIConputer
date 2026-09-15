@@ -26,15 +26,48 @@ public enum Template {
         """
     }
 
-    public static func mainComponent(projectName: String, interactive: Bool = true) -> String {
-        if !interactive {
+    public static func mainComponent(projectName: String, kind: ProjectKind = .application) -> String {
+        if kind == .utility {
             return """
             -- main.lua — utility entry point.
-            -- UtilityResult(true, "message") completes the utility and sends
-            -- its result back to the shell.
+            --
+            -- A utility runs once, with the words typed after its name in
+            -- `args` (args[1], args[2], ...), and has no screen or sound of
+            -- its own. UtilityResult(ok, value) completes it and hands `value`
+            -- back to the shell: a string prints as one line, a table prints
+            -- its `message` field then every other field as KEY = VALUE.
+            -- Installed into utils/, it becomes a shell command.
 
             function setup()
-                UtilityResult(true, "utility completed")
+                UtilityResult(true, {
+                    message = "\(projectName) ran with " .. #args .. " argument(s)",
+                    count = #args,
+                })
+            end
+
+            function finish()
+            end
+
+            """
+        }
+        if kind == .game {
+            return """
+            -- main.lua — game entry point.
+            --
+            -- A game owns the machine: launching it frees the shell, and the
+            -- device restarts when the game exits (ExitProgram). Nothing is
+            -- left running underneath, so all of the RAM and the whole
+            -- screen are the game's.
+
+            function setup()
+                if ApplyAssets then ApplyAssets() end
+                ScreenMode(1)
+                Screen.CenterText(14, "\(projectName)")
+                Screen.CenterText(16, "press any key to quit")
+            end
+
+            function on_keypress(key)
+                ExitProgram()
             end
 
             function finish()

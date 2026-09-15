@@ -15,7 +15,8 @@ struct ManifestAndStoreTests {
     @Test func manifestRoundTrip() throws {
         let manifest = ProjectManifest(
             name: "Demo",
-            outputDirectory: "build",
+            kind: .game,
+            installDirectory: "games",
             components: [
                 ComponentRef(name: "header", kind: .snippet, file: "components/00-header.lua"),
                 ComponentRef(name: "music", kind: .audio, file: "components/music.json"),
@@ -29,7 +30,8 @@ struct ManifestAndStoreTests {
         let json = Data(#"{"name": "Tiny"}"#.utf8)
         let manifest = try JSONCoding.decode(ProjectManifest.self, from: json)
         #expect(manifest.formatVersion == ProjectManifest.currentFormatVersion)
-        #expect(manifest.outputDirectory == "build")
+        #expect(manifest.kind == .application)
+        #expect(manifest.installDirectory == nil)
         #expect(manifest.components.isEmpty)
         // Projects from before frameworks existed get every framework...
         #expect(manifest.sdks == SDKLibrary.available.map(\.id))
@@ -37,6 +39,41 @@ struct ManifestAndStoreTests {
         let none = try JSONCoding.decode(
             ProjectManifest.self, from: Data(#"{"name": "Tiny", "sdks": []}"#.utf8))
         #expect(none.sdks.isEmpty)
+    }
+
+    @Test func format1ManifestsMigrateToKinds() throws {
+        // output_kind prg into ../core: a system program installed to core/.
+        let system = try JSONCoding.decode(ProjectManifest.self, from: Data(
+            #"{"name": "os", "interactive": true, "output_kind": "prg", "output_directory": "../core"}"#.utf8))
+        #expect(system.kind == .raw)
+        #expect(system.installDirectory == "core")
+        #expect(system.interactive)
+        // A non-interactive project was a utility.
+        let utility = try JSONCoding.decode(ProjectManifest.self, from: Data(
+            #"{"name": "wc", "interactive": false, "output_directory": "../apps"}"#.utf8))
+        #expect(utility.kind == .utility)
+        #expect(!utility.interactive)
+        #expect(!utility.requiresVideo)
+        #expect(utility.installDirectory == nil)
+        // Anything else was an application.
+        let app = try JSONCoding.decode(ProjectManifest.self, from: Data(
+            #"{"name": "editor", "output_directory": "../apps"}"#.utf8))
+        #expect(app.kind == .application)
+        // Re-encoding writes the current format without the old keys.
+        let text = String(decoding: try JSONCoding.encode(system), as: UTF8.self)
+        #expect(text.contains("\"kind\" : \"raw\""))
+        #expect(text.contains("\"install_directory\" : \"core\""))
+        #expect(!text.contains("output_kind") && !text.contains("output_directory"))
+    }
+
+    @Test func kindsDescribeTheirProducts() {
+        #expect(ProjectKind.raw.bundleExtension == nil)
+        #expect(ProjectKind.application.bundleExtension == "app")
+        #expect(ProjectKind.utility.bundleExtension == "util")
+        #expect(ProjectKind.game.bundleExtension == "game")
+        #expect(ProjectKind.allCases.map(\.installDirectory) == ["data", "apps", "utils", "games"])
+        #expect(!ProjectKind.utility.interactive && ProjectKind.game.interactive)
+        #expect(ProjectKind.allCases.map(\.runsUnderOS) == [false, true, true, false])
     }
 
     @Test func componentDefaultsForMissingKeys() throws {

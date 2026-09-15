@@ -162,10 +162,49 @@ struct BuilderTests {
     @Test func utilityProjectMarksGeneratedProgramNoninteractive() throws {
         var project = try makeProject()
         defer { try? FileManager.default.removeItem(at: project.root) }
-        project.manifest.interactive = false
+        project.manifest.kind = .utility
 
         let lua = try ProjectBuilder.render(project)
         #expect(lua.contains("__spi_interactive = false"))
+    }
+
+    @Test func productsLiveInTheProjectsBuildFolder() throws {
+        let project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        #expect(project.buildDirectoryURL == project.root.appendingPathComponent("build"))
+        #expect(project.buildProductURL.lastPathComponent == "Demo.lua")
+        #expect(project.prgProductURL.lastPathComponent == "Demo.prg")
+        #expect(project.bundleName == "Demo.app")
+        #expect(project.installDirectory == "apps")
+
+        var game = project
+        game.manifest.kind = .game
+        #expect(game.bundleName == "Demo.game")
+        #expect(game.installDirectory == "games")
+        var raw = project
+        raw.manifest.kind = .raw
+        #expect(raw.bundleURL == nil)
+        #expect(raw.installDirectory == "data")
+        raw.manifest.installDirectory = "core"
+        #expect(raw.installDirectory == "core")
+    }
+
+    @Test func bundleCarriesKindInMetadata() throws {
+        var project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        project.manifest.kind = .utility
+        try ProjectBuilder.build(project)
+        let fake = project.buildDirectoryURL.appendingPathComponent("fake.prg")
+        try Data([0x1b, 0x4c, 0x75, 0x61]).write(to: fake)
+        try ProjectBuilder.writeAppBundle(project, compiledURL: fake)
+
+        let bundle = try #require(project.bundleURL)
+        #expect(bundle.lastPathComponent == "Demo.util")
+        let metadata = try JSONCoding.decode(
+            AppMetadata.self, from: Data(contentsOf: bundle.appendingPathComponent("app.json")))
+        #expect(metadata.type == "utility")
+        #expect(!metadata.interactive)
+        #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("app.prg").path))
     }
 
     @Test func buildWritesOutputFile() throws {
@@ -179,53 +218,155 @@ struct BuilderTests {
         #expect(onDisk == product.lua)
     }
 
-    @Test func runSessionUsesCompiledProductWhenAvailable() throws {
-        let project = try makeProject()
-        defer { try? FileManager.default.removeItem(at: project.root) }
-        let product = try ProjectBuilder.build(project)
+    private func fakeCompile(_ project: Project) throws {
         let bytecode = Data([0x1b, 0x4c, 0x75, 0x61])
+        try FileManager.default.createDirectory(
+            at: project.buildDirectoryURL, withIntermediateDirectories: true)
         try bytecode.write(to: project.prgProductURL)
-
-        let session = try Runner.prepare(project: project, build: product)
-        #expect(session.programURL.lastPathComponent == "Demo.prg")
-        #expect(try Data(contentsOf: session.programURL) == bytecode)
-        #expect(FileManager.default.fileExists(atPath: project.prgProductURL.path))
+        try ProjectBuilder.writeAppBundle(project, compiledURL: project.prgProductURL)
     }
 
-    @Test func runSessionWritesSdCard() throws {
+    private func makeCardImage() throws -> URL {
+        let card = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spiide-card-\(UUID().uuidString)")
+        let core = card.appendingPathComponent("core")
+        try FileManager.default.createDirectory(at: core, withIntermediateDirectories: true)
+        try Data("-- boot".utf8).write(to: core.appendingPathComponent("boot.prg"))
+        try Data("-- os".utf8).write(to: core.appendingPathComponent("os.prg"))
+        return card
+    }
+
+    @Test func rawProgramRunsDirectlyFromTheRunCard() throws {
+        var project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        project.manifest.kind = .raw
+        let product = try ProjectBuilder.build(project)
+        try fakeCompile(project)
+
+        let session = try Runner.prepare(project: project, build: product)
+        #expect(!session.underOS)
+        #expect(session.bootPath == "data/Demo.prg")
+        #expect(Runner.simulatorArguments(for: session) == [
+            "--sdcard", session.sdcardURL.path, "--boot", "data/Demo.prg",
+        ])
+        let onCard = session.sdcardURL.appendingPathComponent("data/Demo.prg")
+        #expect(try Data(contentsOf: onCard) == Data([0x1b, 0x4c, 0x75, 0x61]))
+        // The source goes along for reference; no OS is copied.
+        #expect(FileManager.default.fileExists(atPath: session.sdcardURL.appendingPathComponent("data/Demo.lua").path))
+        #expect(!FileManager.default.fileExists(atPath: session.sdcardURL.appendingPathComponent("core/boot.prg").path))
+    }
+
+    @Test func rawProgramWithoutCompilerBootsTheSource() throws {
+        var project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        project.manifest.kind = .raw
+        let product = try ProjectBuilder.build(project)
+        let session = try Runner.prepare(project: project, build: product)
+        #expect(session.bootPath == "data/Demo.lua")
+        let onCard = try String(contentsOf: session.sdcardURL.appendingPathComponent("data/Demo.lua"), encoding: .utf8)
+        #expect(onCard == product.lua)
+    }
+
+    @Test func gameRunsDirectlyFromItsBundle() throws {
+        var project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        project.manifest.kind = .game
+        let product = try ProjectBuilder.build(project)
+        try fakeCompile(project)
+
+        let session = try Runner.prepare(project: project, build: product)
+        #expect(!session.underOS)
+        #expect(session.bootPath == "games/Demo.game/app.prg")
+        #expect(FileManager.default.fileExists(
+            atPath: session.sdcardURL.appendingPathComponent("games/Demo.game/app.json").path))
+    }
+
+    @Test func applicationRunsUnderTheOSFromTheCardImage() throws {
         let project = try makeProject()
         defer { try? FileManager.default.removeItem(at: project.root) }
         let product = try ProjectBuilder.build(project)
+        try fakeCompile(project)
+        let card = try makeCardImage()
+        defer { try? FileManager.default.removeItem(at: card) }
 
-        let session = try Runner.prepare(project: project, build: product)
+        // Without a card image the OS cannot be provided.
+        #expect(throws: RunError.noCardImage) {
+            try Runner.prepare(project: project, build: product)
+        }
+
+        let session = try Runner.prepare(project: project, build: product, cardImage: card)
+        #expect(session.underOS)
+        #expect(session.bootPath == "core/boot.prg")
         let fm = FileManager.default
-        #expect(fm.fileExists(atPath: session.programURL.path))
-        let onCard = try String(contentsOf: session.programURL, encoding: .utf8)
-        #expect(onCard == product.lua)
-        #expect(Runner.simulatorArguments(for: session) == [
-            "--sdcard", session.sdcardURL.path,
-            "--boot", "apps/Demo.lua",
-        ])
+        #expect(fm.fileExists(atPath: session.sdcardURL.appendingPathComponent("core/os.prg").path))
+        #expect(fm.fileExists(atPath: session.sdcardURL.appendingPathComponent("apps/Demo.app/app.prg").path))
+        for folder in ["utils", "games", "data"] {
+            #expect(fm.fileExists(atPath: session.sdcardURL.appendingPathComponent(folder).path))
+        }
+
+        // An image without an OS is refused with its path.
+        let empty = fm.temporaryDirectory.appendingPathComponent("spiide-empty-\(UUID().uuidString)")
+        try fm.createDirectory(at: empty, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: empty) }
+        #expect(throws: RunError.cardImageHasNoOS(empty.path)) {
+            try Runner.prepare(project: project, build: product, cardImage: empty)
+        }
     }
 
-    @Test func runSessionKeepsProgramNamedOS() throws {
-        // A project named "OS" used to be clobbered by the simulator's
-        // boot file: on a case-insensitive filesystem the generated
-        // os.lua launcher and OS.lua are the same file.
-        let parent = FileManager.default.temporaryDirectory
-            .appendingPathComponent("spiide-tests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: parent) }
-        let project = try ProjectStore.createProject(named: "OS", in: parent)
+    @Test func utilityInstallsIntoUtils() throws {
+        var project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        project.manifest.kind = .utility
         let product = try ProjectBuilder.build(project)
+        try fakeCompile(project)
+        let card = try makeCardImage()
+        defer { try? FileManager.default.removeItem(at: card) }
 
-        let session = try Runner.prepare(project: project, build: product)
-        #expect(session.programURL.lastPathComponent == "OS.lua")
-        let onCard = try String(contentsOf: session.programURL, encoding: .utf8)
-        #expect(onCard == product.lua)
-        #expect(Runner.simulatorArguments(for: session) == [
-            "--sdcard", session.sdcardURL.path,
-            "--boot", "apps/OS.lua",
-        ])
+        let session = try Runner.prepare(project: project, build: product, cardImage: card)
+        #expect(session.underOS)
+        #expect(FileManager.default.fileExists(
+            atPath: session.sdcardURL.appendingPathComponent("utils/Demo.util/app.prg").path))
+    }
+
+    @Test func installCopiesProductsByKind() throws {
+        var project = try makeProject()
+        defer { try? FileManager.default.removeItem(at: project.root) }
+        let card = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spiide-install-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: card) }
+        let fm = FileManager.default
+
+        // Not built yet: a clear error, nothing written.
+        #expect(throws: ProjectInstaller.InstallError.notBuilt("Demo.app")) {
+            try ProjectInstaller.install(project, into: card)
+        }
+
+        try ProjectBuilder.build(project)
+        try fakeCompile(project)
+        let app = try ProjectInstaller.install(project, into: card)
+        #expect(app.map(\.lastPathComponent) == ["Demo.app"])
+        #expect(fm.fileExists(atPath: card.appendingPathComponent("apps/Demo.app/app.json").path))
+        for folder in ["core", "apps", "utils", "games", "data"] {
+            #expect(fm.fileExists(atPath: card.appendingPathComponent(folder).path), "\(folder)/ exists")
+        }
+
+        // The shell: a raw program installed to core/.
+        project.manifest.kind = .raw
+        project.manifest.installDirectory = "core"
+        try ProjectBuilder.build(project)
+        try fakeCompile(project)
+        let core = try ProjectInstaller.install(project, into: card)
+        #expect(Set(core.map(\.lastPathComponent)) == ["Demo.prg", "Demo.lua"])
+        #expect(fm.fileExists(atPath: card.appendingPathComponent("core/Demo.prg").path))
+
+        // Reinstalling replaces the old bundle rather than merging into it.
+        project.manifest.kind = .game
+        project.manifest.installDirectory = nil
+        try ProjectBuilder.build(project)
+        try fakeCompile(project)
+        try fm.createDirectory(at: card.appendingPathComponent("games/Demo.game/stale"), withIntermediateDirectories: true)
+        try ProjectInstaller.install(project, into: card)
+        #expect(!fm.fileExists(atPath: card.appendingPathComponent("games/Demo.game/stale").path))
+        #expect(fm.fileExists(atPath: card.appendingPathComponent("games/Demo.game/app.prg").path))
     }
 }

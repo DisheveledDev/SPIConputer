@@ -2,13 +2,15 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+import SPIIDECore
+
 struct NewProjectSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = "My Program"
     @State private var parent: URL?
-    @State private var interactive = true
+    @State private var kind: ProjectKind = .application
     @State private var choosingLocation = false
     @FocusState private var nameFocused: Bool
 
@@ -27,8 +29,16 @@ struct NewProjectSheet: View {
                     .onSubmit(create)
             }
 
-            Toggle("Interactive application with its own screen", isOn: $interactive)
-                .toggleStyle(.switch)
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("Kind", selection: $kind) {
+                    ForEach(ProjectKind.allCases, id: \.self) { kind in
+                        Text(kind.displayName).tag(kind)
+                    }
+                }
+                Text(kind.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Location")
@@ -45,7 +55,7 @@ struct NewProjectSheet: View {
             }
 
             HStack {
-                Text("Creates an interactive or utility project with a generated app bundle.")
+                Text("Products build into the project's build/ folder.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -85,7 +95,7 @@ struct NewProjectSheet: View {
 
     private func create() {
         guard canCreate, let parent else { return }
-        model.createProject(named: name, in: parent, interactive: interactive)
+        model.createProject(named: name, in: parent, kind: kind)
         dismiss()
     }
 }

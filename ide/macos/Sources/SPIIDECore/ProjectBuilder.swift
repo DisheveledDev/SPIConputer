@@ -204,7 +204,7 @@ public enum ProjectBuilder {
         let outputURL = project.buildProductURL
         if writeToDisk {
             try FileManager.default.createDirectory(
-                at: project.outputDirectoryURL, withIntermediateDirectories: true)
+                at: project.buildDirectoryURL, withIntermediateDirectories: true)
             try Data(product.lua.utf8).write(to: outputURL, options: .atomic)
         }
         return BuildProduct(
@@ -215,10 +215,16 @@ public enum ProjectBuilder {
     }
 
     /// Accumulates emitted text while tracking generated line numbers.
+    /// Writes the kind's bundle (`.app`, `.util`, `.game`) next to the
+    /// compiled program: `app.prg`, `app.json`, the project's `resources/`
+    /// and an optional icon. Raw programs have no bundle.
     public static func writeAppBundle(_ project: Project, compiledURL: URL) throws {
-        guard project.manifest.outputKind == .app else { return }
+        guard let bundleURL = project.bundleURL,
+              let programURL = project.bundleProgramURL,
+              let metadataURL = project.bundleMetadataURL
+        else { return }
         let fileManager = FileManager.default
-        let resourcesURL = project.appBundleURL.appendingPathComponent("resources")
+        let resourcesURL = bundleURL.appendingPathComponent("resources")
         try fileManager.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
         let projectResources = project.root.appendingPathComponent("resources")
         if fileManager.fileExists(atPath: projectResources.path) {
@@ -229,12 +235,12 @@ public enum ProjectBuilder {
             }
         }
         let metadata = try JSONCoding.encode(AppMetadata(project: project))
-        try metadata.write(to: project.appMetadataURL, options: .atomic)
-        try? fileManager.removeItem(at: project.appProgramURL)
-        try fileManager.copyItem(at: compiledURL, to: project.appProgramURL)
+        try metadata.write(to: metadataURL, options: .atomic)
+        try? fileManager.removeItem(at: programURL)
+        try fileManager.copyItem(at: compiledURL, to: programURL)
         if let iconFile = project.manifest.iconFile {
             let source = project.root.appendingPathComponent(iconFile)
-            let destination = project.appBundleURL.appendingPathComponent(
+            let destination = bundleURL.appendingPathComponent(
                 source.pathExtension.isEmpty ? "icon" : "icon.\(source.pathExtension)")
             if fileManager.fileExists(atPath: source.path) {
                 try? fileManager.removeItem(at: destination)

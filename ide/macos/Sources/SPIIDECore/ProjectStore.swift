@@ -36,28 +36,42 @@ public struct Project: Sendable, Equatable {
         "\(programFileStem).prg"
     }
 
-    public var outputDirectoryURL: URL {
-        root.appendingPathComponent(manifest.outputDirectory)
+    /// Every product goes under the project's own `build/` folder.
+    public var buildDirectoryURL: URL {
+        root.appendingPathComponent("build")
     }
 
     public var buildProductURL: URL {
-        outputDirectoryURL.appendingPathComponent(programFileName)
+        buildDirectoryURL.appendingPathComponent(programFileName)
     }
 
     public var prgProductURL: URL {
-        outputDirectoryURL.appendingPathComponent(prgFileName)
+        buildDirectoryURL.appendingPathComponent(prgFileName)
     }
 
-    public var appBundleURL: URL {
-        outputDirectoryURL.appendingPathComponent("\(programFileStem).app")
+    /// The bundle folder (`name.app`, `name.util`, `name.game`), or nil
+    /// for a raw program.
+    public var bundleURL: URL? {
+        guard let ext = manifest.kind.bundleExtension else { return nil }
+        return buildDirectoryURL.appendingPathComponent("\(programFileStem).\(ext)")
     }
 
-    public var appProgramURL: URL {
-        appBundleURL.appendingPathComponent("app.prg")
+    /// Name of the bundle folder as installed on the card.
+    public var bundleName: String? {
+        manifest.kind.bundleExtension.map { "\(programFileStem).\($0)" }
     }
 
-    public var appMetadataURL: URL {
-        appBundleURL.appendingPathComponent("app.json")
+    public var bundleProgramURL: URL? {
+        bundleURL?.appendingPathComponent("app.prg")
+    }
+
+    public var bundleMetadataURL: URL? {
+        bundleURL?.appendingPathComponent("app.json")
+    }
+
+    /// Card folder the product installs to.
+    public var installDirectory: String {
+        manifest.installDirectory ?? manifest.kind.installDirectory
     }
 }
 
@@ -81,7 +95,9 @@ public enum ProjectStore {
 
     /// Creates a new project folder with the full starter template.
     @discardableResult
-    public static func createProject(named name: String, in parent: URL, interactive: Bool = true) throws -> Project {
+    public static func createProject(
+        named name: String, in parent: URL, kind: ProjectKind = .application
+    ) throws -> Project {
         let root = parent.appendingPathComponent(name)
         let fm = FileManager.default
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -89,7 +105,7 @@ public enum ProjectStore {
         // New projects get every framework: unused functions are stripped
         // at build, so selecting them all costs nothing.
         var manifest = ProjectManifest(
-            name: name, interactive: interactive, sdks: SDKLibrary.available.map(\.id))
+            name: name, kind: kind, sdks: SDKLibrary.available.map(\.id))
         try writeTemplate(to: root, manifest: &manifest)
         let project = Project(root: root, manifest: manifest)
         try save(project)
@@ -106,7 +122,7 @@ public enum ProjectStore {
 
         let header = Template.headerComponent(projectName: manifest.name)
         let main = Template.mainComponent(
-            projectName: manifest.name, interactive: manifest.interactive)
+            projectName: manifest.name, kind: manifest.kind)
         let input = Template.inputComponent(projectName: manifest.name)
         let tick = Template.tickComponent(projectName: manifest.name)
 

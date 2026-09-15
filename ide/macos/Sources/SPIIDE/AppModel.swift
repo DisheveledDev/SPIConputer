@@ -55,6 +55,24 @@ final class AppModel {
 
     private static let simulatorPathKey = "simulatorPath"
 
+    // SD card image: a folder on this machine laid out like the card
+    // (core/, apps/, utils/, games/, data/). Install copies products into
+    // it; running an application or utility copies its core/ (the OS)
+    // into the run card.
+    var sdcardImagePath: String = UserDefaults.standard.string(
+        forKey: AppModel.sdcardImageKey) ?? "" {
+        didSet {
+            UserDefaults.standard.set(sdcardImagePath, forKey: Self.sdcardImageKey)
+        }
+    }
+    private static let sdcardImageKey = "sdcardImagePath"
+
+    var sdcardImageURL: URL? {
+        let trimmed = sdcardImagePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath, isDirectory: true)
+    }
+
     // Recently opened projects (welcome screen and File > Open Recent).
     private let recents = RecentProjectsStore()
     var recentProjects: [RecentProject] = []
@@ -255,10 +273,10 @@ final class AppModel {
 
     // MARK: Project management
 
-    func createProject(named name: String, in parent: URL, interactive: Bool = true) {
+    func createProject(named name: String, in parent: URL, kind: ProjectKind = .application) {
         do {
             let created = try ProjectStore.createProject(
-                named: name, in: parent, interactive: interactive)
+                named: name, in: parent, kind: kind)
             open(created)
             appendConsole("Created \(created.root.path)\n")
         } catch {
@@ -270,8 +288,8 @@ final class AppModel {
         name: String,
         version: String,
         description: String,
-        interactive: Bool,
-        outputKind: ProjectOutputKind,
+        kind: ProjectKind,
+        installDirectory: String?,
         requiresVideo: Bool,
         requiresAudio: Bool,
         iconFile: String?,
@@ -284,10 +302,11 @@ final class AppModel {
         project.manifest.version = version
         project.manifest.description = description.trimmingCharacters(in: .whitespacesAndNewlines)
         project.manifest.sdks = SDKLibrary.available.map(\.id).filter { sdks.contains($0) }
-        project.manifest.interactive = interactive
-        project.manifest.outputKind = outputKind
-        project.manifest.requiresVideo = requiresVideo
-        project.manifest.requiresAudio = requiresAudio
+        project.manifest.kind = kind
+        let trimmedInstall = installDirectory?.trimmingCharacters(in: CharacterSet(charactersIn: "/ \n")) ?? ""
+        project.manifest.installDirectory = trimmedInstall.isEmpty ? nil : trimmedInstall
+        project.manifest.requiresVideo = kind.interactive && requiresVideo
+        project.manifest.requiresAudio = kind.interactive && requiresAudio
         project.manifest.iconFile = iconFile?.isEmpty == true ? nil : iconFile
         do {
             try ProjectStore.save(project)
@@ -562,8 +581,8 @@ final class AppModel {
             refreshSimulator()
             let fileManager = FileManager.default
             try? fileManager.removeItem(at: project.prgProductURL)
-            if project.manifest.outputKind == .prg {
-                try? fileManager.removeItem(at: project.appBundleURL)
+            if let bundleURL = project.bundleURL {
+                try? fileManager.removeItem(at: bundleURL)
             }
             var compiledMessage = ""
             if let simulator = simulatorURL {
@@ -574,9 +593,7 @@ final class AppModel {
                 if outcome.outputURL != nil {
                     try? ProjectBuilder.writeAppBundle(
                         project, compiledURL: project.prgProductURL)
-                    compiledMessage = project.manifest.outputKind == .app
-                        ? " + \(project.appBundleURL.path)"
-                        : " + \(project.prgProductURL.path)"
+                    compiledMessage = " + \((project.bundleURL ?? project.prgProductURL).path)"
                 } else if let error = outcome.error {
                     appendConsole(".prg compilation failed: \(error)\n")
                 } else if let reason = outcome.unavailableReason {
@@ -618,7 +635,13 @@ final class AppModel {
             return
         }
         do {
-            let session = try Runner.prepare(project: project, build: product)
+            let session = try Runner.prepare(
+                project: project, build: product, cardImage: sdcardImageURL)
+            if session.underOS {
+                appendConsole(
+                    "Booting the OS from the card image with \(project.bundleName ?? project.prgFileName) "
+                    + "installed: run it from the shell as `\(project.programFileStem.lowercased())`\n")
+            }
             let task = Process()
             task.executableURL = simulator
             task.arguments = Runner.simulatorArguments(for: session)
@@ -647,6 +670,24 @@ final class AppModel {
             appendConsole("Running \(project.programFileName) in \(simulator.path)\n")
         } catch {
             errorMessage = "Cannot launch the simulator: \(error.localizedDescription)"
+        }
+    }
+
+    /// Build, then copy the product into the SD card image.
+    func install() {
+        guard let project, build() != nil else { return }
+        guard let card = sdcardImageURL else {
+            errorMessage = ProjectInstaller.InstallError.noCardImage.localizedDescription
+            return
+        }
+        do {
+            let written = try ProjectInstaller.install(project, into: card)
+            for url in written {
+                appendConsole("Installed \(url.path)\n")
+            }
+        } catch {
+            errorMessage = "Install failed: \(error.localizedDescription)"
+            appendConsole("Install failed: \(error.localizedDescription)\n")
         }
     }
 
