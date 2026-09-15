@@ -70,8 +70,10 @@ function tick()
             changed = true
         end
     end
-    -- A command may have opened the APPS picker: leave its overlay alone.
-    if changed and not dialog_open then
+    -- A command may have opened the APPS picker (leave its overlay alone)
+    -- or launched a program whose setup() has already drawn its screen
+    -- (needs_repaint: the shell repaints when it is back on top).
+    if changed and not dialog_open and not needs_repaint then
         cursor_on = true
         paint()
     end
