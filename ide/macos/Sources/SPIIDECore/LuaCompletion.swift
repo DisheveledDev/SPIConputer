@@ -47,7 +47,7 @@ public enum LuaCompletion {
         "ScreenPixelRect", "ScreenPixelLine", "ScreenPixelCircle", "ScreenPixelScroll",
         "ScreenBlit", "ScreenPixelText",
         // Sound
-        "SoundDefine", "SoundLoad", "SoundPlay", "SoundStop", "SoundStopAll",
+        "SoundDefine", "SoundPreset", "SoundPresets", "SoundLoad", "SoundPlay", "SoundStop", "SoundStopAll",
         "SoundVolume", "MusicDefine", "MusicPlay", "MusicStop", "MusicPlaying",
         // Filesystem
         "fs.open", "fs.ls", "fs.stat", "fs.exists", "fs.mkdir", "fs.remove",

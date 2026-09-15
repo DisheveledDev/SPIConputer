@@ -80,12 +80,16 @@
       "group": "Sound",
       "framework": "sound",
       "signature": "Sound",
-      "summary": "Tones, beeps and noise without defining instruments, plus the instrument/sample API (Define, Load, Play, Stop, Volume).",
-      "description": "Tones, beeps and noise without defining instruments, plus the instrument/sample API (Define, Load, Play, Stop, Volume). The engine runs in the simulator; the device's audio output is not wired yet.",
+      "summary": "Built-in instruments and effects by name, tones and noise, and your own sounds.",
+      "description": "A bank of built-in sounds is baked into the OS: instruments (lead, pulse, bass, piano, organ, strings, flute, brass, bell, pluck, chime, kick, snare, hihat, tom, clap) and effects (coin, jump, laser, zap, explosion, hit, hurt, powerup, blip, select, error, alarm, engine, splash, bounce, teleport). Sound.Effect plays an effect at its own pitch, Sound.Play an instrument at a note; Sound.Define makes your own from a waveform, an ADSR envelope and pitch/tone effects (slide, vibrato, arpeggio, cutoff), or from a built-in as `base`. 8 effect voices play beside the 8 tune channels.",
       "parameters": [],
       "returns": "",
-      "example": "",
-      "seeAlso": []
+      "example": "Sound.Effect(\"coin\")\nSound.Play(\"piano\", \"E4\", 300)",
+      "seeAlso": [
+        "Music",
+        "Sound.Effect",
+        "Sound.Define"
+      ]
     },
     {
       "name": "Music",
@@ -93,12 +97,461 @@
       "group": "Music",
       "framework": "sound",
       "signature": "Music",
-      "summary": "Score playback by name: Define, Play, Stop, Playing..",
-      "description": "Score playback by name: Define, Play, Stop, Playing.",
+      "summary": "Tunes written as notes (MML) on up to 8 channels of built-in or own sounds, played by name and looped.",
+      "description": "Music.Track compiles MML strings (notes, lengths, octaves, tempo, volume, ties, repeats) into a score the engine plays on its 8 tune channels; Music.Define takes event tables directly. One tune plays at a time; effects play over it.",
       "parameters": [],
       "returns": "",
-      "example": "",
-      "seeAlso": []
+      "example": "Music.Track(\"theme\", { tempo = 120, loop = true, channels = { { sound = \"lead\", mml = \"o4 l8 c d e f g a b > c\" } } })\nMusic.Play(\"theme\")",
+      "seeAlso": [
+        "Music.Track",
+        "Sound"
+      ]
+    },
+    {
+      "name": "Sound.Tone",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Tone(hz, ms [, volume])",
+      "summary": "Plays a square-wave tone at (nearest note to) `hz` for `ms` milliseconds; `volume` 0..255 (default 255).",
+      "description": "Plays a square-wave tone at (nearest note to) `hz` for `ms` milliseconds; `volume` 0..255 (default 255). Returns the voice id.",
+      "parameters": [
+        {
+          "name": "hz",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "ms",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "volume",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Tone(440, 200)",
+      "seeAlso": [
+        "Sound"
+      ]
+    },
+    {
+      "name": "Sound.Beep",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Beep([ms])",
+      "summary": "A short 880 Hz beep (default 80 ms).",
+      "description": "A short 880 Hz beep (default 80 ms).",
+      "parameters": [
+        {
+          "name": "ms",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Beep()",
+      "seeAlso": [
+        "Sound"
+      ]
+    },
+    {
+      "name": "Sound.Noise",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Noise(ms [, volume])",
+      "summary": "A burst of noise for `ms` milliseconds (explosions, hits).",
+      "description": "A burst of noise for `ms` milliseconds (explosions, hits).",
+      "parameters": [
+        {
+          "name": "ms",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "volume",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Noise(300, 180)",
+      "seeAlso": [
+        "Sound"
+      ]
+    },
+    {
+      "name": "Sound.Effect",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Effect(name [, volume [, pan]])",
+      "summary": "Plays a built-in effect at its own pitch: \"coin\", \"jump\", \"laser\", \"zap\", \"explosion\", \"hit\", \"hurt\", \"powerup\", \"blip\", \"select\", \"error\", \"alarm\", \"engine\", \"splash\", \"bounce\", \"teleport\" (the instruments work too, at C4).",
+      "description": "Plays a built-in effect at its own pitch: \"coin\", \"jump\", \"laser\", \"zap\", \"explosion\", \"hit\", \"hurt\", \"powerup\", \"blip\", \"select\", \"error\", \"alarm\", \"engine\", \"splash\", \"bounce\", \"teleport\" (the instruments work too, at C4). Returns the voice id.",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "volume",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "pan",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Effect(\"coin\")\nSound.Effect(\"explosion\", 200, -30)",
+      "seeAlso": [
+        "Sound.Play",
+        "Sound.Presets"
+      ]
+    },
+    {
+      "name": "Sound.Play",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Play(sound [, note [, ms [, volume [, pan]]]])",
+      "summary": "Plays a sound: a built-in name (\"piano\", \"laser\"), an id from Sound.Define or Sound.Load, at `note` (a MIDI number or a name such as \"C4\"; default: the sound's own note); `ms` 0 or none means the sound's own envelope; volume 0..255, pan -64..63.",
+      "description": "Plays a sound: a built-in name (\"piano\", \"laser\"), an id from Sound.Define or Sound.Load, at `note` (a MIDI number or a name such as \"C4\"; default: the sound's own note); `ms` 0 or none means the sound's own envelope; volume 0..255, pan -64..63. Returns the voice id.",
+      "parameters": [
+        {
+          "name": "sound",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "note",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "ms",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "volume",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "pan",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Play(\"piano\", \"E4\", 300)\nSound.Play(\"bass\", \"C2\", 500, 200)",
+      "seeAlso": [
+        "Sound.Effect",
+        "Sound.Define",
+        "SoundPlay"
+      ]
+    },
+    {
+      "name": "Sound.Instrument",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Instrument(name)",
+      "summary": "The id of a built-in sound, for scores and Music.Track channels.",
+      "description": "The id of a built-in sound, for scores and Music.Track channels.",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local piano = Sound.Instrument(\"piano\")",
+      "seeAlso": [
+        "Music.Track",
+        "Sound.Presets"
+      ]
+    },
+    {
+      "name": "Sound.Presets",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Presets([effects])",
+      "summary": "The built-in sounds: a list of { name, effect, id }, or with `effects` true only the effects, false only the instruments.",
+      "description": "The built-in sounds: a list of { name, effect, id }, or with `effects` true only the effects, false only the instruments.",
+      "parameters": [
+        {
+          "name": "effects",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "for _, p in ipairs(Sound.Presets(true)) do print(p.name) end  -- the effects",
+      "seeAlso": [
+        "Sound"
+      ]
+    },
+    {
+      "name": "Sound.Spec",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Spec(name)",
+      "summary": "A built-in sound's definition as a spec table, to change and give to Sound.Define (or use `base` there).",
+      "description": "A built-in sound's definition as a spec table, to change and give to Sound.Define (or use `base` there).",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local spec = Sound.Spec(\"laser\")\nspec.slide = -900\nSound.Define(0, spec)",
+      "seeAlso": [
+        "Sound.Define",
+        "SoundPreset"
+      ]
+    },
+    {
+      "name": "Sound.Define",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Define(id, spec)",
+      "summary": "Defines a sound of your own under id 0..29 (30 and 31 are Tone and Noise): spec = { base = \"built-in name\" (start from it), wave = \"square\"|\"triangle\"|\"saw\"|\"sine\"|\"noise\", duty = 1..15, attack, decay, release = ms, sustain = 0..255, volume = 0..255, note = \"C5\", slide = semitones per second, vibrato = cents, vibrato_rate = Hz, arp, arp2 = semitone steps, arp_ms = ms per step, arp_loop = true to cycle, cutoff = 0..255 (255 open, lower darker) }; every field is optional.",
+      "description": "Defines a sound of your own under id 0..29 (30 and 31 are Tone and Noise): spec = { base = \"built-in name\" (start from it), wave = \"square\"|\"triangle\"|\"saw\"|\"sine\"|\"noise\", duty = 1..15, attack, decay, release = ms, sustain = 0..255, volume = 0..255, note = \"C5\", slide = semitones per second, vibrato = cents, vibrato_rate = Hz, arp, arp2 = semitone steps, arp_ms = ms per step, arp_loop = true to cycle, cutoff = 0..255 (255 open, lower darker) }; every field is optional.",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "spec",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Define(0, { base = \"laser\", slide = -900, cutoff = 120 })",
+      "seeAlso": [
+        "Sound.Spec",
+        "SoundDefine"
+      ]
+    },
+    {
+      "name": "Sound.Load",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Load(path)",
+      "summary": "Loads a WAV file from the card into the sample pool; returns a sound id usable with Sound.Play and in tracks.",
+      "description": "Loads a WAV file from the card into the sample pool; returns a sound id usable with Sound.Play and in tracks.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local boom = Sound.Load(\"/data/boom.wav\")",
+      "seeAlso": [
+        "Sound"
+      ]
+    },
+    {
+      "name": "Sound.Stop",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Stop([voice])",
+      "summary": "Stops one voice returned by a Play call, or every one-shot voice.",
+      "description": "Stops one voice returned by a Play call, or every one-shot voice.",
+      "parameters": [
+        {
+          "name": "voice",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Stop()",
+      "seeAlso": [
+        "Sound"
+      ]
+    },
+    {
+      "name": "Sound.Volume",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Volume(volume)",
+      "summary": "Sets the master volume 0..255.",
+      "description": "Sets the master volume 0..255.",
+      "parameters": [
+        {
+          "name": "volume",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Volume(128)",
+      "seeAlso": [
+        "Sound"
+      ]
+    },
+    {
+      "name": "Music.Track",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.Track(name, spec)",
+      "summary": "Defines a tune from notes: spec = { tempo = 120, loop = true, channels = { { sound = \"lead\", mml = \"...\" }, .",
+      "description": "Defines a tune from notes: spec = { tempo = 120, loop = true, channels = { { sound = \"lead\", mml = \"...\" }, ... } } with up to 8 channels, each a built-in name or a sound id and an MML string: c d e f g a b  notes (# or + sharp, - flat); a number after a note is its length (4 quarter, 8 eighth, 1 whole; a dot adds half), else the default length r or p         a rest (with a length like a note) l8             default length; o4 octave; > < octave up/down t120           tempo in beats a minute; v0..v15 volume (each channel starts at 16 / sqrt(channels), capped at 15, so a full mix does not clip); q1..q8 how much of a note sounds (q8 legato, q4 staccato) c4&c8          a tie joins two notes;  [ c d e ]3  repeats three times Spaces and bar lines are ignored. On a drum or effect channel (a sound with a pitch of its own, like \"kick\") every note is a hit at that pitch, so \"c c r c\" is a rhythm. Returns true (and the compiled score), or nil, err.",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "spec",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Music.Track(\"theme\", {\n  tempo = 140, loop = true,\n  channels = {\n    { sound = \"lead\", mml = \"o5 l8 c e g > c < g e c4 r4 [ d f a ]2\" },\n    { sound = \"bass\", mml = \"o2 l4 c c g g\" },\n    { sound = \"kick\", mml = \"l4 c r c r\" },\n  },\n})\nMusic.Play(\"theme\")",
+      "seeAlso": [
+        "Music.Play",
+        "Sound.Instrument",
+        "Music.Define"
+      ]
+    },
+    {
+      "name": "Music.Define",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.Define(name, spec)",
+      "summary": "Defines a score from events: { loop = bool, channels = { { { at = ms, sound = name|id, note = \"C4\", dur = ms, vol = 0..255, pan = -64..63 }, .",
+      "description": "Defines a score from events: { loop = bool, channels = { { { at = ms, sound = name|id, note = \"C4\", dur = ms, vol = 0..255, pan = -64..63 }, ... }, ... } } (see lua.md). Music.Track is the easier way.",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "spec",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Music.Define(\"tune\", { loop = true, channels = { { { at = 0, sound = \"lead\", note = \"C4\", dur = 200 } } } })",
+      "seeAlso": [
+        "Music"
+      ]
+    },
+    {
+      "name": "Music.Play",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.Play(name [, loop])",
+      "summary": "Starts a defined tune; `loop` overrides the tune's own loop flag.",
+      "description": "Starts a defined tune; `loop` overrides the tune's own loop flag.",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "loop",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Music.Play(\"theme\")",
+      "seeAlso": [
+        "Music"
+      ]
+    },
+    {
+      "name": "Music.Stop",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.Stop()",
+      "summary": "Stops the tune that is playing.",
+      "description": "Stops the tune that is playing.",
+      "parameters": [],
+      "returns": "",
+      "example": "Music.Stop()",
+      "seeAlso": [
+        "Music"
+      ]
+    },
+    {
+      "name": "Music.Playing",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.Playing()",
+      "summary": "True while a tune is playing.",
+      "description": "True while a tune is playing.",
+      "parameters": [],
+      "returns": "",
+      "example": "if not Music.Playing() then Music.Play(\"theme\") end",
+      "seeAlso": [
+        "Music"
+      ]
     },
     {
       "name": "Input",
@@ -5094,292 +5547,6 @@
       ],
       "returns": "",
       "example": "Screen.PixelRect(10, 10, 100, 60, 4, true)",
-      "seeAlso": []
-    },
-    {
-      "name": "Sound.Tone",
-      "kind": "function",
-      "group": "Sound",
-      "framework": "sound",
-      "signature": "Sound.Tone(hz, ms [, volume])",
-      "summary": "Plays a square-wave tone at (nearest note to) `hz` for `ms` milliseconds; `volume` 0..255 (default 255).",
-      "description": "Plays a square-wave tone at (nearest note to) `hz` for `ms` milliseconds; `volume` 0..255 (default 255). Returns the voice id.",
-      "parameters": [
-        {
-          "name": "hz",
-          "type": "",
-          "optional": false,
-          "description": ""
-        },
-        {
-          "name": "ms",
-          "type": "",
-          "optional": false,
-          "description": ""
-        },
-        {
-          "name": "volume",
-          "type": "",
-          "optional": true,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "Sound.Tone(440, 100)",
-      "seeAlso": []
-    },
-    {
-      "name": "Sound.Beep",
-      "kind": "function",
-      "group": "Sound",
-      "framework": "sound",
-      "signature": "Sound.Beep([ms])",
-      "summary": "A short 880 Hz beep (default 80 ms).",
-      "description": "A short 880 Hz beep (default 80 ms).",
-      "parameters": [
-        {
-          "name": "ms",
-          "type": "",
-          "optional": true,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "Sound.Beep()",
-      "seeAlso": []
-    },
-    {
-      "name": "Sound.Noise",
-      "kind": "function",
-      "group": "Sound",
-      "framework": "sound",
-      "signature": "Sound.Noise(ms [, volume])",
-      "summary": "A burst of noise for `ms` milliseconds (explosions, hits).",
-      "description": "A burst of noise for `ms` milliseconds (explosions, hits).",
-      "parameters": [
-        {
-          "name": "ms",
-          "type": "",
-          "optional": false,
-          "description": ""
-        },
-        {
-          "name": "volume",
-          "type": "",
-          "optional": true,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "Sound.Noise(300)",
-      "seeAlso": []
-    },
-    {
-      "name": "Sound.Define",
-      "kind": "function",
-      "group": "Sound",
-      "framework": "sound",
-      "signature": "Sound.Define(id, spec)",
-      "summary": "Defines an instrument 0..29 (30 and 31 are used by Tone and Noise): spec = {wave=\"square\"|\"pulse\"|\"triangle\"|\"saw\"|\"sine\"|\"noise\", duty=1..15, attack=ms, decay=ms, sustain=0..255, release=ms, volume=0..255}.",
-      "description": "Defines an instrument 0..29 (30 and 31 are used by Tone and Noise): spec = {wave=\"square\"|\"pulse\"|\"triangle\"|\"saw\"|\"sine\"|\"noise\", duty=1..15, attack=ms, decay=ms, sustain=0..255, release=ms, volume=0..255}.",
-      "parameters": [
-        {
-          "name": "id",
-          "type": "",
-          "optional": false,
-          "description": ""
-        },
-        {
-          "name": "spec",
-          "type": "",
-          "optional": false,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "Sound.Define(1, { wave = \"triangle\", attack = 5, decay = 50, sustain = 150, release = 80 })",
-      "seeAlso": []
-    },
-    {
-      "name": "Sound.Load",
-      "kind": "function",
-      "group": "Sound",
-      "framework": "sound",
-      "signature": "Sound.Load(path)",
-      "summary": "Loads a WAV file from the card into the sample pool; returns a sound id usable with Sound.Play and in scores.",
-      "description": "Loads a WAV file from the card into the sample pool; returns a sound id usable with Sound.Play and in scores.",
-      "parameters": [
-        {
-          "name": "path",
-          "type": "",
-          "optional": false,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "local hit = Sound.Load(app.resources .. \"/hit.wav\")",
-      "seeAlso": []
-    },
-    {
-      "name": "Sound.Play",
-      "kind": "function",
-      "group": "Sound",
-      "framework": "sound",
-      "signature": "Sound.Play(sound [, note [, ms [, volume [, pan]]]])",
-      "summary": "Plays an instrument or sample: `note` is a MIDI number or a name such as \"C4\"; `ms` 0 means the instrument's own envelope; pan -64..63.",
-      "description": "Plays an instrument or sample: `note` is a MIDI number or a name such as \"C4\"; `ms` 0 means the instrument's own envelope; pan -64..63.",
-      "parameters": [
-        {
-          "name": "sound",
-          "type": "",
-          "optional": false,
-          "description": ""
-        },
-        {
-          "name": "note",
-          "type": "",
-          "optional": true,
-          "description": ""
-        },
-        {
-          "name": "ms",
-          "type": "",
-          "optional": true,
-          "description": ""
-        },
-        {
-          "name": "volume",
-          "type": "",
-          "optional": true,
-          "description": ""
-        },
-        {
-          "name": "pan",
-          "type": "",
-          "optional": true,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "Sound.Play(1, \"C5\", 200)",
-      "seeAlso": []
-    },
-    {
-      "name": "Sound.Stop",
-      "kind": "function",
-      "group": "Sound",
-      "framework": "sound",
-      "signature": "Sound.Stop([voice])",
-      "summary": "Stops one voice returned by a Play call, or every one-shot voice.",
-      "description": "Stops one voice returned by a Play call, or every one-shot voice.",
-      "parameters": [
-        {
-          "name": "voice",
-          "type": "",
-          "optional": true,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "Sound.Stop()",
-      "seeAlso": []
-    },
-    {
-      "name": "Sound.Volume",
-      "kind": "function",
-      "group": "Sound",
-      "framework": "sound",
-      "signature": "Sound.Volume(volume)",
-      "summary": "Sets the master volume 0..255.",
-      "description": "Sets the master volume 0..255.",
-      "parameters": [
-        {
-          "name": "volume",
-          "type": "",
-          "optional": false,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "Sound.Volume(128)",
-      "seeAlso": []
-    },
-    {
-      "name": "Music.Define",
-      "kind": "function",
-      "group": "Music",
-      "framework": "sound",
-      "signature": "Music.Define(name, spec)",
-      "summary": "Defines a score by name (see lua.md for the spec: channels of {time, sound, note, length, volume, pan} events, `loop`, `length`).",
-      "description": "Defines a score by name (see lua.md for the spec: channels of {time, sound, note, length, volume, pan} events, `loop`, `length`).",
-      "parameters": [
-        {
-          "name": "name",
-          "type": "",
-          "optional": false,
-          "description": ""
-        },
-        {
-          "name": "spec",
-          "type": "",
-          "optional": false,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "Music.Define(\"theme\", { loop = true, channels = { { {0, 1, \"C4\", 250}, {300, 1, \"E4\", 250} } } })",
-      "seeAlso": []
-    },
-    {
-      "name": "Music.Play",
-      "kind": "function",
-      "group": "Music",
-      "framework": "sound",
-      "signature": "Music.Play(name [, loop])",
-      "summary": "Starts a defined score; `loop` overrides the score's own loop flag.",
-      "description": "Starts a defined score; `loop` overrides the score's own loop flag.",
-      "parameters": [
-        {
-          "name": "name",
-          "type": "",
-          "optional": false,
-          "description": ""
-        },
-        {
-          "name": "loop",
-          "type": "",
-          "optional": true,
-          "description": ""
-        }
-      ],
-      "returns": "",
-      "example": "Music.Play(\"theme\")",
-      "seeAlso": []
-    },
-    {
-      "name": "Music.Stop",
-      "kind": "function",
-      "group": "Music",
-      "framework": "sound",
-      "signature": "Music.Stop()",
-      "summary": "Stops the score that is playing.",
-      "description": "Stops the score that is playing.",
-      "parameters": [],
-      "returns": "",
-      "example": "Music.Stop()",
-      "seeAlso": []
-    },
-    {
-      "name": "Music.Playing",
-      "kind": "function",
-      "group": "Music",
-      "framework": "sound",
-      "signature": "Music.Playing()",
-      "summary": "True while a score is playing.",
-      "description": "True while a score is playing.",
-      "parameters": [],
-      "returns": "",
-      "example": "if not Music.Playing() then Music.Play(\"theme\") end",
       "seeAlso": []
     },
     {

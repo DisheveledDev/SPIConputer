@@ -1325,7 +1325,7 @@
       "group": "Sound",
       "signature": "SoundDefine(id, spec)",
       "summary": "Defines instrument id (0-31) from a spec table.",
-      "description": "spec = {wave = \"square\"|\"pulse\"|\"triangle\"|\"saw\"|\"sine\"|\"noise\", duty = 1..15, attack = ms, decay = ms, sustain = 0..255, release = ms, volume = 0..255}; every field is optional.",
+      "description": "spec = {base = \"built-in name\" (start from that sound; the other fields override), wave = \"square\"|\"pulse\"|\"triangle\"|\"saw\"|\"sine\"|\"noise\", duty = 1..15, attack = ms, decay = ms, sustain = 0..255, release = ms, volume = 0..255, note = \"C5\" (the sound's own pitch), slide = semitones per second (a laser is -300, a jump +180), vibrato = cents with vibrato_rate = Hz, arp/arp2 = semitone steps every arp_ms ms (arp_loop = true cycles them: a coin is arp 7 after 60 ms), cutoff = 0..255 (255 open, lower darker)}; every field is optional.",
       "parameters": [
         {
           "name": "id",
@@ -1341,10 +1341,48 @@
         }
       ],
       "returns": "true",
-      "example": "SoundDefine(1, { wave = \"square\", duty = 8, attack = 2, decay = 40, sustain = 180, release = 60 })",
+      "example": "SoundDefine(0, { base = \"laser\", slide = -900 })\nSoundDefine(1, { wave = \"triangle\", attack = 5, decay = 80, sustain = 100, release = 60 })",
       "seeAlso": [
+        "SoundPreset",
         "SoundPlay",
         "Sound.Define"
+      ]
+    },
+    {
+      "name": "SoundPreset",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundPreset(name)",
+      "summary": "A built-in sound's id and its definition as a spec table.",
+      "description": "The bank has instruments (lead, pulse, bass, piano, organ, strings, flute, brass, bell, pluck, chime, kick, snare, hihat, tom, clap) and effects (coin, jump, laser, zap, explosion, hit, hurt, powerup, blip, select, error, alarm, engine, splash, bounce, teleport). The id (64 + index) plays with SoundPlay and in scores; the spec can be changed and given to SoundDefine under an id of your own.",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string",
+          "optional": false,
+          "description": "a built-in sound's name"
+        }
+      ],
+      "returns": "id, spec, or nil, err",
+      "example": "local id, spec = SoundPreset(\"laser\")\nspec.slide = -900\nSoundDefine(0, spec)",
+      "seeAlso": [
+        "SoundPresets",
+        "SoundDefine",
+        "SoundPlay"
+      ]
+    },
+    {
+      "name": "SoundPresets",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundPresets()",
+      "summary": "Lists the built-in sounds: { name, effect, id } each, in bank order.",
+      "description": "`effect` is true for the sound effects (played at their own pitch) and false for the instruments (played at the note you give).",
+      "parameters": [],
+      "returns": "an array of { name =, effect =, id = }",
+      "example": "for _, p in ipairs(SoundPresets()) do print(p.name, p.effect) end",
+      "seeAlso": [
+        "SoundPreset"
       ]
     },
     {
@@ -1366,14 +1404,16 @@
       "kind": "function",
       "group": "Sound",
       "signature": "SoundPlay(sound [, note [, dur_ms [, vol [, pan]]]])",
-      "summary": "Plays an instrument or sample on a free one-shot voice.",
-      "description": "note is a MIDI number (C4 = 60) or a name such as \"C4\" or \"A#3\"; dur_ms 0 uses the instrument's own envelope; vol 0-255; pan -64 (left) to 63 (right).",
+      "summary": "Plays a sound: a built-in name or an id, at a note, for a length.",
+      "description": "`sound` is the name of a built-in sound (\"coin\", \"piano\", ... see SoundPresets), an id from SoundDefine (0-31) or SoundLoad (32-39). `note` is a MIDI number or a name (\"C4\"); without one the sound's own note is used (effects carry theirs), else C4. `dur_ms` 0 or absent plays the sound's own envelope. Returns the one-shot voice (1-8) or nil, err when none is free.",
       "parameters": [],
       "returns": "voice id, or nil, err when no voice is free",
-      "example": "SoundPlay(1, \"C5\", 200, 255)",
+      "example": "SoundPlay(\"coin\")\nSoundPlay(\"piano\", \"E4\", 300)\nSoundPlay(2, 60, 0, 200, -20)",
       "seeAlso": [
-        "SoundStop",
-        "SoundDefine"
+        "SoundPreset",
+        "SoundDefine",
+        "Sound.Effect",
+        "Sound.Play"
       ]
     },
     {
