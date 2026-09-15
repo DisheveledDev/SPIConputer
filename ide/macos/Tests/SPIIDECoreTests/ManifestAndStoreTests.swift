@@ -31,6 +31,12 @@ struct ManifestAndStoreTests {
         #expect(manifest.formatVersion == ProjectManifest.currentFormatVersion)
         #expect(manifest.outputDirectory == "build")
         #expect(manifest.components.isEmpty)
+        // Projects from before frameworks existed get every framework...
+        #expect(manifest.sdks == SDKLibrary.available.map(\.id))
+        // ...while an explicit empty list opts out.
+        let none = try JSONCoding.decode(
+            ProjectManifest.self, from: Data(#"{"name": "Tiny", "sdks": []}"#.utf8))
+        #expect(none.sdks.isEmpty)
     }
 
     @Test func componentDefaultsForMissingKeys() throws {

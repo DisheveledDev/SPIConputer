@@ -78,6 +78,38 @@ struct EditorHelpTests {
         #expect(!coordinator.completionPanel.isVisible)
     }
 
+    @Test func completionOffersFrameworkNamespaces() {
+        var view = CodeEditorView(text: .constant("Screen.Cente"), diagnosticLine: nil)
+        view.definedFunctions = SDKLibrary.signatures(for: ["screen"])
+        let coordinator = CodeEditorView.Coordinator(view)
+        let editor = CodeEditorFactory.make(text: "Screen.Cente", delegate: coordinator)
+        coordinator.textView = editor.textView
+        coordinator.scrollView = editor.scrollView
+        coordinator.gutter = editor.gutter
+        coordinator.syncTextLength()
+        coordinator.requiresKeyWindow = false
+        coordinator.completionDelay = 0.01
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 300),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = editor.container
+        window.makeKeyAndOrderFront(nil)
+        window.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        defer { window.orderOut(nil) }
+
+        putCaretAtEnd(editor.textView)
+        type("r", into: editor.textView)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        #expect(coordinator.completionPanel.isVisible)
+        #expect(coordinator.completionPanel.selectedMatch == "Screen.CenterText")
+
+        editor.textView.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        #expect(editor.textView.string == "Screen.CenterText")
+    }
+
     @Test func completionNavigatesAndAcceptsWithTab() {
         let (coordinator, editor, window) = makeCoordinator(text: "Scree")
         defer { window.orderOut(nil) }

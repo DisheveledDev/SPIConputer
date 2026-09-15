@@ -118,7 +118,9 @@ in `main` are visible to `input` and `tick`.
 ## Frameworks (SDKs)
 
 `Sources/SPIIDECore/Resources/sdk/*.lua` are read-only frameworks a project
-can select in Project Settings (new projects select them all): `screen`
+can select in Project Settings. New projects, and projects whose manifest
+predates frameworks (no `sdks` key), select them all; untick to opt out.
+They are: `screen`
 (`Screen.*`), `overlay` (`Overlay.*`), `sound` (`Sound.*`, `Music.*`) and
 `input` (`Input.Keyboard.*`, `Input.Joystick.*`). They are plain Lua over
 the OS API, injected into the built program after the `__spi_*` flags

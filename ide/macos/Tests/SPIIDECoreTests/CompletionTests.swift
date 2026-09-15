@@ -62,6 +62,24 @@ struct CompletionTests {
         #expect(items == [CompletionItem(name: "DrawShip", detail: "(x, y)")])
     }
 
+    @Test func completionAndHelpCoverFrameworkNamespaces() throws {
+        let sdk = SDKLibrary.signatures(for: ["screen", "input"])
+        // A dotted prefix matches the namespaced names, with parameters.
+        let items = LuaCompletion.items("Screen.Ou", in: "", including: sdk)
+        #expect(items.map(\.name) == ["Screen.Out", "Screen.OutLine", "Screen.OutText"])
+        let outText = try #require(items.first { $0.name == "Screen.OutText" })
+        #expect(outText.detail == "(x, y, text, [attr])")
+        // Nested namespaces too.
+        let nested = LuaCompletion.items("Input.Keyboard.C", in: "", including: sdk)
+        #expect(nested.map(\.name) == ["Input.Keyboard.Callback"])
+        // Parameter help inside a framework call.
+        let source = "function setup()\n  Screen.CenterText(1, \"hi\")\nend\n"
+        let caret = (source as NSString).range(of: "\"hi\"").location
+        let context = try #require(LuaSignatureHelp.context(at: caret, in: source, including: sdk))
+        #expect(context.signature.name == "Screen.CenterText")
+        #expect(context.activeParameter == 1)
+    }
+
     @Test func completionIncludesProjectFunctions() {
         let items = LuaCompletion.items(
             "Tick", in: "",

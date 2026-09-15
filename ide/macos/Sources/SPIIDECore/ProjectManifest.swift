@@ -91,7 +91,11 @@ public struct ProjectManifest: Codable, Sendable, Equatable {
         version = try c.decodeIfPresent(String.self, forKey: .version) ?? "1.0"
         description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
         iconFile = try c.decodeIfPresent(String.self, forKey: .iconFile)
-        sdks = try c.decodeIfPresent([String].self, forKey: .sdks) ?? []
+        // No key: every framework (stripping keeps unused ones free), so
+        // projects from before frameworks existed get them; an explicit
+        // empty list opts out.
+        sdks = try c.decodeIfPresent([String].self, forKey: .sdks)
+            ?? SDKLibrary.available.map(\.id)
         components = try c.decodeIfPresent([ComponentRef].self, forKey: .components) ?? []
     }
 }

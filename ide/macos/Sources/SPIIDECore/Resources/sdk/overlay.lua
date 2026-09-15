@@ -17,6 +17,8 @@ Overlay.SINGLE = 1
 Overlay.DOUBLE = 2
 Overlay.INVERT = 0x80
 
+local cursor_row = 0
+
 local function region(x1, y1, x2, y2)
     if x2 < x1 then x1, x2 = x2, x1 end
     if y2 < y1 then y1, y2 = y2, y1 end
@@ -69,6 +71,30 @@ end
 -- string.format, written on the overlay at (x, y).
 function Overlay.Printf(x, y, format, ...)
     return OverlayWrite(x, y, string.format(format, ...), 0)
+end
+
+--- Overlay.OutLine(text [, attr])
+-- Writes `text` on the overlay's cursor row (row 0 to start with) and
+-- moves to the next row; wraps to the top when it runs off the bottom.
+function Overlay.OutLine(text, attr)
+    text = tostring(text)
+    local rows = 1 + (#text - 1) // Overlay.COLS
+    if #text == 0 then rows = 1 end
+    if cursor_row + rows > Overlay.ROWS then cursor_row = 0 end
+    local ok, err = OverlayWrite(0, cursor_row, text, attr or 0)
+    cursor_row = cursor_row + rows
+    return ok, err
+end
+
+--- Overlay.Cursor(row)
+-- Sets the row the next Overlay.OutLine writes on. Returns the row.
+function Overlay.Cursor(row)
+    if row then
+        if row < 0 then row = 0 end
+        if row >= Overlay.ROWS then row = Overlay.ROWS - 1 end
+        cursor_row = row
+    end
+    return cursor_row
 end
 
 --- Overlay.Clean(x1, y1, x2, y2)

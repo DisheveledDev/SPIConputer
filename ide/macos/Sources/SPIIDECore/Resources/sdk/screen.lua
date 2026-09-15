@@ -27,6 +27,10 @@ Screen.SINGLE = 1      -- box style: single line
 Screen.DOUBLE = 2      -- box style: double line
 Screen.INVERT = 0x80   -- attribute bit: swap foreground and background
 
+-- Console-style output: OutLine writes at the cursor row and moves on,
+-- scrolling the screen when it reaches the bottom.
+local cursor_row = 0
+
 -- Inclusive corners to (x, y, w, h), in either corner order.
 local function region(x1, y1, x2, y2)
     if x2 < x1 then x1, x2 = x2, x1 end
@@ -88,6 +92,41 @@ end
 -- string.format, written at (x, y).
 function Screen.Printf(x, y, format, ...)
     return ScreenWrite(x, y, string.format(format, ...))
+end
+
+--- Screen.OutLine(text [, attr])
+-- Console-style output: writes `text` on the cursor row (row 0 to start
+-- with), then moves the cursor to the next row, scrolling the whole
+-- screen up when it runs off the bottom. Long text wraps.
+function Screen.OutLine(text, attr)
+    text = tostring(text)
+    local rows = 1 + (#text - 1) // Screen.COLS
+    if #text == 0 then rows = 1 end
+    while cursor_row + rows > Screen.ROWS do
+        ScreenScroll(0, 0, Screen.COLS, Screen.ROWS, 0, -1, 32, 0)
+        cursor_row = cursor_row - 1
+    end
+    local ok, err = ScreenWrite(0, cursor_row, text, attr)
+    cursor_row = cursor_row + rows
+    return ok, err
+end
+
+--- Screen.Cursor(row)
+-- Sets the row the next Screen.OutLine writes on. Returns the row.
+function Screen.Cursor(row)
+    if row then
+        if row < 0 then row = 0 end
+        if row >= Screen.ROWS then row = Screen.ROWS - 1 end
+        cursor_row = row
+    end
+    return cursor_row
+end
+
+--- Screen.Home()
+-- Clears the screen and puts the OutLine cursor back on row 0.
+function Screen.Home()
+    cursor_row = 0
+    return ScreenClear(32)
 end
 
 --- Screen.Clean(x1, y1, x2, y2 [, char [, attr]])
