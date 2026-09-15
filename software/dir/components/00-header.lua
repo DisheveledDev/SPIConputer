@@ -1,0 +1,15 @@
+-- dir — the shell's DIR command (also LS, CATALOG).
+--
+--   DIR                            the current directory
+--   DIR letters                    another directory
+--   DIR *.txt                      only names matching a pattern
+--
+-- The shell passes the directory (or directory/pattern) resolved against
+-- its current directory, so this runs with a full card path. Listings
+-- are directories first, then files, with a count and total; a listing
+-- longer than the result limit ends with "... N MORE".
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/dir`.

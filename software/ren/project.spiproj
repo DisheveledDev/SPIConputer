@@ -1,0 +1,24 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "B322FD56-FB1B-46C4-AB20-730E2C5C2D15",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "D8E9E881-12EB-4BD0-A54C-1950615C7C9B",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Rename or move: REN OLD NEW",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "ren",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [],
+  "version": "1.0"
+}

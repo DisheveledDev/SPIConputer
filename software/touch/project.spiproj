@@ -1,0 +1,24 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "5DD77F76-9A5B-4C37-99CF-3B81D77A9371",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "37EA3844-A3CC-4D47-91B3-EC6DBCEFBFD9",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Create empty files: TOUCH FILE...",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "touch",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [],
+  "version": "1.0"
+}

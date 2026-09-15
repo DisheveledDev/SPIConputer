@@ -1,0 +1,26 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "F592166D-A234-49E2-BF04-B4C57D6085B9",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "650D3BFE-2032-4EE0-86C1-B2BB35E83469",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "List a directory: DIR [PATH|*.EXT]",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "dir",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [
+    "text"
+  ],
+  "version": "1.0"
+}

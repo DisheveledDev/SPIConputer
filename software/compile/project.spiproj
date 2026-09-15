@@ -1,0 +1,26 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "13F9BA8F-2E53-49AD-9A2A-08D8B219A32A",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "20E6869D-4864-406D-AF05-E7143906732B",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Build a .prg: COMPILE FILE.LUA [OUT]",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "compile",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [
+    "text"
+  ],
+  "version": "1.0"
+}

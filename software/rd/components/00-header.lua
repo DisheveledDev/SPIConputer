@@ -1,0 +1,12 @@
+-- rd — the shell's RD command (also RMDIR).
+--
+--   RD old                         remove an empty directory
+--   RD -S old                      remove it with everything inside
+--
+-- -S walks the tree depth first and reports what it removed; the data
+-- folder itself can never be removed.
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/rd`.

@@ -1,0 +1,10 @@
+-- touch — the shell's TOUCH command (also NEW).
+--
+--   TOUCH todo.txt                 create the file if it does not exist
+--
+-- An existing file is left as it is (the card keeps no times to update).
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/touch`.

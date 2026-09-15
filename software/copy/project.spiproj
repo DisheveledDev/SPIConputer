@@ -1,0 +1,26 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "62ACE5FE-2A48-449F-9E48-452E70742E8F",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "32612D70-D713-4F1D-91BE-3D79C094AF79",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Copy files: COPY FROM... TO",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "copy",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [
+    "text"
+  ],
+  "version": "1.0"
+}

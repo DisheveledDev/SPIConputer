@@ -1,0 +1,13 @@
+-- compile — the shell's COMPILE command.
+--
+--   COMPILE game.lua               builds game.prg next to it
+--   COMPILE game.lua fast.prg      or to a name of your own
+--
+-- Uses the OS's own compiler (Compile), so a program written on the card
+-- with the editor loads as fast as one built by the IDE; the shell runs
+-- a .prg in preference to its .lua sibling.
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/compile`.

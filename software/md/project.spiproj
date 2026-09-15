@@ -1,0 +1,24 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "37454DAC-2FCF-49CF-A9AD-BE36E2C3A41D",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "5505E499-E860-42D3-80BD-DF37C8B99295",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Make directories: MD DIR...",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "md",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [],
+  "version": "1.0"
+}

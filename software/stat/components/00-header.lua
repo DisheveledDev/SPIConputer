@@ -1,0 +1,9 @@
+-- stat — the shell's STAT command (also INFO).
+--
+--   STAT notes.txt                 type and size
+--   STAT letters                   a directory: entries and total size
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/stat`.

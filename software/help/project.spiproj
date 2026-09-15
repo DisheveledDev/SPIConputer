@@ -1,0 +1,26 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "06383B17-2A03-4346-AE59-C3E8A0B79D2B",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "D3431EA1-A896-45AE-9D5B-689F52E07AD5",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Command help: HELP [COMMAND]",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "help",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [
+    "text"
+  ],
+  "version": "1.0"
+}

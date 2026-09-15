@@ -1,0 +1,26 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "6D33ACD6-296A-4D90-9456-B95338617136",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "D2225DD2-8C9E-4EEC-A4A1-8A0809AD66A7",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Remove directories: RD [-S] DIR...",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "rd",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [
+    "text"
+  ],
+  "version": "1.0"
+}

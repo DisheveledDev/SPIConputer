@@ -1,0 +1,14 @@
+-- copy — the shell's COPY command (also CP).
+--
+--   COPY notes.txt backup.txt      copy one file
+--   COPY *.txt archive             copy every .txt into a directory
+--
+-- Sources must be files; the last argument is the target file, or an
+-- existing directory to copy into (required when copying several).
+-- Files are streamed in 1 KB chunks, so size is limited only by the
+-- card. The shell expands wildcards before the utility runs.
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/copy`.

@@ -1,0 +1,11 @@
+-- del — the shell's DEL command (also RM, ERASE).
+--
+--   DEL old.txt                    delete a file
+--   DEL *.bak                      delete every .bak (the shell expands it)
+--
+-- Only files: a directory is refused (RD removes directories).
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/del`.

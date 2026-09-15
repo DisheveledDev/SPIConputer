@@ -1,0 +1,14 @@
+-- help — the shell's HELP and UTILS commands.
+--
+--   HELP                           built-in commands and how to find more
+--   HELP DIR                       one command in detail
+--   HELP GREP                      an installed utility's description
+--   UTILS                          the installed utilities (utils/*.util)
+--
+-- The help text lives here, on the card, rather than in the resident
+-- shell: the shell only keeps what it needs to run the commands.
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/help`.

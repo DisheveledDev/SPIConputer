@@ -1,0 +1,26 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "EFE4DEFB-2221-4ACC-A868-0136FB6B2A60",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "40EF66DF-5ADD-4403-B2D1-A4471E4711CE",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Delete files: DEL FILE...",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "del",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [
+    "text"
+  ],
+  "version": "1.0"
+}

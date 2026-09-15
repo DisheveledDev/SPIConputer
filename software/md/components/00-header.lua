@@ -1,0 +1,9 @@
+-- md — the shell's MD command (also MKDIR).
+--
+--   MD letters                     make a directory
+--   MD projects/2026/notes         missing parents are made too
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/md`.

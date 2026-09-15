@@ -1,0 +1,11 @@
+-- ren — the shell's REN command (also RENAME, MOVE, MV).
+--
+--   REN draft.txt final.txt        rename
+--   REN *.log logs                 move entries into an existing directory
+--
+-- With several sources the last argument must be a directory.
+--
+-- A utility: runs once with the words after its name in `args` and
+-- hands its result to the shell with UtilityResult. Built from the
+-- SPIEdit project in this folder: `swift run --package-path ide/macos
+-- spibuild software/ren`.

@@ -1,0 +1,26 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "9DAD9A92-4856-4C42-810A-8E2392EF24DC",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "1F633592-89E2-4354-9422-DC1D5743F4BB",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "File details: STAT PATH...",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "stat",
+  "requires_audio": false,
+  "requires_video": false,
+  "sdks": [
+    "text"
+  ],
+  "version": "1.0"
+}
