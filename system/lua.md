@@ -272,7 +272,8 @@ that queues faster than a frame's worth of changes is briefly blocked.
 | 1 | 40x30 tiles | 8x8 tiles + attribute map | per-cell invert + 7 colours |
 | 2 | 80x60 tiles | 8x8 tiles + attribute map | B&W (invert attr applies) |
 | 3 | 80x60 tiles | 8x8 tiles + attribute map | per-cell invert + 7 colours |
-| 10 | 320x240 | direct pixels | 256-entry palette |
+| 10 | 320x240 | direct pixels (one byte each) | 256-entry palette |
+| 11 | 160x120 | direct pixels (one byte each, shown 4x4) | 256-entry palette |
 
 Output is always 640x480 at 60 Hz. Modes 0, 1 and 10 are 320x240
 logically and scaled 2x; modes 2 and 3 draw their 8x8 cells 1:1 at the
@@ -282,6 +283,15 @@ use them for text screens, not for animation. Every cell call
 (`ScreenOut`, the block ops, the `Screen`/`Overlay` frameworks) takes
 coordinates in the geometry of the mode the program selected, and
 `Screen.Mode` updates `Screen.COLS`/`ROWS` and `Overlay.COLS`/`ROWS`.
+The pixel modes are a plain byte buffer, one palette index per pixel
+(mode 11's 19 KB buffer is the cheapest to draw and to display). They
+have no text cells: `ScreenOut` and the block ops fail there, and text is
+drawn as pixels with `ScreenPixelText`. Every pixel call is one display
+op clipped by the display core, so shapes, sprites and text may run off
+the edges. The default palette is 0-15 the text colours, 16-231 a 6x6x6
+colour cube (16 + 36r + 6g + b, each 0-5), 232-255 a grey ramp;
+`ScreenPalette` changes any entry. The Graphics framework (sprites with
+rotation, flips and scaling, text, scrolling) is Lua over these calls.
 The RP2040 dev board supports modes 0 and 1 only.
 
 ### Functions
@@ -308,13 +318,20 @@ The RP2040 dev board supports modes 0 and 1 only.
 | `OverlayAttr(x, y, flags)` | `true`, or `nil, err` |
 | `OverlayClear([char])` | `true` (defaults to space); blanks the overlay and hides it |
 | `OverlayBox`, `OverlayFill`, `OverlayFillAttr`, `OverlayWrite`, `OverlayWriteAttr`, `OverlayCopy`, `OverlayMove`, `OverlayScroll` | as the `Screen` versions, on the overlay layer (a dialog over the base: `OverlayFill` the body, `OverlayBox` the frame, `OverlayWrite` the text; `OverlayClear` removes it) |
-| `ScreenPlot(x, y, colour)` | `true`, or `nil, err` (mode 10 only) |
+| `ScreenPlot(x, y, colour)` | `true`, or `nil, err` (modes 10 and 11) |
+| `ScreenPixelRect(x, y, w, h, colour [, filled])` | `true`, or `nil, err`; a rectangle outline, or filled |
+| `ScreenPixelLine(x0, y0, x1, y1, colour)` | `true`, or `nil, err`; a line, both ends included |
+| `ScreenPixelCircle(cx, cy, r, colour [, filled])` | `true`, or `nil, err`; a circle outline, or a disc (r <= 1024) |
+| `ScreenPixelScroll(x, y, w, h, dx, dy [, fill])` | `true`, or `nil, err`; shifts a region's pixels by (dx, dy), -127..127; uncovered pixels get `fill` |
+| `ScreenBlit(x, y, w, h, pixels [, key])` | `true`, or `nil, err`; w*h palette bytes row by row to (x, y), pixels equal to `key` skipped; at most 8184 pixels a call |
+| `ScreenPixelText(x, y, text, colour [, bg [, scale]])` | `true`, or `nil, err`; 8x8 font (or the program's tiles) as pixels, `scale` 1-4, cells painted `bg` when given; 64 characters a call |
 
 The block calls (`Box`, `Fill`, `FillAttr`, `Write`, `WriteAttr`, `Copy`,
 `Move`, `Scroll`) each queue **one** display op whatever the size of the
 rectangle; the display core does the work at the frame boundary. Prefer
 them to loops of `ScreenOut`: a full-screen repaint is one `ScreenWrite`
-instead of 1200 ops. They are text-mode calls; mode 10 has `ScreenPlot`.
+instead of 1200 ops. They are text-mode calls; the pixel modes have the
+`ScreenPixel*`, `ScreenBlit` and `ScreenPlot` calls, one op each too.
 
 ### Frameworks
 
@@ -324,7 +341,9 @@ higher-level calls such as `Screen.CenterText(y, text)`,
 `Screen.Move(x1, y1, x2, y2, x3, y3)`, `Overlay.Dialog(title, lines)`,
 `Text.Wrap(s, width)`, `Timer.Every(ms, fn)` (returning an object with
 `Cancel`/`Pause`/`Resume`), `Sound.Tone(hz, ms)` and
-`Input.Keyboard.Callback(key, fn)`. They are plain Lua over the API above,
+`Input.Keyboard.Callback(key, fn)`, and `Graphics` (sprites, shapes and
+text on the pixel modes: `Graphics.Sprite`, `s:MoveTo`, `s:Turn`,
+`Graphics.Text`). They are plain Lua over the API above,
 selected per project in the IDE's settings, and stripped at build time to
 the functions the program uses. The framework sources (and their
 documentation) are `ide/macos/Sources/SPIIDECore/Resources/sdk/*.lua`.
@@ -345,8 +364,8 @@ composites a visible overlay cell over the base; hidden cells show the base.
 Tiles not redefined render with the ROM font (ASCII-aligned, tile index =
 character code). Tile rows and ROM font rows share one convention: bit 0 is
 the leftmost pixel. A mode switch clears both layers; switching to mode 10
-attaches the shared framebuffer (only one mode 10 program may run; `Launch`
-from mode 10 fails).
+or 11 attaches the shared pixel buffer (only one pixel-mode program may
+run; `Launch` from a pixel mode fails).
 
 ### ROM character set
 

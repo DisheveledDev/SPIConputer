@@ -167,6 +167,7 @@ the per-character invert + 7-colour attribute.
 | 2 | 80x60 tiles (640x480, 1x) | 8x8 tiles + attribute map | 1-bit (B&W, invert attr) |
 | 3 | 80x60 tiles (640x480, 1x) | 8x8 tiles + attribute map | per-char invert + 7 colours |
 | 10 | 320x240 (2x) | direct pixel | 8-bit colour, core 0's shared 76 KB buffer |
+| 11 | 160x120 (4x) | direct pixel | 8-bit colour, the first 19 KB of the same buffer; one output word per pixel, the cheapest mode to render |
 
 Resolution: **fixed 640x480 output for all modes** (single DVI timing,
 25.2 MHz pixel clock, configured once at boot — no mode-switch resync
@@ -235,6 +236,16 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
   28-line editor redraw cost ~14 frames. Frameworks (the IDE's SDKs) are
   Lua over these calls; the input callbacks are looked up by name per
   event so a framework can install its dispatcher from `setup()`.
+- Pixel ops (`VIDEO_OP_PRECT/PLINE/PCIRCLE/PSCROLL/BLIT/PTEXT`, modes
+  10/11): shapes, a region scroll, a keyed blit (sprites) and 8x8-font
+  text at 1-4x, each one op applied by core 0 in `video.c` with int16
+  coordinates clipped there (`ScreenPixel*`/`ScreenBlit`/`ScreenPixelText`
+  in `screen_lua.c`). Blits and pixel text stage their bytes in the same
+  ring as `TEXT`, `d` carrying the byte count. Rotation, flips and
+  scaling of images are done in Lua by the Graphics framework when a
+  sprite is built, so core 0 only ever copies bytes. The default palette
+  is the xterm 256-colour layout (16 text colours, a 6x6x6 cube, a grey
+  ramp) so programs can name colours without setting a palette.
 - Mode 10 uses core 0's shared 320x240 pixel buffer; entering the mode
   attaches and clears it, and per the memory policy `Launch` from a
   mode 10 program fails.
