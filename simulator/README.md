@@ -67,6 +67,10 @@ screen geometry.
 --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit
 --headless          no window/audio (smoke tests, CI)
 --exit-after-ms N   quit automatically after N ms
+--type TEXT         scripted keystrokes, one per frame (\n Return, \e Esc,
+                    \u \d \l \r cursor keys, \1..\7 F1..F7, \\ backslash)
+--type-delay-ms N   wait N ms after start before typing (default 500;
+                    use ~3500 to type into the shell after the boot splash)
 ```
 
 `--headless --exit-after-ms 1500` boots the OS, runs the scheduler and

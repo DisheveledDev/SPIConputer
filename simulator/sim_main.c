@@ -216,6 +216,8 @@ static int typed_key(const char **text) {
         case 'd': key = INPUT_KEY_DOWN; break;
         case 'l': key = INPUT_KEY_LEFT; break;
         case 'r': key = INPUT_KEY_RIGHT; break;
+        case '1': case '2': case '3': case '4': case '5': case '6': case '7':
+            key = INPUT_KEY_F1 + (p[-1] - '1'); break; /* \1..\7 = F1..F7 */
         default: key = '\\'; p--; break;
         }
     }
@@ -509,7 +511,7 @@ static void usage(const char *argv0) {
         "  --headless          no window/audio (smoke tests)\n"
         "  --exit-after-ms N   quit automatically after N ms\n"
         "  --type TEXT         type TEXT one key per frame after boot\n"
-        "                      (\\n Return, \\e Escape, \\u \\d \\l \\r cursor keys)\n"
+        "                      (\\n Return, \\e Escape, \\u \\d \\l \\r cursor keys, \\1..\\7 F1..F7)\n"
         "  --type-delay-ms N   wait N ms after boot before typing (default 500;\n"
         "                      keys typed while boot.lua shows its splash are lost)\n",
         argv0);
