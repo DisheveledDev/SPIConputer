@@ -520,13 +520,13 @@
       "group": "Display",
       "signature": "ScreenMode(mode)",
       "summary": "Selects a screen mode; switching clears both layers.",
-      "description": "0 = 40x30 tiles B&W, 1 = 40x30 tiles with per-cell invert and 7 colours, 2 = 80x60 tiles B&W, 3 = 80x60 tiles in colour (both at the full 640x480, 8x8 cells drawn 1:1), 10 = 320x240 pixels with a 256-entry palette (one program at a time; Launch from mode 10 fails). Cell coordinates in every other call are checked against the mode selected. The RP2040 dev board has modes 0 and 1 only.",
+      "description": "0 = 40x30 tiles B&W, 1 = 40x30 tiles with per-cell invert and 7 colours, 2 = 80x60 tiles B&W, 3 = 80x60 tiles in colour (both at the full 640x480, 8x8 cells drawn 1:1), 10 = 320x240 pixels, 11 = 160x120 pixels (each shown 4x4), both one palette byte per pixel (one pixel-mode program at a time; Launch from a pixel mode fails). Cell and pixel coordinates in every other call are checked against the mode selected. The RP2040 dev board has modes 0 and 1 only.",
       "parameters": [
         {
           "name": "mode",
           "type": "number",
           "optional": false,
-          "description": "0, 1, 2, 3 or 10"
+          "description": "0, 1, 2, 3, 10 or 11"
         }
       ],
       "returns": "true, or nil, err",
@@ -851,14 +851,317 @@
       "kind": "function",
       "group": "Display",
       "signature": "ScreenPlot(x, y, colour)",
-      "summary": "Sets one pixel in mode 10 (320x240) to a palette index.",
-      "description": "One display op per pixel: fine for drawing, slow for animation; the Screen framework's PixelLine/PixelRect build on it.",
+      "summary": "Sets one pixel in mode 10 (320x240) or 11 (160x120) to a palette index.",
+      "description": "One display op per pixel: fine for a few, slow for animation; the other pixel calls (ScreenPixelRect, ScreenPixelLine, ScreenPixelCircle, ScreenBlit, ScreenPixelText, ScreenPixelScroll) and the Graphics framework draw whole shapes in one op.",
       "parameters": [],
       "returns": "true, or nil, err",
-      "example": "ScreenMode(10)\nScreenPlot(160, 120, 2)",
+      "example": "ScreenMode(11)\nScreenPlot(80, 60, 2)",
       "seeAlso": [
         "ScreenMode",
-        "Screen.PixelLine"
+        "ScreenBlit",
+        "Graphics"
+      ]
+    },
+    {
+      "name": "ScreenPixelRect",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenPixelRect(x, y, w, h, colour [, filled])",
+      "summary": "A rectangle outline (or filled) in the pixel modes, one op.",
+      "description": "Modes 10 and 11. Clipped by the display core, so it may run off the edges.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": "palette index 0-255"
+        },
+        {
+          "name": "filled",
+          "type": "",
+          "optional": true,
+          "description": "true for a solid rectangle"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenPixelRect(10, 10, 50, 30, 7, true)",
+      "seeAlso": [
+        "ScreenPlot",
+        "Graphics.FillRect"
+      ]
+    },
+    {
+      "name": "ScreenPixelLine",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenPixelLine(x0, y0, x1, y1, colour)",
+      "summary": "A straight line of pixels between two points, one op.",
+      "description": "Modes 10 and 11; both ends included; clipped by the display core.",
+      "parameters": [
+        {
+          "name": "x0",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y0",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": "palette index 0-255"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenPixelLine(0, 0, 159, 119, 1)",
+      "seeAlso": [
+        "Graphics.Line"
+      ]
+    },
+    {
+      "name": "ScreenPixelCircle",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenPixelCircle(cx, cy, r, colour [, filled])",
+      "summary": "A circle outline (or filled) in the pixel modes, one op.",
+      "description": "Modes 10 and 11; radius 0-1024; clipped by the display core.",
+      "parameters": [
+        {
+          "name": "cx",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "cy",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "r",
+          "type": "",
+          "optional": false,
+          "description": "radius in pixels"
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": "palette index 0-255"
+        },
+        {
+          "name": "filled",
+          "type": "",
+          "optional": true,
+          "description": "true for a disc"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenPixelCircle(80, 60, 20, 3)",
+      "seeAlso": [
+        "Graphics.Circle"
+      ]
+    },
+    {
+      "name": "ScreenPixelScroll",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenPixelScroll(x, y, w, h, dx, dy [, fill])",
+      "summary": "Shifts a rectangle of pixels by (dx, dy); uncovered pixels get fill.",
+      "description": "Modes 10 and 11; dx and dy -127..127; the region is clipped to the screen first. One op however large the region.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dx",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dy",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fill",
+          "type": "",
+          "optional": true,
+          "description": "colour for the uncovered pixels (default 0)"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenPixelScroll(0, 0, 160, 120, -1, 0, 0)",
+      "seeAlso": [
+        "Graphics.Scroll"
+      ]
+    },
+    {
+      "name": "ScreenBlit",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenBlit(x, y, w, h, pixels [, key])",
+      "summary": "Copies a w x h image of palette bytes to (x, y), optionally with a transparent colour.",
+      "description": "Modes 10 and 11. `pixels` holds w*h bytes row by row; with `key` pixels of that colour are skipped, which is how sprites keep their shape. Clipped at every edge. At most 8184 pixels per call (the Graphics framework splits larger images); the bytes travel through the 8 KB text staging ring.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": "image width, 1-320"
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": "image height, 1-240"
+        },
+        {
+          "name": "pixels",
+          "type": "",
+          "optional": false,
+          "description": "w*h palette bytes"
+        },
+        {
+          "name": "key",
+          "type": "",
+          "optional": true,
+          "description": "transparent colour"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenBlit(10, 10, 4, 2, \"\\1\\1\\1\\1\\0\\1\\1\\0\", 0)",
+      "seeAlso": [
+        "Graphics.Blit",
+        "Graphics.Sprite"
+      ]
+    },
+    {
+      "name": "ScreenPixelText",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenPixelText(x, y, text, colour [, bg [, scale]])",
+      "summary": "Text as pixels with the 8x8 font in the pixel modes, one op.",
+      "description": "Modes 10 and 11. Each character is 8 * scale pixels wide and high (scale 1-4); with `bg` each character's cell is painted first, otherwise only the lit pixels are drawn. Uses the program's own tiles where defined. Up to 64 characters a call.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": "palette index 0-255"
+        },
+        {
+          "name": "bg",
+          "type": "",
+          "optional": true,
+          "description": "background colour"
+        },
+        {
+          "name": "scale",
+          "type": "",
+          "optional": true,
+          "description": "1-4 (default 1)"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenPixelText(4, 4, \"SCORE 120\", 1, 0)\nScreenPixelText(20, 40, \"GO!\", 7, nil, 3)",
+      "seeAlso": [
+        "Graphics.Text"
       ]
     },
     {

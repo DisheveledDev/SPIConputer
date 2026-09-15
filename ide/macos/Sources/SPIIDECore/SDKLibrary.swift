@@ -47,7 +47,7 @@ public struct SDK: Sendable, Equatable, Identifiable {
 public enum SDKLibrary {
     /// Bundled frameworks in presentation order.
     public static let available: [SDK] = {
-        let order = ["screen", "overlay", "text", "timer", "sound", "input"]
+        let order = ["screen", "overlay", "graphics", "text", "timer", "sound", "input"]
         var found: [String: SDK] = [:]
         if let urls = Bundle.module.urls(forResourcesWithExtension: "lua", subdirectory: "sdk") {
             for url in urls {

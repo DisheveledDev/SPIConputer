@@ -118,7 +118,7 @@ struct SDKLibraryTests {
 
     @Test func bundledFrameworksLoadAndParse() throws {
         let ids = SDKLibrary.available.map(\.id)
-        #expect(ids == ["screen", "overlay", "text", "timer", "sound", "input"])
+        #expect(ids == ["screen", "overlay", "graphics", "text", "timer", "sound", "input"])
         for sdk in SDKLibrary.available {
             #expect(!sdk.blocks.isEmpty, "\(sdk.id) has functions")
             #expect(!sdk.summary.isEmpty, "\(sdk.id) has a summary")

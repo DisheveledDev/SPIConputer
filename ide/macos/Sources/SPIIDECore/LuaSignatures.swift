@@ -91,6 +91,12 @@ public enum LuaSignatures {
         add("OverlayWrite", "x", "y", "text", "[attr]")
         add("OverlayWriteAttr", "x", "y", "attrs")
         add("ScreenPlot", "x", "y", "colour")
+        add("ScreenPixelRect", "x", "y", "w", "h", "colour", "[filled]")
+        add("ScreenPixelLine", "x0", "y0", "x1", "y1", "colour")
+        add("ScreenPixelCircle", "cx", "cy", "r", "colour", "[filled]")
+        add("ScreenPixelScroll", "x", "y", "w", "h", "dx", "dy", "[fill]")
+        add("ScreenBlit", "x", "y", "w", "h", "pixels", "[key]")
+        add("ScreenPixelText", "x", "y", "text", "colour", "[bg]")
 
         // Sound and music
         add("SoundDefine", "id", "spec")

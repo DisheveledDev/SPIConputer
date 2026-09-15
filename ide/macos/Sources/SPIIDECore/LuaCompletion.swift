@@ -44,6 +44,8 @@ public enum LuaCompletion {
         "OverlayOut", "OverlayAttr", "OverlayClear", "OverlayBox", "OverlayFill",
         "OverlayFillAttr", "OverlayCopy", "OverlayMove", "OverlayScroll",
         "OverlayWrite", "OverlayWriteAttr",
+        "ScreenPixelRect", "ScreenPixelLine", "ScreenPixelCircle", "ScreenPixelScroll",
+        "ScreenBlit", "ScreenPixelText",
         // Sound
         "SoundDefine", "SoundLoad", "SoundPlay", "SoundStop", "SoundStopAll",
         "SoundVolume", "MusicDefine", "MusicPlay", "MusicStop", "MusicPlaying",

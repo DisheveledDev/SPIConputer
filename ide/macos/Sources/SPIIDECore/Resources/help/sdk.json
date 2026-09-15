@@ -270,13 +270,29 @@
       "group": "Screen",
       "framework": "screen",
       "signature": "Screen.PIXELS",
-      "summary": "Mode 10: 320x240 pixels with a 256-entry palette (one program at a time).",
+      "summary": "Mode 10: 320x240 pixels, one palette byte each (one program at a time); draw with the Graphics framework.",
       "description": "",
       "parameters": [],
       "returns": "",
       "example": "",
       "seeAlso": [
         "Screen.Mode"
+      ]
+    },
+    {
+      "name": "Screen.PIXELS_LO",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.PIXELS_LO",
+      "summary": "Mode 11: 160x120 pixels shown 4x4, one palette byte each: a 19 KB buffer and the cheapest mode to draw and display.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Screen.Mode",
+        "Graphics"
       ]
     },
     {
@@ -2065,13 +2081,1438 @@
       "seeAlso": []
     },
     {
+      "name": "Graphics",
+      "kind": "namespace",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics",
+      "summary": "Pixels, shapes, sprites (rotation, flips, scaling), scrolling and text on the pixel modes 10 (320x240) and 11 (160x120).",
+      "description": "One palette byte per pixel; every drawing call is one display op, clipped by the display core. Images are strings of w*h palette bytes (Graphics.Pixels builds one from ASCII art); Rotate, Flip and Scale make new images in Lua, so build frames once and keep them. Sprites are objects with Draw/Hide/MoveTo/MoveBy/SetImage/Turn methods and x, y, w, h fields. Constants: Graphics.WIDTH/HEIGHT for the current mode, and the sixteen text colours by name (Graphics.BLACK .. Graphics.LIGHTGREY).",
+      "parameters": [],
+      "returns": "",
+      "example": "Graphics.Mode(11)\nlocal px, w, h = Graphics.Pixels({ \".X.\", \"XXX\", \".X.\" }, { X = Graphics.YELLOW })\nlocal s = Graphics.Sprite(w, h, px, 0)\ns:Draw(80, 60)",
+      "seeAlso": [
+        "Graphics.Mode",
+        "Graphics.Sprite",
+        "Graphics.Text",
+        "Screen.Mode"
+      ]
+    },
+    {
+      "name": "Graphics.Mode",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Mode([mode])",
+      "summary": "Selects pixel mode 10 (320x240, the default) or 11 (160x120), clearing the screen to colour 0, and sets Graphics.WIDTH/HEIGHT.",
+      "description": "Selects pixel mode 10 (320x240, the default) or 11 (160x120), clearing the screen to colour 0, and sets Graphics.WIDTH/HEIGHT. Pixel modes have no text cells: Graphics.Text draws text as pixels.",
+      "parameters": [
+        {
+          "name": "mode",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.Mode(11)  -- 160x120, the cheapest to draw",
+      "seeAlso": [
+        "Screen.Mode",
+        "Graphics.WIDTH"
+      ]
+    },
+    {
+      "name": "Graphics.PutPixel",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.PutPixel(x, y, colour)",
+      "summary": "Sets one pixel.",
+      "description": "Sets one pixel. One op per pixel: for shapes use Line, Rect, Circle and Blit, which are one op each.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.PutPixel(80, 60, Graphics.WHITE)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Clear",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Clear([colour])",
+      "summary": "Fills the whole screen with `colour` (default 0, black).",
+      "description": "Fills the whole screen with `colour` (default 0, black). One op.",
+      "parameters": [
+        {
+          "name": "colour",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.Clear(Graphics.BLUE)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Line",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Line(x1, y1, x2, y2, colour)",
+      "summary": "A straight line between two points, both included.",
+      "description": "A straight line between two points, both included.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.Line(0, 0, 159, 119, Graphics.YELLOW)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Rect",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Rect(x, y, w, h, colour)",
+      "summary": "A rectangle outline, w by h pixels from (x, y).",
+      "description": "A rectangle outline, w by h pixels from (x, y).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.Rect(10, 10, 40, 20, Graphics.GREEN)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.FillRect",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.FillRect(x, y, w, h, colour)",
+      "summary": "A filled rectangle, w by h pixels from (x, y).",
+      "description": "A filled rectangle, w by h pixels from (x, y).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.FillRect(0, 100, 160, 20, Graphics.Grey(80))",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Circle",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Circle(cx, cy, r, colour)",
+      "summary": "A circle outline of radius r around (cx, cy).",
+      "description": "A circle outline of radius r around (cx, cy).",
+      "parameters": [
+        {
+          "name": "cx",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "cy",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "r",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.Circle(80, 60, 30, Graphics.CYAN)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.FillCircle",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.FillCircle(cx, cy, r, colour)",
+      "summary": "A filled circle of radius r around (cx, cy).",
+      "description": "A filled circle of radius r around (cx, cy).",
+      "parameters": [
+        {
+          "name": "cx",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "cy",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "r",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.FillCircle(80, 60, 8, Graphics.RED)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Text",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Text(x, y, text, colour [, bg [, scale]])",
+      "summary": "Text as pixels with the 8x8 font (or the program's own tiles), from pixel (x, y): 8 pixels a character, or 8 * scale with `scale` 2-4.",
+      "description": "Text as pixels with the 8x8 font (or the program's own tiles), from pixel (x, y): 8 pixels a character, or 8 * scale with `scale` 2-4. With `bg` each character's cell is painted first; without it only the letters are drawn over what is there. One op.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "bg",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "scale",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.Text(4, 4, \"SCORE 120\", Graphics.WHITE, Graphics.BLACK)\nGraphics.Text(20, 40, \"GO!\", Graphics.YELLOW, nil, 3)",
+      "seeAlso": [
+        "Graphics.CenterText",
+        "Graphics.TextWidth"
+      ]
+    },
+    {
+      "name": "Graphics.TextWidth",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.TextWidth(text [, scale])",
+      "summary": "The width in pixels Graphics.Text gives `text`: 8 * scale a character.",
+      "description": "The width in pixels Graphics.Text gives `text`: 8 * scale a character.",
+      "parameters": [
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "scale",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local w = Graphics.TextWidth(\"READY\", 2)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.CenterText",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.CenterText(y, text, colour [, bg [, scale]])",
+      "summary": "Graphics.Text centred across the screen on pixel row y.",
+      "description": "Graphics.Text centred across the screen on pixel row y.",
+      "parameters": [
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "bg",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "scale",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.CenterText(50, \"GAME OVER\", Graphics.RED, nil, 2)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Blit",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Blit(x, y, w, h, pixels [, key])",
+      "summary": "Copies a w by h image, `pixels` a string of w*h palette bytes row by row, to (x, y).",
+      "description": "Copies a w by h image, `pixels` a string of w*h palette bytes row by row, to (x, y). With `key`, pixels of that colour are transparent. An image over 8184 pixels is sent in bands of rows (one op each).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "pixels",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "key",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.Blit(10, 10, w, h, pixels, 0)",
+      "seeAlso": [
+        "Graphics.Sprite",
+        "Graphics.Pixels"
+      ]
+    },
+    {
+      "name": "Graphics.Scroll",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Scroll(dx, dy [, fill])",
+      "summary": "Shifts the whole screen by (dx, dy) pixels (-127..127); the pixels uncovered get `fill` (default 0).",
+      "description": "Shifts the whole screen by (dx, dy) pixels (-127..127); the pixels uncovered get `fill` (default 0). One op: a scrolling backdrop costs one Scroll plus drawing the new edge.",
+      "parameters": [
+        {
+          "name": "dx",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dy",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fill",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.Scroll(-1, 0)  -- the backdrop moves left a pixel",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.ScrollRect",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.ScrollRect(x, y, w, h, dx, dy [, fill])",
+      "summary": "Shifts the pixels of one rectangle by (dx, dy); pixels uncovered inside it get `fill` (default 0).",
+      "description": "Shifts the pixels of one rectangle by (dx, dy); pixels uncovered inside it get `fill` (default 0).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dx",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dy",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fill",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.ScrollRect(0, 0, 160, 60, 0, 1, Graphics.BLACK)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.RGB",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.RGB(r, g, b)",
+      "summary": "The palette index nearest a colour (each 0-255) in the default palette's 6x6x6 cube (entries 16-231).",
+      "description": "The palette index nearest a colour (each 0-255) in the default palette's 6x6x6 cube (entries 16-231).",
+      "parameters": [
+        {
+          "name": "r",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "g",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "b",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local sand = Graphics.RGB(220, 200, 120)",
+      "seeAlso": [
+        "Graphics.Grey",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.Grey",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Grey(level)",
+      "summary": "The palette index nearest a grey (0 black .",
+      "description": "The palette index nearest a grey (0 black .. 255 white): the default palette's grey ramp (entries 232-255), or black or white.",
+      "parameters": [
+        {
+          "name": "level",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local dim = Graphics.Grey(60)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Palette",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Palette(index, r, g, b)",
+      "summary": "Sets palette entry `index` (0-255) to a colour; everything drawn in that index changes at once (palette animation).",
+      "description": "Sets palette entry `index` (0-255) to a colour; everything drawn in that index changes at once (palette animation). Entries 0-8 are also the text colours.",
+      "parameters": [
+        {
+          "name": "index",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "r",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "g",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "b",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Graphics.Palette(200, 255, 128, 0)  -- entry 200 is now orange",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Pixels",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Pixels(rows, map [, key])",
+      "summary": "Builds an image from ASCII art: `rows` a list of equal-length strings, `map` a table from character to colour; characters not in the map become `key` (default 0).",
+      "description": "Builds an image from ASCII art: `rows` a list of equal-length strings, `map` a table from character to colour; characters not in the map become `key` (default 0). Returns pixels, w, h for Blit or Sprite.",
+      "parameters": [
+        {
+          "name": "rows",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "map",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "key",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local px, w, h = Graphics.Pixels({ \".XX.\", \"XXXX\", \".XX.\" }, { X = Graphics.WHITE })",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Rotate",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Rotate(pixels, w, h, angle [, key])",
+      "summary": "A copy of a w x h image turned `angle` degrees clockwise.",
+      "description": "A copy of a w x h image turned `angle` degrees clockwise. 90, 180 and 270 keep every pixel (the result is h x w for 90 and 270); any other angle gives a square image big enough for the turned shape, the gaps filled with `key` (default 0). Returns pixels, w, h.",
+      "parameters": [
+        {
+          "name": "pixels",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "angle",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "key",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local turned, tw, th = Graphics.Rotate(px, w, h, 45, 0)",
+      "seeAlso": [
+        "Graphics.Turn",
+        "Graphics.Flip",
+        "Graphics.Scale"
+      ]
+    },
+    {
+      "name": "Graphics.Flip",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Flip(pixels, w, h [, horizontal [, vertical]])",
+      "summary": "A mirrored copy of an image: left-right when `horizontal` is true, top-bottom when `vertical` is (both by default).",
+      "description": "A mirrored copy of an image: left-right when `horizontal` is true, top-bottom when `vertical` is (both by default). Returns pixels.",
+      "parameters": [
+        {
+          "name": "pixels",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "horizontal",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "vertical",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local mirrored = Graphics.Flip(px, w, h, true, false)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Scale",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Scale(pixels, w, h, factor)",
+      "summary": "An image enlarged by a whole `factor` (2 doubles every pixel).",
+      "description": "An image enlarged by a whole `factor` (2 doubles every pixel). Returns pixels, w * factor, h * factor.",
+      "parameters": [
+        {
+          "name": "pixels",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "factor",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local big, bw, bh = Graphics.Scale(px, w, h, 2)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Sprite",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Sprite(w, h, pixels [, key])",
+      "summary": "A sprite object for a w x h image (`pixels` as for Blit).",
+      "description": "A sprite object for a w x h image (`pixels` as for Blit). `key` is its transparent colour. Show it with s:Draw(x, y), move it with s:MoveTo(x, y) (which repaints what it uncovers with s.background: a colour, default 0, or a function(x, y, w, h) that redraws that area), change its picture with s:SetImage or s:Turn. Fields: x, y, w, h.",
+      "parameters": [
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "pixels",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "key",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local ship = Graphics.Sprite(w, h, px, 0)\nship:Draw(70, 50)",
+      "seeAlso": [
+        "Graphics.Draw",
+        "Graphics.MoveTo",
+        "Graphics.Turn",
+        "Graphics.Pixels"
+      ]
+    },
+    {
+      "name": "Graphics.Draw",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Draw(sprite [, x, y])",
+      "summary": "Draws the sprite at (x, y) (default: where it is), without erasing anything: use it to show a sprite, or to redraw one after the screen was cleared or scrolled.",
+      "description": "Draws the sprite at (x, y) (default: where it is), without erasing anything: use it to show a sprite, or to redraw one after the screen was cleared or scrolled.",
+      "parameters": [
+        {
+          "name": "sprite",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "ship:Draw(70, 50)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Hide",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Hide(sprite)",
+      "summary": "Removes the sprite: its area is repainted with its background.",
+      "description": "Removes the sprite: its area is repainted with its background.",
+      "parameters": [
+        {
+          "name": "sprite",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "ship:Hide()",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.MoveTo",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.MoveTo(sprite, x, y)",
+      "summary": "Moves the sprite: the old area is repainted with its background, then the sprite is drawn at (x, y).",
+      "description": "Moves the sprite: the old area is repainted with its background, then the sprite is drawn at (x, y). Two ops; nothing happens when it has not moved.",
+      "parameters": [
+        {
+          "name": "sprite",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "ship:MoveTo(ship.x + 1, ship.y)",
+      "seeAlso": [
+        "Graphics.MoveBy",
+        "Graphics.Hide"
+      ]
+    },
+    {
+      "name": "Graphics.MoveBy",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.MoveBy(sprite, dx, dy)",
+      "summary": "Moves the sprite by (dx, dy) pixels: MoveTo relative to where it is.",
+      "description": "Moves the sprite by (dx, dy) pixels: MoveTo relative to where it is.",
+      "parameters": [
+        {
+          "name": "sprite",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dx",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dy",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "ship:MoveBy(1, 0)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.SetImage",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.SetImage(sprite, pixels, w, h)",
+      "summary": "Gives the sprite a new picture (an animation frame); a shown sprite is redrawn in place, erased first if the size changed.",
+      "description": "Gives the sprite a new picture (an animation frame); a shown sprite is redrawn in place, erased first if the size changed. The picture also becomes the one Turn rotates.",
+      "parameters": [
+        {
+          "name": "sprite",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "pixels",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "ship:SetImage(frame2, w, h)",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.Turn",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Turn(sprite, angle)",
+      "summary": "Shows the sprite's picture rotated `angle` degrees clockwise (from its unrotated image, so angles do not add up), keeping the rotated images so a repeated angle costs nothing: round angles to a step (say 15 degrees) to bound the memory.",
+      "description": "Shows the sprite's picture rotated `angle` degrees clockwise (from its unrotated image, so angles do not add up), keeping the rotated images so a repeated angle costs nothing: round angles to a step (say 15 degrees) to bound the memory. A shown sprite is redrawn, centred where it was.",
+      "parameters": [
+        {
+          "name": "sprite",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "angle",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "ship:Turn(heading - heading % 15)",
+      "seeAlso": [
+        "Graphics.Rotate",
+        "Graphics.SetImage"
+      ]
+    },
+    {
+      "name": "Graphics.Overlaps",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.Overlaps(a, b)",
+      "summary": "True when two sprites' rectangles overlap (a simple hit test).",
+      "description": "True when two sprites' rectangles overlap (a simple hit test).",
+      "parameters": [
+        {
+          "name": "a",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "b",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "if Graphics.Overlaps(ship, rock) then explode() end",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.OnScreen",
+      "kind": "function",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.OnScreen(sprite)",
+      "summary": "True while any part of the sprite is inside the screen.",
+      "description": "True while any part of the sprite is inside the screen.",
+      "parameters": [
+        {
+          "name": "sprite",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "if not ship:OnScreen() then respawn() end",
+      "seeAlso": [
+        "Graphics"
+      ]
+    },
+    {
+      "name": "Graphics.WIDTH",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.WIDTH",
+      "summary": "Pixels across in the current mode: 320 (mode 10) or 160 (mode 11); Graphics.Mode and Screen.Mode set it.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.Mode"
+      ]
+    },
+    {
+      "name": "Graphics.HEIGHT",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.HEIGHT",
+      "summary": "Pixels down in the current mode: 240 (mode 10) or 120 (mode 11).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.Mode"
+      ]
+    },
+    {
+      "name": "Graphics.BLACK",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.BLACK",
+      "summary": "Palette index 0: black (palette 0, the background) in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.WHITE",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.WHITE",
+      "summary": "Palette index 1: white in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.RED",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.RED",
+      "summary": "Palette index 2: red in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.CYAN",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.CYAN",
+      "summary": "Palette index 3: cyan in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.PURPLE",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.PURPLE",
+      "summary": "Palette index 4: purple in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.GREEN",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.GREEN",
+      "summary": "Palette index 5: green in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.BLUE",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.BLUE",
+      "summary": "Palette index 6: blue in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.YELLOW",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.YELLOW",
+      "summary": "Palette index 7: yellow in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.ORANGE",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.ORANGE",
+      "summary": "Palette index 8: orange in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.BROWN",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.BROWN",
+      "summary": "Palette index 9: brown in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.PINK",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.PINK",
+      "summary": "Palette index 10: pink in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.DARKGREY",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.DARKGREY",
+      "summary": "Palette index 11: dark grey in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.GREY",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.GREY",
+      "summary": "Palette index 12: grey in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.LIGHTGREEN",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.LIGHTGREEN",
+      "summary": "Palette index 13: light green in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.LIGHTBLUE",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.LIGHTBLUE",
+      "summary": "Palette index 14: light blue in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
+      "name": "Graphics.LIGHTGREY",
+      "kind": "constant",
+      "group": "Graphics",
+      "framework": "graphics",
+      "signature": "Graphics.LIGHTGREY",
+      "summary": "Palette index 15: light grey in the default palette.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Graphics.RGB",
+        "Graphics.Palette"
+      ]
+    },
+    {
       "name": "Screen.Mode",
       "kind": "function",
       "group": "Screen",
       "framework": "screen",
       "signature": "Screen.Mode(mode)",
-      "summary": "Selects a screen mode and updates Screen.COLS/ROWS; switching clears the screen.",
-      "description": "0 (Screen.TEXT40) 40x30 B&W, 1 (TEXT40C) 40x30 colour, 2 (TEXT80) 80x60 B&W, 3 (TEXT80C) 80x60 colour, 10 (PIXELS) 320x240 pixels. The 80-column modes draw at the full 640x480 (8x8 cells, 1:1) and cost core 0 about four times the rendering per line, so keep them for text screens. Sets Screen.COLS/ROWS and Overlay.COLS/ROWS to the new geometry.",
+      "summary": "Selects a screen mode and updates Screen.COLS/ROWS (and Graphics.WIDTH/HEIGHT); switching clears the screen.",
+      "description": "0 (Screen.TEXT40) 40x30 B&W, 1 (TEXT40C) 40x30 colour, 2 (TEXT80) 80x60 B&W, 3 (TEXT80C) 80x60 colour, 10 (PIXELS) 320x240 pixels, 11 (PIXELS_LO) 160x120 pixels. The 80-column modes draw at the full 640x480 and cost the display core about four times the rendering per line; the pixel modes have no text cells (the Graphics framework draws there, text included). Sets Screen.COLS/ROWS and Overlay.COLS/ROWS, and Graphics.WIDTH/HEIGHT when that framework is loaded.",
       "parameters": [
         {
           "name": "mode",
@@ -3165,7 +4606,7 @@
       "group": "Screen",
       "framework": "screen",
       "signature": "Screen.Plot(x, y, colour)",
-      "summary": "Sets one pixel in mode 10.",
+      "summary": "Sets one pixel in mode 10 or 11.",
       "description": "Sets one pixel in mode 10.",
       "parameters": [
         {
@@ -3567,8 +5008,8 @@
       "group": "Screen",
       "framework": "screen",
       "signature": "Screen.PixelLine(x1, y1, x2, y2, colour)",
-      "summary": "Mode 10: a straight line of pixels (Bresenham) in a palette colour.",
-      "description": "Mode 10: a straight line of pixels (Bresenham) in a palette colour.",
+      "summary": "Modes 10 and 11: a straight line of pixels in a palette colour (one op).",
+      "description": "One display op; Graphics.Line is the same call.",
       "parameters": [
         {
           "name": "x1",
@@ -3611,8 +5052,8 @@
       "group": "Screen",
       "framework": "screen",
       "signature": "Screen.PixelRect(x, y, w, h, colour [, filled])",
-      "summary": "Mode 10: a rectangle outline (or filled when `filled` is true) of pixels in a palette colour.",
-      "description": "Mode 10: a rectangle outline (or filled when `filled` is true) of pixels in a palette colour.",
+      "summary": "Modes 10 and 11: a rectangle outline, or filled, of pixels in a palette colour (one op).",
+      "description": "One display op; Graphics.Rect and Graphics.FillRect are the same call.",
       "parameters": [
         {
           "name": "x",

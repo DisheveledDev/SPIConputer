@@ -28,6 +28,7 @@ Screen.TEXT40C = 1     -- mode: 40x30 tiles, colour
 Screen.TEXT80 = 2      -- mode: 80x60 tiles, B&W
 Screen.TEXT80C = 3     -- mode: 80x60 tiles, colour
 Screen.PIXELS = 10     -- mode: 320x240 pixels
+Screen.PIXELS_LO = 11  -- mode: 160x120 pixels
 Screen.SINGLE = 1      -- box style: single line
 Screen.DOUBLE = 2      -- box style: double line
 Screen.INVERT = 0x80   -- attribute bit: swap foreground and background
@@ -63,9 +64,11 @@ end
 
 --- Screen.Mode(mode)
 -- Selects a screen mode: 0 (40x30 B&W), 1 (40x30 colour), 2 (80x60
--- B&W), 3 (80x60 colour), 10 (320x240 pixels); the Screen.TEXT40 ..
--- Screen.PIXELS constants name them. Switching clears the screen and
--- sets Screen.COLS/ROWS (and Overlay's) to the new geometry.
+-- B&W), 3 (80x60 colour), 10 (320x240 pixels), 11 (160x120 pixels); the
+-- Screen.TEXT40 .. Screen.PIXELS_LO constants name them. Switching
+-- clears the screen and sets Screen.COLS/ROWS (and Overlay's, and
+-- Graphics' WIDTH/HEIGHT) to the new geometry. The pixel modes have no
+-- text cells: the Graphics framework draws there.
 function Screen.Mode(mode)
     local ok, err = ScreenMode(mode)
     if ok then
@@ -74,6 +77,10 @@ function Screen.Mode(mode)
         Screen.ROWS = wide and 60 or 30
         if Overlay then
             Overlay.COLS, Overlay.ROWS = Screen.COLS, Screen.ROWS
+        end
+        if Graphics then
+            Graphics.WIDTH = mode == 11 and 160 or 320
+            Graphics.HEIGHT = mode == 11 and 120 or 240
         end
     end
     return ok, err
@@ -309,7 +316,8 @@ function Screen.DefineTile(index, rows)
 end
 
 --- Screen.Plot(x, y, colour)
--- Sets one pixel in mode 10.
+-- Sets one pixel in mode 10 (320x240) or 11 (160x120); the Graphics
+-- framework has the full pixel toolkit.
 function Screen.Plot(x, y, colour)
     return ScreenPlot(x, y, colour)
 end
@@ -445,36 +453,15 @@ function Screen.Shade(x1, y1, x2, y2, level, attr)
 end
 
 --- Screen.PixelLine(x1, y1, x2, y2, colour)
--- Mode 10: a straight line of pixels (Bresenham) in a palette colour.
+-- Modes 10 and 11: a straight line of pixels in a palette colour (one op;
+-- Graphics.Line is the same call).
 function Screen.PixelLine(x1, y1, x2, y2, colour)
-    local dx, dy = math.abs(x2 - x1), -math.abs(y2 - y1)
-    local sx, sy = x1 < x2 and 1 or -1, y1 < y2 and 1 or -1
-    local err = dx + dy
-    local x, y = x1, y1
-    while true do
-        if x >= 0 and x < 320 and y >= 0 and y < 240 then
-            ScreenPlot(x, y, colour)
-        end
-        if x == x2 and y == y2 then break end
-        local e2 = 2 * err
-        if e2 >= dy then err = err + dy x = x + sx end
-        if e2 <= dx then err = err + dx y = y + sy end
-    end
-    return true
+    return ScreenPixelLine(x1, y1, x2, y2, colour)
 end
 
 --- Screen.PixelRect(x, y, w, h, colour [, filled])
--- Mode 10: a rectangle outline (or filled when `filled` is true) of
--- pixels in a palette colour.
+-- Modes 10 and 11: a rectangle outline (or filled when `filled` is true)
+-- of pixels in a palette colour (one op).
 function Screen.PixelRect(x, y, w, h, colour, filled)
-    for py = y, y + h - 1 do
-        for px = x, x + w - 1 do
-            if filled or py == y or py == y + h - 1 or px == x or px == x + w - 1 then
-                if px >= 0 and px < 320 and py >= 0 and py < 240 then
-                    ScreenPlot(px, py, colour)
-                end
-            end
-        end
-    end
-    return true
+    return ScreenPixelRect(x, y, w, h, colour, filled and true or false)
 end
