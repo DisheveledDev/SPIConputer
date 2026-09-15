@@ -9,4 +9,4 @@
 -- Built from the SPIEdit project in this folder: edit the components
 -- here and Build, or run `swift run --package-path ide/macos spibuild
 -- software/boot` from the workspace root. The generated files are written
--- to software/core/.
+-- to software/core/

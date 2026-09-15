@@ -13,8 +13,17 @@
       "name" : "main"
     }
   ],
+  "description" : "",
   "format_version" : 1,
+  "interactive" : true,
   "name" : "boot",
+  "output_directory" : "../core",
   "output_kind" : "prg",
-  "output_directory" : "../core"
+  "requires_audio" : true,
+  "requires_video" : true,
+  "sdks" : [
+    "screen",
+    "overlay"
+  ],
+  "version" : "1.0"
 }

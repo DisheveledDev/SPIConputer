@@ -26,6 +26,7 @@ local function draw_failure()
     text(16, "EXPECTED CORE/OS.PRG", 0)
     text(17, "OR CORE/OS.LUA", 0)
     text(20, "CHECK THE SD CARD", 0)
+    Screen.
 end
 
 -- Try each OS image once after the static startup screen has been shown.

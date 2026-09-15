@@ -91,8 +91,9 @@ add_executable(SPIComputerOS
 
 # Core 0's scanout path runs from SRAM (the XIP cache is shared with the
 # OS core, and a miss delays the video DMA IRQ). A switch compiled to a
-# jump table would still read its table from flash, so these files are
-# built without them.
+# jump table would still read its table from flash, and a fill or copy
+# loop recognised as a memset/memcpy idiom would call the flash library
+# routine, so these files are built without either transformation.
 set_source_files_properties(
         core0/video_hw.c video.c render332.c scanout.c
         PROPERTIES COMPILE_OPTIONS
@@ -152,10 +153,9 @@ if (SPICOMPUTER_CHEQUERBOARD)
             SPICOMPUTER_CHEQUERBOARD=1)
 endif()
 
-# Bring-up logging period, in milliseconds (see core1/lua_main.c): a
-# status line per period goes to USB stdio and spilog.txt on the card.
-# Build with -DSPICOMPUTER_LOG_PERIOD_MS=5000 to space the writes out
-# (tests whether the SD/stdio writes themselves disturb the display).
+# Bring-up status period, in milliseconds (see core1/lua_main.c): video
+# diagnostics are printed to USB stdio only, never written to the SD card.
+# Build with -DSPICOMPUTER_LOG_PERIOD_MS=5000 to reduce console output.
 set(SPICOMPUTER_LOG_PERIOD_MS 1000 CACHE STRING
         "Bring-up status/log period in ms")
 target_compile_definitions(SPIComputerOS PRIVATE
