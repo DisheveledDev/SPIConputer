@@ -506,20 +506,22 @@ static void sim_pump_audio(SDL_AudioDeviceID dev) {
     if (!dev) {
         return;
     }
-    /* Keep ~20 ms queued; audio_mix runs here on the main thread, the
-     * same single-producer shape as core 0 on hardware. */
-    Uint32 threshold = (Uint32)AUDIO_SAMPLE_RATE * 4u / 50u;
-    if (SDL_GetQueuedAudioSize(dev) > threshold) {
-        return;
-    }
+    /* Keep at least ~40 ms queued: a display frame drains 735 frames,
+     * so top the queue up in AUDIO_PUMP_FRAMES blocks until it is ahead
+     * again (one block a frame starved it, and playback ran slow and
+     * broken). audio_mix runs here on the main thread, the same
+     * single-producer shape as core 0 on hardware. */
+    Uint32 threshold = (Uint32)AUDIO_SAMPLE_RATE * 4u / 25u;
     static int16_t buf[AUDIO_PUMP_FRAMES * 2];
-    audio_state_t *a = g_current_audio;
-    if (a) {
-        audio_mix(a, buf, AUDIO_PUMP_FRAMES);
-    } else {
-        memset(buf, 0, sizeof(buf));
+    while (SDL_GetQueuedAudioSize(dev) < threshold) {
+        audio_state_t *a = g_current_audio;
+        if (a) {
+            audio_mix(a, buf, AUDIO_PUMP_FRAMES);
+        } else {
+            memset(buf, 0, sizeof(buf));
+        }
+        SDL_QueueAudio(dev, buf, sizeof(buf));
     }
-    SDL_QueueAudio(dev, buf, sizeof(buf));
 }
 
 /* ------------------------------------------------------------------ */
@@ -944,6 +946,7 @@ int main(int argc, char **argv) {
              * next frame boundary, unless the batch already ran past it. */
             while (sim_frame_index() == frame_index) {
                 SDL_Delay(1);
+                sim_pump_audio(audio); /* keep the queue fed through the wait */
             }
         }
     }

@@ -109,8 +109,9 @@ what you copy into `sdcard/`.
   frame is drawn and has its input read. The exit summary reports both
   `ticks` and `frames`. Programs should compute elapsed time from
   `TimeNow()` as on hardware.
-- Audio is mixed on the main thread and queued (~20 ms target depth), the
-  same single-producer shape as core 0.
+- Audio is mixed on the main thread and queued: the pump tops the SDL
+  queue up to ~40 ms every frame and while waiting for the next frame
+  boundary, the same single-producer shape as core 0.
 - Hardware output files are not compiled in; the SDL window replaces the
   hardware display.
 - macOS key repeat is passed through as repeated key-down events.
