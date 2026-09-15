@@ -54,6 +54,36 @@ final class AppModel {
     }
 
     private static let simulatorPathKey = "simulatorPath"
+
+    // Recently opened projects (welcome screen and File > Open Recent).
+    private let recents = RecentProjectsStore()
+    var recentProjects: [RecentProject] = []
+
+    /// Reloads the recent list, dropping projects whose folder has gone.
+    func refreshRecentProjects() {
+        recentProjects = recents.prune()
+    }
+
+    func openRecentProject(_ entry: RecentProject) {
+        let manifest = entry.url.appendingPathComponent(Project.manifestName)
+        guard FileManager.default.fileExists(atPath: manifest.path) else {
+            recents.remove(path: entry.path)
+            refreshRecentProjects()
+            errorMessage = "The project folder is no longer there: \(entry.displayPath)"
+            return
+        }
+        openProject(at: entry.url)
+    }
+
+    func removeRecentProject(_ entry: RecentProject) {
+        recents.remove(path: entry.path)
+        refreshRecentProjects()
+    }
+
+    func clearRecentProjects() {
+        recents.clear()
+        refreshRecentProjects()
+    }
     private let consoleStream: AsyncStream<String>
     private let consoleContinuation: AsyncStream<String>.Continuation
     private var process: Process?
@@ -283,6 +313,8 @@ final class AppModel {
         componentCheckTask?.cancel()
         editingComponent = nil // never save the previous project's buffer here
         self.project = project
+        recents.record(project)
+        refreshRecentProjects()
         showingProjectSettings = true
         selectedComponentID = project.manifest.components.first?.id
         loadSelectedComponent()

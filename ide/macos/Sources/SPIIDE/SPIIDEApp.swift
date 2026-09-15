@@ -11,6 +11,7 @@ struct SPIIDEApp: App {
         WindowGroup {
             ContentView()
                 .environment(model)
+                .onAppear { model.refreshRecentProjects() }
         }
         .defaultSize(width: 1150, height: 780)
         .commands {
@@ -19,6 +20,18 @@ struct SPIIDEApp: App {
                     .keyboardShortcut("n")
                 Button("Open Project…") { model.showingOpenPanel = true }
                     .keyboardShortcut("o")
+                Menu("Open Recent") {
+                    ForEach(model.recentProjects) { entry in
+                        Button(entry.name) { model.openRecentProject(entry) }
+                            .help(entry.path)
+                    }
+                    if model.recentProjects.isEmpty {
+                        Text("No Recent Projects")
+                    } else {
+                        Divider()
+                        Button("Clear Menu") { model.clearRecentProjects() }
+                    }
+                }
             }
             CommandGroup(after: .pasteboard) {
                 Divider()

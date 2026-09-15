@@ -103,8 +103,77 @@ struct WelcomeView: View {
                     .buttonStyle(.borderedProminent)
                 Button("Open Project…") { model.showingOpenPanel = true }
             }
+            if !model.recentProjects.isEmpty {
+                RecentProjectsList()
+                    .padding(.top, 8)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+        .onAppear { model.refreshRecentProjects() }
+    }
+}
+
+/// The welcome screen's recently opened projects: click to open, right
+/// click to remove or reveal.
+struct RecentProjectsList: View {
+    @Environment(AppModel.self) private var model
+
+    /// "2 hours ago", "yesterday", ...
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter
+    }()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Recent Projects")
+                    .font(.headline)
+                Spacer()
+                Button("Clear") { model.clearRecentProjects() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+            ForEach(model.recentProjects) { entry in
+                Button {
+                    model.openRecentProject(entry)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "folder")
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(entry.name)
+                            Text(entry.displayPath)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        Spacer()
+                        Text(Self.relativeFormatter.localizedString(for: entry.lastOpened, relativeTo: Date()))
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
+                .contextMenu {
+                    Button("Reveal in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([entry.url])
+                    }
+                    Button("Remove from Recent Projects") {
+                        model.removeRecentProject(entry)
+                    }
+                }
+                .help(entry.path)
+            }
+        }
+        .frame(maxWidth: 480)
     }
 }

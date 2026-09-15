@@ -63,6 +63,76 @@ struct WindowRenderingTests {
         return Capture(textPixels: count, captured: true)
     }
 
+    /// Renders any SwiftUI view in a real window and returns the capture
+    /// plus its bitmap (nil when window capture is unavailable).
+    private func captureView<V: View>(_ view: V, size: NSSize) -> NSBitmapImageRep? {
+        let hosting = NSHostingView(rootView: view)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        window.orderFront(nil)
+        window.layoutIfNeeded()
+        window.displayIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        window.displayIfNeeded()
+        defer {
+            window.orderOut(nil)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        }
+        guard let image = CGWindowListCreateImage(
+            .null, .optionIncludingWindow, CGWindowID(window.windowNumber),
+            [.boundsIgnoreFraming])
+        else { return nil }
+        let rep = NSBitmapImageRep(cgImage: image)
+        guard rep.pixelsWide > 200, rep.pixelsHigh > 100 else { return nil }
+        return rep
+    }
+
+    @Test func welcomeScreenListsRecentProjects() {
+        let model = AppModel()
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spiide-welcome-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        // Creating a project records it; two of them make a list.
+        model.createProject(named: "Invaders", in: parent)
+        model.createProject(named: "Notes", in: parent)
+        #expect(model.recentProjects.prefix(2).map(\.name) == ["Notes", "Invaders"])
+        model.project = nil // back to the welcome screen
+
+        let view = WelcomeView().environment(model)
+        if let rep = captureView(view, size: NSSize(width: 700, height: 520)) {
+            if let dir = ProcessInfo.processInfo.environment["SPIIDE_SNAPSHOT_DIR"],
+               let png = rep.representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("welcome.png"))
+            }
+            // The list adds rows below the buttons: the lower half of the
+            // window must contain drawn pixels, which the plain welcome
+            // screen leaves blank.
+            guard let background = rep.colorAt(x: rep.pixelsWide - 20, y: rep.pixelsHigh - 20) else {
+                return
+            }
+            var drawn = 0
+            for y in (rep.pixelsHigh / 2)..<rep.pixelsHigh {
+                for x in 0..<rep.pixelsWide {
+                    guard let color = rep.colorAt(x: x, y: y) else { continue }
+                    let distance = abs(color.redComponent - background.redComponent)
+                        + abs(color.greenComponent - background.greenComponent)
+                        + abs(color.blueComponent - background.blueComponent)
+                    if distance > 0.3 { drawn += 1 }
+                }
+            }
+            #expect(drawn > 100, "recent projects rows drawn: \(drawn)")
+        }
+        // Whether or not the screen could be captured, the model side holds.
+        model.removeRecentProject(model.recentProjects[0])
+        #expect(model.recentProjects.map(\.name) == ["Invaders"])
+        model.clearRecentProjects()
+        #expect(model.recentProjects.isEmpty)
+    }
+
     @Test func textStaysVisibleWithLineNumberGutter() {
         let without = capture(gutter: false)
         let with = capture(gutter: true)

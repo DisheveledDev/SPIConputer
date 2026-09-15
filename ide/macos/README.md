@@ -40,6 +40,15 @@ The Dock icon is set at launch from `Sources/SPIIDE/Resources/AppIcon.png`
 (`swift run` produces a bare executable, so there is no app bundle to
 carry an icon).
 
+## Recent projects
+
+The welcome screen (shown while no project is open) lists the ten most
+recently opened projects with their path and when they were last opened;
+click one to open it, right-click to reveal it in the Finder or remove
+it. The same list is under File ▸ Open Recent. The list lives in
+UserDefaults (`recentProjects`) and drops projects whose folder has
+disappeared.
+
 ## Projects
 
 The first item in the project navigator is Project Settings. It controls the
