@@ -1,0 +1,38 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "C8540357-B7C0-41BA-A9BB-04D17FA222AB",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-names.lua",
+      "id": "B8931977-F83B-488B-9CD9-56B743F444E7",
+      "kind": "lua",
+      "name": "names"
+    },
+    {
+      "file": "components/20-screen.lua",
+      "id": "E291F613-325F-4379-86A3-06210ECF2D6E",
+      "kind": "lua",
+      "name": "screen"
+    },
+    {
+      "file": "components/30-main.lua",
+      "id": "BB7A13D2-7989-40AB-A2A5-9019958B69C8",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Character set with codes and names",
+  "format_version": 2,
+  "kind": "application",
+  "name": "chars",
+  "requires_audio": false,
+  "sdks": [
+    "screen",
+    "input"
+  ],
+  "version": "1.0"
+}

@@ -1,0 +1,38 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "EDF3EAB5-E14A-45EB-ADB3-7FA70D7FEEAF",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-screen.lua",
+      "id": "DC802C84-C1B7-4593-B43D-1372DF3E37F9",
+      "kind": "lua",
+      "name": "screen"
+    },
+    {
+      "file": "components/20-events.lua",
+      "id": "58DEA0EF-E5DC-412A-A2A4-92B24331278F",
+      "kind": "lua",
+      "name": "events"
+    },
+    {
+      "file": "components/30-main.lua",
+      "id": "2F5F47E0-78EC-4AE5-A391-D1D5AAD27939",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Keyboard and joystick tester",
+  "format_version": 2,
+  "kind": "application",
+  "name": "keys",
+  "requires_audio": false,
+  "sdks": [
+    "screen",
+    "input"
+  ],
+  "version": "1.0"
+}
