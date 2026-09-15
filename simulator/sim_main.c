@@ -902,6 +902,7 @@ int main(int argc, char **argv) {
         uint32_t frame_index = sim_frame_index();
         for (int i = 0; i < o.ticks_per_frame && s_running; i++) {
             program_scheduler_step();
+            audio_service();
             /* Core 0's part: collect the display ops each tick queued,
              * or a drawing-heavy program fills the queue and blocks. */
             video_ops_drain();

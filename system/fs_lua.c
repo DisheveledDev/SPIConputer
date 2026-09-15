@@ -213,6 +213,12 @@ FRESULT fs_lua_read_chunk(int32_t handle, void *dst, size_t max, size_t *got) {
     return FR_OK;
 }
 
+FRESULT fs_lua_seek_handle(int32_t handle, int32_t offset) {
+    rpc_response_t resp;
+    rpc_fs(RPC_FS_SEEK, handle, offset, 0, NULL, NULL, &resp);
+    return (FRESULT)resp.result;
+}
+
 FRESULT fs_lua_close_handle(int32_t handle) {
     rpc_response_t resp;
     rpc_fs(RPC_FS_CLOSE, handle, 0, 0, NULL, NULL, &resp);

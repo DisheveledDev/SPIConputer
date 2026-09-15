@@ -314,6 +314,7 @@ void core1_entry(void)
         /* Drain input, run due timers, otherwise tick. */
         crumb_phase(PHASE_SCHEDULER);
         program_scheduler_step();
+        audio_service(); /* stream a playing module's samples from the card */
         crumb_phase(PHASE_LOOP);
 
         /* An empty program stack means the last program (a game that

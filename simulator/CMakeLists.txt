@@ -28,6 +28,7 @@ add_executable(spicomputer_sim
         sim_dir.c
         ${SYSTEM_DIR}/audio.c
         ${SYSTEM_DIR}/audio_presets.c
+        ${SYSTEM_DIR}/mod.c
         ${SYSTEM_DIR}/sound_lua.c
         ${SYSTEM_DIR}/screen_lua.c
         ${SYSTEM_DIR}/sys_lua.c

@@ -10,8 +10,13 @@
  *   SoundDefine(id, spec)          -> true | nil, err
  *   SoundPreset(name)              -> id, spec | nil, err  (the built-in bank)
  *   SoundPresets()                 -> { {name=, effect=, id=}, ... }
- *   SoundLoad(path [, root])       -> sound id | nil, err  (WAV PCM; root =
- *                                     the note recorded, default C4)
+ *   SoundLoad(path [, root [, loop_start, loop_end]]) -> sound id | nil, err
+ *                                     (WAV PCM; root = the note recorded,
+ *                                     default C4; a loop in frames sustains)
+ *   ModLoad(path) / ModPlay([loop]) / ModStop() / ModPlaying()
+ *   ModPosition() -> order, row, pattern;  ModInfo() -> table;  ModUnload()
+ *                                     a ProTracker module streamed from the
+ *                                     card (mod.h); one per program
  *   SoundPlay(sound [, note [, dur_ms [, vol [, pan]]]]) -> voice | nil, err
  *   SoundStop([voice])             -> bool (no arg: all one-shots)
  *   SoundStopAll()                 -> true (score + one-shots)
@@ -48,6 +53,7 @@
 #include "lauxlib.h"
 
 #include "audio.h"
+#include "mod.h"
 #include "program.h"
 #include "ff.h"
 #include "fs_lua.h"
@@ -562,7 +568,8 @@ static bool skip_bytes(int32_t handle, uint32_t n) {
 /* Parse a PCM (8/16-bit, mono/stereo) WAV into the sample pool.
  * On success returns true and *slot_out is set. */
 static bool wav_load(lua_State *L, audio_state_t *a, const char *path,
-                     int root, int *slot_out, const char **err) {
+                     int root, uint32_t loop_start, uint32_t loop_end,
+                     int *slot_out, const char **err) {
     int slot = -1;
     for (int i = 0; i < AUDIO_SAMPLE_MAX; i++) {
         if (!a->samples[i].defined) {
@@ -685,6 +692,11 @@ static bool wav_load(lua_State *L, audio_state_t *a, const char *path,
             memset(smp, 0, sizeof(*smp));
             smp->defined = 1;
             smp->root = (uint8_t)root;
+            if (loop_end > frames) loop_end = frames;
+            if (loop_end > loop_start + 1) {
+                smp->loop_start = loop_start;
+                smp->loop_len = loop_end - loop_start;
+            }
             smp->channels = (uint8_t)channels;
             smp->rate = (uint16_t)rate;
             smp->frames = frames;
@@ -707,21 +719,129 @@ fail:
     return false;
 }
 
-/* SoundLoad(path [, root]): `root` is the note the recording is of
- * (default C4); playing another note shifts the pitch by the
- * difference. */
+/* SoundLoad(path [, root [, loop_start, loop_end]]): `root` is the note
+ * the recording is of (default C4); playing another note shifts the
+ * pitch by the difference. A loop (frames) sustains a note by repeating
+ * that stretch until it is released. */
 static int sound_load(lua_State *L) {
     audio_state_t *a = current(L);
     const char *path = luaL_checkstring(L, 1);
     int root = note_arg(L, 2, 60);
+    uint32_t loop_start = (uint32_t)clamp_int(luaL_optinteger(L, 3, 0), 0, 0x7fffffff);
+    uint32_t loop_end = (uint32_t)clamp_int(luaL_optinteger(L, 4, 0), 0, 0x7fffffff);
     int slot = 0;
     const char *err = NULL;
-    if (!wav_load(L, a, path, root, &slot, &err)) {
+    if (!wav_load(L, a, path, root, loop_start, loop_end, &slot, &err)) {
         lua_pushnil(L);
         lua_pushstring(L, err ? err : "load failed");
         return 2;
     }
     lua_pushinteger(L, AUDIO_INSTRUMENT_MAX + slot);
+    return 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Modules (mod.h)                                                     */
+/* ------------------------------------------------------------------ */
+
+/* ModLoad(path) -> true | nil, err: loads a ProTracker module (one per
+ * program; a second load replaces the first). */
+static int mod_load_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    char resolved[FS_LUA_PATH_MAX];
+    const char *path = fs_lua_resolve_path(L, luaL_checkstring(L, 1), resolved);
+    const char *err = NULL;
+    mod_t *m = mod_load(path, &err);
+    if (!m) {
+        lua_pushnil(L);
+        lua_pushstring(L, err ? err : "load failed");
+        return 2;
+    }
+    mod_t *old = a->mod;
+    if (old) {
+        mod_request_stop(old);
+        a->mod = NULL; /* the producer sees NULL before the free */
+        old->playing = 0;
+    }
+    a->mod = m;
+    a->version++;
+    if (old) mod_free(old);
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+/* ModPlay([loop]) -> true | nil, err: starts the loaded module from the
+ * top (and stops a playing score). */
+static int mod_play_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    if (!a->mod) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "no module loaded");
+        return 2;
+    }
+    audio_stop_score(a);
+    mod_request_play(a->mod, lua_isnoneornil(L, 1) ? 1 : lua_toboolean(L, 1));
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+static int mod_stop_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    mod_request_stop(a->mod);
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+static int mod_playing_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    lua_pushboolean(L, mod_is_playing(a->mod));
+    return 1;
+}
+
+/* ModPosition() -> order, row, pattern (or nil): where the player is. */
+static int mod_position_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    if (!a->mod) {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushinteger(L, a->mod->order_pos);
+    lua_pushinteger(L, a->mod->row);
+    lua_pushinteger(L, a->mod->order[a->mod->order_pos]);
+    return 3;
+}
+
+/* ModInfo() -> { name, orders, patterns, samples, resident_kb, underruns } */
+static int mod_info_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    if (!a->mod) {
+        lua_pushnil(L);
+        return 1;
+    }
+    mod_t *m = a->mod;
+    int samples = 0;
+    for (int i = 1; i <= MOD_SAMPLES; i++) {
+        if (m->samples[i].length) samples++;
+    }
+    lua_createtable(L, 0, 6);
+    lua_pushstring(L, m->name); lua_setfield(L, -2, "name");
+    lua_pushinteger(L, m->order_count); lua_setfield(L, -2, "orders");
+    lua_pushinteger(L, m->pattern_count); lua_setfield(L, -2, "patterns");
+    lua_pushinteger(L, samples); lua_setfield(L, -2, "samples");
+    lua_pushinteger(L, (lua_Integer)(m->pool_used / 1024)); lua_setfield(L, -2, "resident_kb");
+    lua_pushinteger(L, (lua_Integer)m->underruns); lua_setfield(L, -2, "underruns");
+    return 1;
+}
+
+static int mod_unload_lua(lua_State *L) {
+    audio_state_t *a = current(L);
+    mod_t *m = a->mod;
+    if (m) {
+        m->playing = 0;
+        a->mod = NULL;
+        mod_free(m);
+    }
+    lua_pushboolean(L, true);
     return 1;
 }
 
@@ -742,6 +862,13 @@ static const luaL_Reg sound_funcs[] = {
     {"MusicPlay", music_play},
     {"MusicStop", music_stop},
     {"MusicPlaying", music_playing},
+    {"ModLoad", mod_load_lua},
+    {"ModPlay", mod_play_lua},
+    {"ModStop", mod_stop_lua},
+    {"ModPlaying", mod_playing_lua},
+    {"ModPosition", mod_position_lua},
+    {"ModInfo", mod_info_lua},
+    {"ModUnload", mod_unload_lua},
     {NULL, NULL},
 };
 

@@ -134,6 +134,8 @@ typedef struct {
     uint16_t rate;    /* source sample rate */
     uint32_t frames;  /* per-channel frames */
     uint32_t offset;  /* byte offset into the pool (int16 samples) */
+    uint32_t loop_start; /* frames; a loop sustains a note past the end */
+    uint32_t loop_len;   /* frames; 0 = no loop */
 } audio_pcm_t;
 
 /* A pending one-shot request (SPSC ring, core 1 -> producer). */
@@ -186,6 +188,7 @@ typedef struct audio_state_s {
     int16_t *sample_pool;      /* malloc'd lazily on first SoundLoad */
     uint32_t sample_pool_used; /* bytes */
     uint32_t version;          /* bumped on any definition change */
+    struct mod_s *mod;         /* a loaded module (mod.h), or NULL */
 
     /* ---- playback requests (core 1 -> producer) ---- */
     volatile uint8_t master; /* 0..255 */
@@ -248,6 +251,9 @@ void audio_stop_all_voices(audio_state_t *a);
 
 /* Silence every voice without touching the score cursor (program pause). */
 void audio_pause(audio_state_t *a);
+
+/* Core 1, every scheduler step: stream the active state's module. */
+void audio_service(void);
 
 /* ---- producer (core 0 / host tests) ---- */
 

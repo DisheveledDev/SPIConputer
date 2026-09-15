@@ -38,6 +38,7 @@ add_executable(spicomputer_host_tests
         ${CMAKE_CURRENT_SOURCE_DIR}/../../sound_lua.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio_presets.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../mod.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../video.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../os_time.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../input.c
@@ -58,6 +59,7 @@ add_executable(spicomputer_audio_tests
         mock/mock_fatfs.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio_presets.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../mod.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../sound_lua.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../program.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../sys_lua.c
@@ -102,6 +104,7 @@ add_executable(spicomputer_program_tests
         ${CMAKE_CURRENT_SOURCE_DIR}/../../sound_lua.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio_presets.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../mod.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../video.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../os_time.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../fs_lua.c
@@ -132,6 +135,7 @@ add_executable(spicomputer_render_tests
         ${CMAKE_CURRENT_SOURCE_DIR}/../../sound_lua.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio_presets.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../mod.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../os_time.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../fs_lua.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../fs_core0.c
@@ -164,6 +168,7 @@ add_executable(spicomputer_editor_tests
         ${CMAKE_CURRENT_SOURCE_DIR}/../../sound_lua.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../audio_presets.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../mod.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../os_time.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../fs_lua.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../fs_core0.c

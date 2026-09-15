@@ -587,6 +587,192 @@ static void test_lua_presets(void) {
     program_terminate(p);
 }
 
+/* ---- ProTracker modules, streamed from the (mock) card ---- */
+
+#include "mod.h"
+
+extern void mock_set_file_bytes(const char *path, const void *data, size_t len);
+
+/* A cell: sample number, period, effect, parameter. */
+static void put_cell(uint8_t *pat, int row, int ch, int sample, int period, int fx, int param) {
+    uint8_t *c = pat + (row * 4 + ch) * 4;
+    c[0] = (uint8_t)((sample & 0xf0) | ((period >> 8) & 0x0f));
+    c[1] = (uint8_t)(period & 0xff);
+    c[2] = (uint8_t)(((sample & 0x0f) << 4) | (fx & 0x0f));
+    c[3] = (uint8_t)param;
+}
+
+/* Build a module: sample 1 a short saw (fully resident), sample 2 a long
+ * looped ramp (streamed: longer than the head), two patterns. */
+#define TEST_MOD_LONG 60000u
+static uint8_t *build_mod(size_t *len_out) {
+    uint32_t s1_len = 64, s2_len = TEST_MOD_LONG;
+    size_t len = 1084 + 3 * 1024 + s1_len + s2_len;
+    uint8_t *m = calloc(1, len);
+    memcpy(m, "test module", 11);
+    uint8_t *s = m + 20;              /* sample 1 */
+    memcpy(s, "saw", 3);
+    s[22] = (uint8_t)((s1_len / 2) >> 8); s[23] = (uint8_t)(s1_len / 2);
+    s[24] = 0; s[25] = 64; s[26] = 0; s[27] = 0; s[28] = 0; s[29] = 1;
+    s = m + 50;                       /* sample 2: loop from 1000, 40000 long */
+    memcpy(s, "long", 4);
+    s[22] = (uint8_t)((s2_len / 2) >> 8); s[23] = (uint8_t)(s2_len / 2);
+    s[24] = 0; s[25] = 48;
+    s[26] = (uint8_t)((1000 / 2) >> 8); s[27] = (uint8_t)(1000 / 2);
+    s[28] = (uint8_t)((40000 / 2) >> 8); s[29] = (uint8_t)(40000 / 2);
+    m[950] = 3;  /* orders: 0, 1, then the long-note pattern */
+    m[951] = 0;
+    m[952] = 0; m[953] = 1; m[954] = 2;
+    memcpy(m + 1080, "M.K.", 4);
+    uint8_t *p0 = m + 1084, *p1 = p0 + 1024;
+    put_cell(p0, 0, 0, 1, 428, 0xC, 32);   /* C-2 saw, volume 32 */
+    put_cell(p0, 0, 1, 2, 214, 0, 0);      /* C-3 long sample */
+    put_cell(p0, 0, 3, 0, 0, 0xF, 3);      /* speed 3 */
+    put_cell(p0, 1, 0, 0, 0, 0xA, 0x02);   /* volume slide down 2 a tick */
+    put_cell(p0, 2, 0, 0, 428, 0x0, 0x47); /* arpeggio +4 +7 */
+    put_cell(p0, 3, 0, 0, 0, 0xD, 0x00);   /* pattern break to the next order */
+    put_cell(p1, 0, 0, 1, 856, 0, 0);      /* C-1 saw */
+    put_cell(p1, 0, 3, 0, 0, 0xF, 200);    /* tempo 200 */
+    put_cell(p1, 1, 0, 0, 0, 0xB, 0x02);   /* jump to order 2 */
+    uint8_t *p2 = p1 + 1024;
+    put_cell(p2, 0, 1, 2, 214, 0, 0);      /* one long note for the streaming test */
+    uint8_t *pcm = p2 + 1024;
+    for (uint32_t i = 0; i < s1_len; i++) pcm[i] = (uint8_t)(int8_t)((int)(i * 4) - 128);
+    for (uint32_t i = 0; i < s2_len; i++) pcm[s1_len + i] = (uint8_t)(int8_t)((i / 100) % 200 - 100);
+    *len_out = len;
+    return m;
+}
+
+static void test_mod(void) {
+    size_t len;
+    uint8_t *file = build_mod(&len);
+    mock_set_file_bytes("song.mod", file, len);
+    const char *err = NULL;
+    mod_t *m = mod_load("song.mod", &err);
+    CHECK(m != NULL, "module loads");
+    if (!m) { printf("  %s\n", err ? err : "?"); free(file); return; }
+    CHECK(strcmp(m->name, "test module") == 0, "module name");
+    CHECK(m->order_count == 3 && m->pattern_count == 3, "orders and patterns");
+    CHECK(m->samples[1].length == 64 && m->samples[1].resident_len == 64, "short sample resident");
+    CHECK(m->samples[2].length == TEST_MOD_LONG && m->samples[2].resident_len == MOD_HEAD_BYTES &&
+              m->samples[2].loop_start == 1000 && m->samples[2].loop_len == 40000,
+          "long sample keeps a head and streams");
+    CHECK(m->samples[1].resident[1] == (int8_t)(4 - 128), "resident bytes read");
+    CHECK(m->pat_num[0] == 0 && m->pat_num[1] == 1, "first two patterns loaded");
+
+    audio_state_t a;
+    audio_state_init(&a);
+    a.mod = m;
+    static int16_t buf[AUDIO_SAMPLE_RATE * 2];
+    mod_request_play(m, 1);
+    audio_mix(&a, buf, 64); /* tick 0: row 0 */
+    CHECK(m->playing && m->row == 0 && m->order_pos == 0, "playing from the top");
+    CHECK(m->ch[0].active && m->ch[0].sample == 1 && m->ch[0].volume == 32, "row 0: saw at volume 32");
+    CHECK(m->ch[0].step == 5270852u / 428, "C-2 pitch step");
+    CHECK(m->ch[1].active && m->ch[1].sample == 2, "row 0: long sample on channel 2");
+    CHECK(m->speed == 3, "Fxx set the speed");
+    CHECK(buf[10 * 2] != 0 || buf[11 * 2] != 0, "the mix has sound");
+    /* Speed 3 at 125 bpm: a row is 3 * 882 frames. Row 1 slides the
+     * volume down 2 a tick (ticks 1 and 2): 32 -> 28. */
+    audio_mix(&a, buf, 3 * 882);
+    CHECK(m->row == 1, "row 1 after three ticks");
+    audio_mix(&a, buf, 2 * 882);
+    CHECK(m->ch[0].volume == 28, "volume slide");
+    audio_mix(&a, buf, 882);
+    CHECK(m->row == 2, "row 2");
+    audio_mix(&a, buf, 882); /* tick 1 of row 2: arpeggio +4 */
+    CHECK(m->ch[0].step == 5270852u / 339, "arpeggio +4 semitones (E-2)");
+    audio_mix(&a, buf, 882); /* tick 2: +7 (G-2, period 285); the row ends */
+    CHECK(m->ch[0].step == 5270852u / 285, "arpeggio +7 semitones (G-2)");
+    CHECK(m->row == 3, "row 3 after the arpeggio row");
+    audio_mix(&a, buf, 882 * 3); /* row 3: the break; its last tick jumps */
+    CHECK(m->order_pos == 1 && m->row == 0, "pattern break to the next order");
+    audio_mix(&a, buf, 882); /* tick 0 of the new pattern's row 0 */
+    CHECK(m->bpm == 200 && m->frames_per_tick == AUDIO_SAMPLE_RATE * 5 / 400, "Fxx set the tempo");
+    CHECK(m->ch[0].step == 5270852u / 856, "C-1 on the new pattern");
+    /* Row 1 of pattern 1 jumps to order 2 (a pattern that was not
+     * resident: the player asks for it and waits a tick or two). */
+    audio_mix(&a, buf, m->frames_per_tick * 6 + 300);
+    CHECK(m->order_pos == 2 && m->row == 0 && m->playing, "position jump to order 2");
+    for (int i = 0; i < 4; i++) {
+        mod_service(m);
+        audio_mix(&a, buf, m->frames_per_tick);
+    }
+    CHECK(!m->waiting && m->pat_num[m->cur_slot] == 2, "the jump's pattern was loaded on demand");
+    CHECK(m->ch[1].sample == 2 && m->ch[1].active && m->ch[1].pos < 1000, "row 0 of it: the long note");
+
+    /* Streaming: channel 2 plays the long sample past its head. Serviced
+     * between mixes, the ring stays ahead and nothing underruns; without
+     * service it would. */
+    uint32_t before = m->underruns;
+    for (int i = 0; i < 40; i++) {
+        audio_mix(&a, buf, 1024);
+        mod_service(m);
+    }
+    CHECK(m->ch[1].active && m->ch[1].pos > MOD_HEAD_BYTES, "long sample streamed past its head");
+    CHECK(m->underruns == before, "no underruns while serviced");
+    CHECK(m->ch[1].fill_end > m->ch[1].pos, "ring is ahead of the reader");
+    /* The loop wraps: play on until the position passes the loop end. */
+    uint32_t frames_to_wrap = (uint32_t)(((uint64_t)41000 << 16) / m->ch[1].step);
+    for (uint32_t done = 0; done < frames_to_wrap; done += 1024) {
+        audio_mix(&a, buf, 1024);
+        mod_service(m);
+    }
+    CHECK(m->ch[1].active && m->ch[1].pos >= 1000 && m->ch[1].pos < 41000, "sample loop wrapped");
+
+    mod_request_stop(m);
+    audio_mix(&a, buf, 64);
+    CHECK(!m->playing && !mod_is_playing(m), "stopped");
+    a.mod = NULL;
+    mod_free(m);
+    free(file);
+
+    /* Refusals. */
+    uint8_t bad[1084] = {0};
+    memcpy(bad + 1080, "8CHN", 4);
+    bad[950] = 1;
+    mock_set_file_bytes("eight.mod", bad, sizeof(bad));
+    CHECK(mod_load("eight.mod", &err) == NULL && strstr(err, "4-channel"), "8-channel refused");
+    CHECK(mod_load("missing.mod", &err) == NULL, "missing file refused");
+}
+
+static const char *MOD_LUA =
+    "results = {}\n"
+    "function setup()\n"
+    "  results.load = tostring(ModLoad('song.mod'))\n"
+    "  local _, err = ModLoad('missing.mod')\n"
+    "  results.load_bad = tostring(err)\n"
+    "  results.load2 = tostring(ModLoad('song.mod'))\n"
+    "  results.play = tostring(ModPlay())\n"
+    "  results.playing = tostring(ModPlaying())\n"
+    "  local info = ModInfo()\n"
+    "  results.info = info.name .. ':' .. info.orders .. ':' .. info.samples\n"
+    "end\n"
+    "function tick() end\n";
+
+static void test_lua_mod(void) {
+    size_t len;
+    uint8_t *file = build_mod(&len);
+    mock_set_file_bytes("song.mod", file, len);
+    mock_set_file("modtest.lua", MOD_LUA);
+    CHECK(program_boot("modtest.lua", NULL), "mod program boots");
+    program_t *p = program_top();
+    if (p) {
+        CHECK(strcmp(lua_global_string(p->L, "load"), "true") == 0, "ModLoad");
+        CHECK(strcmp(lua_global_string(p->L, "load_bad"), "cannot open module") == 0, "ModLoad error");
+        CHECK(strcmp(lua_global_string(p->L, "load2"), "true") == 0, "a second load replaces the first");
+        CHECK(strcmp(lua_global_string(p->L, "play"), "true") == 0 &&
+                  strcmp(lua_global_string(p->L, "playing"), "true") == 0, "ModPlay");
+        CHECK(strcmp(lua_global_string(p->L, "info"), "test module:3:2") == 0, "ModInfo");
+        static int16_t buf[2048 * 2];
+        audio_mix(p->audio, buf, 2048);
+        audio_service();
+        CHECK(p->audio->mod && p->audio->mod->playing && p->audio->mod->ch[0].active, "the program's module plays");
+        program_terminate(p);
+    }
+    free(file);
+}
+
 static void test_lua_module(void) {
     int16_t ramp[8];
     for (int i = 0; i < 8; i++) {
@@ -713,6 +899,8 @@ int main(void) {
     test_lua_module();
     test_lua_presets();
     test_mml();
+    test_mod();
+    test_lua_mod();
     test_program_stack();
 
     if (g_failures == 0) {

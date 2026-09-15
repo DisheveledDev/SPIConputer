@@ -2,6 +2,7 @@
 #include "audio.h"
 
 #include <math.h>
+#include "mod.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -109,6 +110,15 @@ void audio_state_init(audio_state_t *a) {
 void audio_state_free(audio_state_t *a) {
     free(a->sample_pool);
     a->sample_pool = NULL;
+    mod_free(a->mod);
+    a->mod = NULL;
+}
+
+void audio_service(void) {
+    audio_state_t *a = g_current_audio;
+    if (a && a->mod) {
+        mod_service(a->mod);
+    }
 }
 
 bool audio_sound_defined(const audio_state_t *a, int sound) {
@@ -206,6 +216,7 @@ void audio_pause(audio_state_t *a) {
         a->voices[i].active = 0;
         a->voices[i].env_state = AUDIO_ENV_OFF;
     }
+    mod_pause(a->mod);
 }
 
 /* ------------------------------------------------------------------ */
@@ -333,8 +344,11 @@ static void trigger_voice(audio_state_t *a, int idx, int sound, int note,
         voice_apply_mix(v, (ins->volume * volume) >> 8, pan);
     } else {
         const audio_pcm_t *smp = &a->samples[sound - AUDIO_INSTRUMENT_MAX];
+        /* Until the sample ends; a looped one would never, so a play
+         * without a length gets the one-shot tail before its release. */
         uint32_t hold = dur_ms > 0 ? (uint32_t)ms_to_frames((uint32_t)dur_ms)
-                                   : 0xFFFFFFFFu; /* until sample end */
+                                   : (smp->loop_len ? (uint32_t)ms_to_frames(AUDIO_ONESHOT_TAIL_MS)
+                                                    : 0xFFFFFFFFu);
         voice_start_sample(v, smp, note, hold);
         v->sound = (uint8_t)sound;
         voice_apply_mix(v, (s_sample_envelope.volume * volume) >> 8, pan);
@@ -381,6 +395,7 @@ static void apply_requests(audio_state_t *a) {
         a->req_play = 0;
         if (a->req_score < AUDIO_SCORE_MAX && a->scores[a->req_score].valid) {
             score_stop_voices(a);
+            if (a->mod) a->mod->playing = 0; /* one tune at a time */
             a->score_index = a->req_score;
             a->score_loop = a->req_loop;
             a->score_frame = 0;
@@ -533,7 +548,13 @@ static inline void mix_frame(audio_state_t *a, int16_t *out) {
         } else {
             const audio_pcm_t *smp = &a->samples[v->sound - AUDIO_INSTRUMENT_MAX];
             uint64_t end = (uint64_t)smp->frames << 32;
-            if (v->pos >= end) {
+            if (smp->loop_len) {
+                /* Sustain: wrap into the loop until the release ends. */
+                uint64_t loop_end = ((uint64_t)smp->loop_start + smp->loop_len) << 32;
+                while (v->pos >= loop_end) {
+                    v->pos -= (uint64_t)smp->loop_len << 32;
+                }
+            } else if (v->pos >= end) {
                 v->active = 0;
                 v->env_state = AUDIO_ENV_OFF;
                 continue;
@@ -601,6 +622,8 @@ static inline void mix_frame(audio_state_t *a, int16_t *out) {
         }
     }
 
+    mod_mix_frame(a->mod, &l, &r);
+
     int32_t master = a->master;
     l = (l * master) >> 8;
     r = (r * master) >> 8;
@@ -629,6 +652,9 @@ void audio_mix(audio_state_t *a, int16_t *out, int frames) {
         }
         if (a->score_active) {
             schedule_block(a, n);
+        }
+        if (a->mod) {
+            mod_advance(a->mod, n);
         }
         for (int i = 0; i < n; i++) {
             mix_frame(a, out + (size_t)(done + i) * 2);

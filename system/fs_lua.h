@@ -49,6 +49,7 @@ FRESULT fs_lua_read_program(const char *path, char **out, size_t *out_len,
  * returns up to RPC_STAGING_SIZE bytes; a short/zero read means EOF. */
 FRESULT fs_lua_open_read(const char *path, int32_t *handle);
 FRESULT fs_lua_read_chunk(int32_t handle, void *dst, size_t max, size_t *got);
+FRESULT fs_lua_seek_handle(int32_t handle, int32_t offset); /* from the start */
 FRESULT fs_lua_close_handle(int32_t handle);
 
 #ifdef __cplusplus
