@@ -309,16 +309,22 @@ command({ "cls", "clear", "home" }, function()
     row = 0
 end)
 
+-- MODE 0-3: 40x30 or 80x60, B&W or colour. The shell's geometry
+-- follows Screen.COLS/ROWS, which Screen.Mode sets.
 command({ "mode" }, function(a)
     if not a[1] then
-        out("TEXT MODE " .. text_mode .. " (0 B&W, 1 COLOUR)")
+        out(string.format("TEXT MODE %d (%dx%d): 0/1 40X30, 2/3 80X60", text_mode, COLS, ROWS))
         return
     end
     local mode = tonumber(a[1])
-    if mode ~= 0 and mode ~= 1 then out_error("USE MODE 0 OR 1") return end
+    if mode ~= 0 and mode ~= 1 and mode ~= 2 and mode ~= 3 then
+        out_error("USE MODE 0, 1, 2 OR 3 (EVEN B&W, ODD COLOUR)")
+        return
+    end
     local ok, err = Screen.Mode(mode)
     if not ok then out_error(err) return end
     text_mode = mode
+    COLS, ROWS = Screen.COLS, Screen.ROWS
     row = 0
 end)
 

@@ -10,7 +10,7 @@ local BUILTINS = {
     { "HISTORY", "RECENT COMMANDS", "Lists the last commands. UP and DOWN recall them on the command line.", "H" },
     { "ECHO <TEXT>", "PRINT TEXT", "Prints its words; with > FILE it writes them to a file." },
     { "CLS", "CLEAR THE SCREEN", "Clears the screen.", "CLEAR HOME" },
-    { "MODE [0|1]", "TEXT MODE", "0 is black and white, 1 colour." },
+    { "MODE [0-3]", "TEXT MODE", "0 and 1 are 40x30, 2 and 3 80x60 (80 columns); even is black and white, odd colour. The screen clears." },
     { "COLOR [FG] [BG]", "SCREEN COLOURS", "Sets the text and background colours: BLACK WHITE RED CYAN PURPLE GREEN BLUE YELLOW ORANGE GREY AMBER, or six hex digits RRGGBB. COLOR alone resets them.", "COLOUR" },
     { "FREE", "CARD SPACE", "Shows free and total space on the SD card.", "DF" },
     { "MEM", "SHELL MEMORY", "Shows the shell's Lua heap after a collection." },

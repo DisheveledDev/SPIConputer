@@ -14,6 +14,9 @@
 -- cursor is a blinking attribute on its cell, driven by a Timer that is
 -- paused while a menu or dialog is up.
 --
+-- OPTIONS > Toggle 40/80 columns switches between mode 1 (40x30) and
+-- mode 3 (80x60, 58 text rows): the layout follows Screen.COLS/ROWS.
+--
 -- Keys:
 --   cursor keys   move;  Home  start of line
 --   F1/F2/F3/F4   help / FILE / EDIT / OPTIONS menus
@@ -35,9 +38,10 @@ end
 
 local COLS = Screen.COLS
 local TEXT_TOP = 1               -- first text row (row 0 is the menu bar)
-local H = Screen.ROWS - 2        -- text rows (28); the status bar is the last row
+local H = Screen.ROWS - 2        -- text rows (28, or 58 at 80 columns)
 local STATUS_ROW = Screen.ROWS - 1
 local INVERT = Screen.INVERT
+local wide = false               -- 80x60 (mode 3) instead of 40x30 (mode 1)
 
 local lines = {}
 local cx, cy = 0, 1              -- cursor: column (0-based), line (1-based)
@@ -56,7 +60,7 @@ local dialog_text = ""           -- input for the go-to-line dialog
 local menu_defs = {
     { name = "FILE", items = { "Save", "Go to line", "Quit" } },
     { name = "EDIT", items = { "Top of file", "Bottom of file", "Delete line" } },
-    { name = "OPTIONS", items = { "Toggle cursor blink", "File info" } },
+    { name = "OPTIONS", items = { "Toggle 40/80 columns", "Toggle cursor blink", "File info" } },
     { name = "HELP", items = { "Keyboard help" } },
 }
 

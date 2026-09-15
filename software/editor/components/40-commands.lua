@@ -81,6 +81,18 @@ local function select_menu_item()
         close_overlay()
         draw_text()
         draw_status()
+    elseif item == "Toggle 40/80 columns" then
+        close_overlay()
+        wide = not wide
+        Screen.Mode(wide and Screen.TEXT80C or Screen.TEXT40C)
+        Screen.Palette(0, 0, 0, 160)
+        Screen.Palette(1, 255, 255, 255)
+        COLS = Screen.COLS
+        H = Screen.ROWS - 2
+        STATUS_ROW = Screen.ROWS - 1
+        if cx >= COLS then cx = COLS - 1 end
+        ensure_visible()
+        draw()
     elseif item == "Toggle cursor blink" then
         blink_enabled = not blink_enabled
         cursor_visible = true
