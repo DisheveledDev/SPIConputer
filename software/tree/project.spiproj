@@ -1,0 +1,24 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "962FD2E8-65CE-4809-9F0C-370D4FA4D957",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "02B304ED-92E1-46AD-8EF3-01B71A4992DA",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Show a directory tree with sizes",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "tree",
+  "requires_audio": false,
+  "sdks": [
+    "text"
+  ]
+}

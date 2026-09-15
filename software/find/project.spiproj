@@ -1,0 +1,24 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "1BFD743E-EE44-4C4C-B74C-A139A363CEFA",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "16C271E5-62A4-45D1-8D55-703391E9F8FC",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Find files by name, with * and ? wildcards",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "find",
+  "requires_audio": false,
+  "sdks": [
+    "text"
+  ]
+}

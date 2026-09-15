@@ -1,0 +1,21 @@
+-- tree.lua — show a directory tree (a shell utility).
+--
+-- Installed as utils/tree.util it is the shell command TREE:
+--
+--   TREE            the whole data folder
+--   TREE games      one directory
+--
+--   /
+--   +-- games/
+--   |   +-- scores.txt  120
+--   +-- notes.txt  1.2K
+--   1 DIR, 2 FILES, 1,354 BYTES
+--
+-- Directories come first, then files, each in name order; sizes are
+-- bytes, or K/M above a kilobyte. Plain ASCII, so it reads the same in
+-- both text modes. At most 12 levels and 60 lines are shown (the
+-- totals always cover the whole walk).
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/tree` from the workspace root.

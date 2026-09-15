@@ -1,0 +1,24 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "3D727FF2-FE20-4648-9939-3AA5345B066E",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "0AB90B12-C62A-4698-AF10-1E9E5DBF189E",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "System information: version, uptime, card, programs",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "sysinfo",
+  "requires_audio": false,
+  "sdks": [
+    "text"
+  ]
+}

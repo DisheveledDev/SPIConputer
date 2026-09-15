@@ -1,0 +1,22 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "C0168950-C07B-4322-9461-F1AFB56A7D48",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "3EA325D3-F0BE-4517-89A9-2A47E20616D9",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Count lines, words and bytes in files",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "wc",
+  "requires_audio": false,
+  "sdks": []
+}

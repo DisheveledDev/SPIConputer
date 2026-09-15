@@ -1,0 +1,22 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "8C034519-DFBA-4152-9C53-AA9F24384072",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "F12C579F-FC93-41E7-B625-8A4535E074CD",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Show the first lines of a file",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "head",
+  "requires_audio": false,
+  "sdks": []
+}

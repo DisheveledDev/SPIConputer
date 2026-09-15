@@ -1,0 +1,18 @@
+-- sort.lua — sort the lines of a file (a shell utility).
+--
+-- Installed as utils/sort.util it is the shell command SORT:
+--
+--   SORT names.txt              print the lines in order
+--   SORT -r names.txt           reverse order
+--   SORT -n scores.txt          by the number each line starts with
+--   SORT -rn scores.txt top.txt write the result to top.txt instead
+--
+-- Text order is byte order (upper case before lower case, as on most
+-- computers of the era); -n puts lines that do not start with a number
+-- after those that do, in either direction. The file is sorted in
+-- memory, so it may be at most 32 KB and 2000 lines. Printing stops at
+-- 60 lines; with an output file every line is written.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/sort` from the workspace root.

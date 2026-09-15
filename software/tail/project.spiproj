@@ -1,0 +1,22 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "014EC2A6-5CC9-4001-8C76-5E7AAD03350B",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "DD79B5D6-F530-4096-BC6B-FFDB451EAAC7",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Show the last lines of a file",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "tail",
+  "requires_audio": false,
+  "sdks": []
+}

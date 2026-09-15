@@ -1,0 +1,24 @@
+-- calc.lua — evaluate a maths expression (a shell utility).
+--
+-- Installed as utils/calc.util it is the shell command CALC:
+--
+--   CALC 2 + 3 * 4          = 14   (0xE)
+--   CALC sqrt(2) / 2        = 0.7071067812
+--   CALC 1 << 10            = 1024   (0x400)
+--   CALC 7 // 2, 7 % 2      = 3, 1
+--   CALC hex(255)           = 0xFF
+--
+-- Everything after CALC is one Lua expression (the words are joined
+-- with spaces), so + - * / // % ^, bitwise & | ~ << >>, comparisons,
+-- parentheses and 0x hex literals all work. Functions: sqrt sin cos tan
+-- asin acos atan abs floor ceil min max log exp fmod random, plus
+-- hex(n); constants pi and huge. Integers also show in hex.
+--
+-- The expression runs in an empty sandbox: nothing but those names is
+-- reachable, and `function` is refused so an expression cannot loop.
+-- Quote an expression that looks like a file name (CALC "a.b") or the
+-- shell hands it over as a card path; plain arithmetic never does.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/calc` from the workspace root.

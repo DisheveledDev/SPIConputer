@@ -1,0 +1,19 @@
+-- wc.lua — count lines, words and bytes (a shell utility).
+--
+-- Installed as utils/wc.util it is the shell command WC:
+--
+--   WC notes.txt
+--    LINES  WORDS    BYTES FILE
+--       12     85      512 notes.txt
+--   WC a.txt b.txt          (a TOTAL line follows several files)
+--
+-- Lines are counted as newline characters (like Unix wc), words as runs
+-- of non-space characters. Files are read a kilobyte at a time, so any
+-- size works inside the utility's 96 KB heap.
+--
+-- Arguments arrive from the shell as card paths (/data/...); a relative
+-- name is taken relative to /data.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/wc` from the workspace root.

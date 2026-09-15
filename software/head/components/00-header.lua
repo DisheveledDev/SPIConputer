@@ -1,0 +1,14 @@
+-- head.lua — show the first lines of a file (a shell utility).
+--
+-- Installed as utils/head.util it is the shell command HEAD:
+--
+--   HEAD notes.txt          the first 10 lines
+--   HEAD -20 notes.txt      the first 20 (also: HEAD -N 20 notes.txt)
+--
+-- Only as much of the file as the lines need is read, a kilobyte at a
+-- time. At most 60 lines are shown (the result a utility can hand back
+-- is 8 KB).
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/head` from the workspace root.

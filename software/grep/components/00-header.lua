@@ -1,0 +1,23 @@
+-- grep.lua — search files for text (a shell utility).
+--
+-- Installed as utils/grep.util it is the shell command GREP:
+--
+--   GREP [-I] [-N] [-C] TEXT FILE...
+--
+--   GREP hello notes.txt        lines containing "hello"
+--   GREP -in todo a.txt b.txt   case-insensitive, with line numbers;
+--                               several files prefix each line "name:"
+--   GREP -c error log.txt       only the number of matching lines
+--
+-- TEXT is plain text, not a pattern: dots, stars and brackets match
+-- themselves. Quote it when it has spaces or looks like a file name,
+-- otherwise the shell hands it over as a card path:
+--   GREP "hello world" notes.txt
+--
+-- Files are read a kilobyte at a time, so any size works. The listing
+-- stops at 60 lines (the result a utility can hand back is 8 KB); the
+-- summary still counts every match.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/grep` from the workspace root.

@@ -1,0 +1,19 @@
+-- hexdump.lua — show a file's bytes (a shell utility).
+--
+-- Installed as utils/hexdump.util it is the shell command HEXDUMP:
+--
+--   HEXDUMP FILE [OFFSET] [LENGTH]
+--
+--   HEXDUMP data.bin              the first 256 bytes
+--   HEXDUMP data.bin 0x100 64     64 bytes from offset 256
+--
+--   0000: 48 65 6C 6C 6F 0A 00 FF Hello...
+--
+-- Eight bytes a line so a line fits the 40-column screen: the offset,
+-- the bytes in hex, then the printable ones as text (anything else is a
+-- dot). OFFSET and LENGTH take decimal or 0x hex. At most 320 bytes
+-- (40 lines) are shown per run; step the offset to see more.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/hexdump` from the workspace root.

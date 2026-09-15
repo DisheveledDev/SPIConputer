@@ -1,0 +1,24 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "E1133BCF-FA1C-41B0-9B7C-5E0A8EA762A4",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "3299CF4D-F7D6-4D01-9AE0-B85B0C70909D",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Sort the lines of a file",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "sort",
+  "requires_audio": false,
+  "sdks": [
+    "text"
+  ]
+}

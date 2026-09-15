@@ -1,0 +1,24 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "31CEDA91-5E87-424A-A2A6-86F7AA695448",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "9B9C8521-7797-4813-A65D-08E757AF33D6",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Search files for text",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "grep",
+  "requires_audio": false,
+  "sdks": [
+    "text"
+  ]
+}

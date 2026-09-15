@@ -1,0 +1,24 @@
+-- find.lua — find files by name (a shell utility).
+--
+-- Installed as utils/find.util it is the shell command FIND:
+--
+--   FIND PATTERN [DIR]
+--
+--   FIND *.txt              every .txt file under /data, any depth
+--   FIND note               names containing "note" (no wildcards:
+--                           a substring match)
+--   FIND ?at.* games        names such as cat.txt, hat.lua under games
+--
+-- `*` matches any run of characters and `?` any one; matching ignores
+-- case. Paths are printed relative to /data, directories with a
+-- trailing slash. A pattern that looks like a file name (notes.txt)
+-- arrives from the shell as a card path: only its last part is used as
+-- the pattern, so that works too.
+--
+-- The walk visits at most 3000 entries and 16 levels (a utility runs in
+-- one go, and the board's watchdog allows two seconds); the listing
+-- stops at 60 names.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/find` from the workspace root.

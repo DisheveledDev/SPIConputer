@@ -1,0 +1,24 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "6CD3B3D3-5D98-49DD-A683-7DAC40CE0CBE",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "DFE61F07-0CD9-4914-A87F-CDFAC56AC5A3",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Show a file's bytes in hex and ASCII",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "hexdump",
+  "requires_audio": false,
+  "sdks": [
+    "text"
+  ]
+}

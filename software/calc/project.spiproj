@@ -1,0 +1,22 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "FDCAC42A-BBF2-4B32-B6F6-35155C212759",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "BC18C62F-D643-40B0-8887-82DDFDD64E5D",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Evaluate a maths expression",
+  "format_version": 2,
+  "kind": "utility",
+  "name": "calc",
+  "requires_audio": false,
+  "sdks": []
+}

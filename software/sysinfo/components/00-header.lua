@@ -1,0 +1,19 @@
+-- sysinfo.lua — system information (a shell utility).
+--
+-- Installed as utils/sysinfo.util it is the shell command SYSINFO:
+--
+--   SYSINFO
+--   SPICOMPUTER OS
+--   APPS = 4
+--   CARD = 67,850 MB FREE OF 122,000 MB
+--   DATA_FILES = 12
+--   ...
+--
+-- The Lua build (version, integer and float width: 32-bit means the
+-- LUA_32BITS build), uptime since power-on, SD card space, how many
+-- apps, utilities and games are installed, and how many files the data
+-- folder holds (counted to 16 levels, 3000 entries at most).
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/sysinfo` from the workspace root.

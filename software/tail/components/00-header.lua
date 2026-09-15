@@ -1,0 +1,16 @@
+-- tail.lua — show the last lines of a file (a shell utility).
+--
+-- Installed as utils/tail.util it is the shell command TAIL:
+--
+--   TAIL log.txt            the last 10 lines
+--   TAIL -30 log.txt        the last 30 (also: TAIL -N 30 log.txt)
+--
+-- The file is read backwards from its end a kilobyte at a time until
+-- enough lines are in hand, so a large log costs only its last few
+-- kilobytes, not the whole file. At most 60 lines are shown (the
+-- result a utility can hand back is 8 KB); if the last lines hold more
+-- than 16 KB of text, the earliest of them are left out.
+--
+-- Built from the SPIEdit project in this folder: edit the components
+-- here and Build, or run `swift run --package-path ide/macos spibuild
+-- software/tail` from the workspace root.
