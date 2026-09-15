@@ -134,15 +134,21 @@ local function find_program(name)
 end
 
 -- An argument as the program should see it. Words that name a card
--- entry relative to the current directory, or look like a file name (a
--- slash or an extension), become full card paths ("/data/..."); real
--- card paths that exist, options ("-n"), numbers, patterns and quoted
--- words are passed exactly as typed.
+-- entry relative to the current directory, or look like a file name
+-- (only name characters, with a letter, and a slash or an extension:
+-- notes.txt, games/x), become full card paths ("/data/..."); real card
+-- paths that exist, options ("-n"), numbers ("2.5", "1/3"), expressions,
+-- patterns and quoted words are passed exactly as typed.
+local function path_like(word)
+    return word:match("^[%w_%-%./]+$") and word:find("%a")
+        and (word:find("/", 1, true) or word:match("%.%a%w*$"))
+end
+
 local function program_arg(word, quoted)
     if quoted or word:sub(1, 1) == "-" then return word end
     if word:sub(1, 1) == "/" and fs.exists(word) then return word end
     local path = full_path(word)
-    if fs.exists(path) or word:find("/", 1, true) or word:match("%.%a%w*$") then
+    if fs.exists(path) or path_like(word) then
         return path
     end
     return word
