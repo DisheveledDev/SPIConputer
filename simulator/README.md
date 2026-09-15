@@ -61,7 +61,7 @@ screen geometry.
 ```
 --sdcard DIR        virtual SD card folder (default: <simulator dir>/sdcard)
 --boot FILE         program to boot (default: core/boot.lua)
---ticks N           scheduler ticks per frame (default: 64)
+--ticks N           at most N scheduler ticks per frame (default: 64)
 --dump-frame FILE   write the final 640x480 frame as a PPM
 --check FILE        compile FILE with the OS Lua and exit
 --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit
@@ -95,8 +95,12 @@ what you copy into `sdcard/`.
 
 ## Behaviour notes
 
-- Ticks run `--ticks` times per rendered frame (default 64 at ~60 fps);
-  programs should compute elapsed time from `TimeNow()` as on hardware.
+- Each rendered frame runs up to `--ticks` scheduler steps (default 64)
+  and ends early when the 60 Hz frame clock moves on, so a program that
+  paces its `tick()` with `WaitVSync()` gets one step per frame and every
+  frame is drawn and has its input read. The exit summary reports both
+  `ticks` and `frames`. Programs should compute elapsed time from
+  `TimeNow()` as on hardware.
 - Audio is mixed on the main thread and queued (~20 ms target depth), the
   same single-producer shape as core 0.
 - Hardware output files are not compiled in; the SDL window replaces the

@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "lua.h"
 #include "lauxlib.h"
@@ -438,16 +439,31 @@ void video_queue_full_hook(void) {
  * (a game's tick) runs at frame rate instead of timing out. */
 static uint64_t s_frame_clock_start_us;
 
+#define SIM_FRAME_US 16667u
+
+/* The 60 Hz frame the wall clock is in. */
+static uint32_t sim_frame_index(void) {
+    return (uint32_t)((os_time_us() - s_frame_clock_start_us) / SIM_FRAME_US);
+}
+
 static void sim_advance_frames(void) {
-    uint32_t frames = (uint32_t)((os_time_us() - s_frame_clock_start_us) / 16667u);
+    uint32_t frames = sim_frame_index();
     if ((int32_t)(frames - g_system_state.video_frame_count) > 0) {
         g_system_state.video_frame_count = frames;
     }
 }
 
+/* WaitVSync spins on this until the frame counter moves. Sleep through
+ * most of the wait rather than burning a host core; the main loop sees
+ * the frame change afterwards and ends its tick batch there, so the
+ * frame the program then draws is rendered straight away. */
 void video_frame_wait_hook(void) {
     sim_advance_frames();
     video_ops_drain();
+    uint64_t into = (os_time_us() - s_frame_clock_start_us) % SIM_FRAME_US;
+    if (SIM_FRAME_US - into > 1500u) {
+        usleep(1000);
+    }
 }
 
 static void sim_render(SDL_Renderer *ren, SDL_Texture *tex, uint8_t *frame) {
@@ -692,9 +708,8 @@ int main(int argc, char **argv) {
     }
 
     uint64_t started_us = os_time_us();
-    uint64_t frame_start = started_us;
-    Uint64 perf_freq = SDL_GetPerformanceFrequency();
     uint64_t ticks = 0;
+    uint64_t frames = 0; /* display frames: renders and input polls */
 
     while (s_running) {
         if (!o.headless) {
@@ -743,13 +758,23 @@ int main(int argc, char **argv) {
             }
         }
 
+        /* One display frame: up to ticks_per_frame scheduler steps, but
+         * the frame ends as soon as the 60 Hz clock moves on. A game that
+         * paces its tick with WaitVSync crosses the boundary inside its
+         * first step, so it gets one step per frame and every frame is
+         * rendered and has its input polled; without this cut the batch
+         * waited through 64 frames between renders. */
         sim_advance_frames();
+        uint32_t frame_index = sim_frame_index();
         for (int i = 0; i < o.ticks_per_frame && s_running; i++) {
             program_scheduler_step();
             /* Core 0's part: collect the display ops each tick queued,
              * or a drawing-heavy program fills the queue and blocks. */
             video_ops_drain();
             ticks++;
+            if (sim_frame_index() != frame_index) {
+                break;
+            }
         }
 
         /* The device reboots when the last program exits (a game that
@@ -769,6 +794,7 @@ int main(int argc, char **argv) {
             sim_pump_audio(audio);
             sim_render(ren, tex, frame);
         }
+        frames++;
 
         if (o.exit_after_ms > 0 &&
             os_time_us() - started_us >= (uint64_t)o.exit_after_ms * 1000) {
@@ -776,16 +802,11 @@ int main(int argc, char **argv) {
         }
 
         if (!o.headless) {
-            /* Pace to 60 fps (like a monitor refresh). */
-            Uint64 budget = perf_freq / 60;
-            for (;;) {
-                Uint64 now = SDL_GetPerformanceCounter();
-                if (now - frame_start >= budget) {
-                    break;
-                }
+            /* Pace to 60 fps (like a monitor refresh): sleep until the
+             * next frame boundary, unless the batch already ran past it. */
+            while (sim_frame_index() == frame_index) {
                 SDL_Delay(1);
             }
-            frame_start = SDL_GetPerformanceCounter();
         }
     }
 
@@ -807,9 +828,10 @@ int main(int argc, char **argv) {
             }
         }
     }
-    printf("[sim] exit: ticks=%llu, programs=%d, video=%dx%d@%d (chars=%d), "
-           "audio=%s\n",
-           (unsigned long long)ticks, p ? (int)(p->pid + 1) : 0,
+    printf("[sim] exit: ticks=%llu, frames=%llu, programs=%d, video=%dx%d@%d "
+           "(chars=%d), audio=%s\n",
+           (unsigned long long)ticks, (unsigned long long)frames,
+           p ? (int)(p->pid + 1) : 0,
            video_mode_cols(screen->mode), video_mode_rows(screen->mode),
            screen->mode, painted,
            audio ? "on" : (o.headless ? "off (headless)" : "unavailable"));
