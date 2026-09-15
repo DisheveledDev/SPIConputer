@@ -80,6 +80,7 @@ add_executable(SPIComputerOS
         screen_lua.c
         sound_lua.c
         audio.c
+        audio_presets.c
         video.c
         render.c
         render332.c

@@ -17,6 +17,7 @@ static bool s_tables_ready;
 static uint32_t s_note_inc[128];   /* tone phase increment, Q32/sample */
 static uint64_t s_pitch_q32[128];  /* 2^((n-60)/12), Q32 (sample pitch) */
 static int16_t s_sine[256];
+static uint32_t s_cent_q16[100];   /* 2^(c/1200), Q16: a fraction of a semitone */
 
 static void build_tables(void) {
     if (s_tables_ready) {
@@ -31,6 +32,9 @@ static void build_tables(void) {
     for (int i = 0; i < 256; i++) {
         s_sine[i] = (int16_t)lround(sin(2.0 * 3.14159265358979323846 * i / 256.0) *
                                     32767.0);
+    }
+    for (int c = 0; c < 100; c++) {
+        s_cent_q16[c] = (uint32_t)llround(pow(2.0, c / 1200.0) * 65536.0);
     }
     s_tables_ready = true;
 }
@@ -117,7 +121,24 @@ bool audio_sound_defined(const audio_state_t *a, int sound) {
     if (sound < AUDIO_INSTRUMENT_MAX + AUDIO_SAMPLE_MAX) {
         return a->samples[sound - AUDIO_INSTRUMENT_MAX].defined != 0;
     }
+    if (sound >= AUDIO_PRESET_BASE && sound < AUDIO_PRESET_BASE + audio_preset_count()) {
+        return true;
+    }
     return false;
+}
+
+const audio_instrument_t *audio_instrument(const audio_state_t *a, int sound) {
+    if (sound >= 0 && sound < AUDIO_INSTRUMENT_MAX) {
+        return a->instruments[sound].defined ? &a->instruments[sound] : NULL;
+    }
+    if (sound >= AUDIO_PRESET_BASE && sound < AUDIO_PRESET_BASE + audio_preset_count()) {
+        return &audio_preset(sound - AUDIO_PRESET_BASE)->ins;
+    }
+    return NULL;
+}
+
+static inline bool is_sample(int sound) {
+    return sound >= AUDIO_INSTRUMENT_MAX && sound < AUDIO_INSTRUMENT_MAX + AUDIO_SAMPLE_MAX;
 }
 
 /* ------------------------------------------------------------------ */
@@ -200,6 +221,7 @@ static const audio_instrument_t s_sample_envelope = {
     .sustain = 255,
     .release_ms = 20,
     .volume = 255,
+    .cutoff = AUDIO_CUTOFF_OPEN,
 };
 
 static uint32_t oneshot_hold(const audio_instrument_t *ins, uint32_t dur_ms) {
@@ -299,8 +321,8 @@ static void trigger_voice(audio_state_t *a, int idx, int sound, int note,
         return;
     }
     audio_voice_t *v = &a->voices[idx];
-    if (sound < AUDIO_INSTRUMENT_MAX) {
-        const audio_instrument_t *ins = &a->instruments[sound];
+    if (!is_sample(sound)) {
+        const audio_instrument_t *ins = audio_instrument(a, sound);
         voice_start_tone(v, ins, note, oneshot_hold(ins, (uint32_t)dur_ms));
         v->sound = (uint8_t)sound;
         voice_apply_mix(v, (ins->volume * volume) >> 8, pan);
@@ -383,6 +405,65 @@ static void apply_requests(audio_state_t *a) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Pitch effects (control rate: once per AUDIO_BLOCK frames per voice)   */
+/* ------------------------------------------------------------------ */
+
+/* The phase increment for a pitch in cents (0 = C-1, 12700 = G9),
+ * clamped to the note table's range. */
+static uint32_t inc_for_cents(int32_t cents) {
+    if (cents < 0) cents = 0;
+    if (cents > 127 * 100) cents = 127 * 100;
+    int note = cents / 100;
+    int frac = cents % 100;
+    return (uint32_t)(((uint64_t)s_note_inc[note] * s_cent_q16[frac]) >> 16);
+}
+
+/* Recompute a tone voice's pitch from its note and the instrument's
+ * slide, vibrato and arpeggio at the voice's age. */
+static void voice_control(audio_voice_t *v, const audio_instrument_t *ins) {
+    if (ins->wave == AUDIO_WAVE_NOISE && ins->slide == 0) {
+        return; /* noise pitch is fixed unless it slides */
+    }
+    if (ins->slide == 0 && ins->vib_depth == 0 && ins->arp_ms == 0) {
+        return; /* plain note: the trigger's increment stands */
+    }
+    int32_t cents = (int32_t)v->note * 100;
+    uint32_t age_ms = (uint32_t)((uint64_t)v->age * 1000u / AUDIO_SAMPLE_RATE);
+    if (ins->slide != 0) {
+        cents += (int32_t)ins->slide * (int32_t)age_ms / 10; /* semitones/s * ms / 1000 * 100 */
+    }
+    if (ins->arp_ms != 0) {
+        uint32_t step = age_ms / ins->arp_ms;
+        int8_t offsets[3] = {0, ins->arp, ins->arp2};
+        int steps = ins->arp2 != 0 ? 3 : 2;
+        if (ins->arp_loop) {
+            cents += (int32_t)offsets[step % (uint32_t)steps] * 100;
+        } else if (step >= 1) {
+            cents += (int32_t)offsets[step >= (uint32_t)steps ? steps - 1 : (int)step] * 100;
+        }
+    }
+    if (ins->vib_depth != 0) {
+        /* vib_rate is tenths of a Hz; the phase advances per control block. */
+        uint32_t per_block = (uint32_t)ins->vib_rate * 65536u * AUDIO_BLOCK / (10u * AUDIO_SAMPLE_RATE);
+        v->vib_phase = (uint16_t)(v->vib_phase + per_block);
+        cents += ((int32_t)s_sine[v->vib_phase >> 8] * ins->vib_depth) / 32767;
+    }
+    v->inc = inc_for_cents(cents);
+}
+
+/* One-pole low-pass for the `cutoff` tone control: 255 is open (no
+ * filtering), lower values roll the top off. */
+static inline int32_t lowpass(audio_voice_t *v, int32_t x, uint8_t cutoff) {
+    if (cutoff == 0 || cutoff >= AUDIO_CUTOFF_OPEN) {
+        return x; /* 0: unset, as good as open */
+    }
+    /* k from 1/256 (very dark) to about 3/4 of the way to open. */
+    int32_t k = 1 + ((int32_t)cutoff * (int32_t)cutoff) / 340;
+    v->lp += ((x - v->lp) * k) >> 8;
+    return v->lp;
+}
+
+/* ------------------------------------------------------------------ */
 /* Mixer                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -426,7 +507,15 @@ static inline void mix_frame(audio_state_t *a, int16_t *out) {
 
         int32_t e_l, e_r;
         if (v->source == 0) {
-            const audio_instrument_t *inst = &a->instruments[v->sound];
+            const audio_instrument_t *inst = audio_instrument(a, v->sound);
+            if (!inst) {
+                v->active = 0;
+                continue;
+            }
+            if ((v->age & (AUDIO_BLOCK - 1)) == 0) {
+                voice_control(v, inst);
+            }
+            v->age++;
             int32_t s;
             if (inst->wave == AUDIO_WAVE_NOISE) {
                 s = noise_sample(v);
@@ -434,6 +523,7 @@ static inline void mix_frame(audio_state_t *a, int16_t *out) {
                 s = tone_sample(v, inst);
                 v->phase += v->inc;
             }
+            s = lowpass(v, s, inst->cutoff);
             e_l = e_r = (s * v->env_level) >> 16;
         } else {
             const audio_pcm_t *smp = &a->samples[v->sound - AUDIO_INSTRUMENT_MAX];
@@ -469,10 +559,7 @@ static inline void mix_frame(audio_state_t *a, int16_t *out) {
 
         /* Envelope + hold timer. */
         const audio_instrument_t *ins =
-            &a->instruments[v->source == 0 ? v->sound : 0];
-        if (v->source == 1) {
-            ins = &s_sample_envelope;
-        }
+            v->source == 0 ? audio_instrument(a, v->sound) : &s_sample_envelope;
         if (v->hold_frames != 0xFFFFFFFFu && v->env_state != AUDIO_ENV_OFF) {
             if (v->hold_frames > 0) {
                 v->hold_frames--;

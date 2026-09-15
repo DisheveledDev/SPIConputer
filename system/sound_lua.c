@@ -8,6 +8,8 @@
  * per-program sample pool.
  *
  *   SoundDefine(id, spec)          -> true | nil, err
+ *   SoundPreset(name)              -> id, spec | nil, err  (the built-in bank)
+ *   SoundPresets()                 -> { {name=, effect=, id=}, ... }
  *   SoundLoad(path)                -> sound id | nil, err  (WAV PCM)
  *   SoundPlay(sound [, note [, dur_ms [, vol [, pan]]]]) -> voice | nil, err
  *   SoundStop([voice])             -> bool (no arg: all one-shots)
@@ -20,7 +22,16 @@
  *
  * Sound spec:  {wave="square"|"pulse"|"triangle"|"saw"|"sine"|"noise",
  *               duty=1..15, attack=ms, decay=ms, sustain=0..255,
- *               release=ms, volume=0..255}   (all optional)
+ *               release=ms, volume=0..255, note=name|midi,
+ *               slide=semitones/s, vibrato=cents, vibrato_rate=Hz,
+ *               arp=semitones, arp2=semitones, arp_ms=ms, arp_loop=bool,
+ *               cutoff=0..255, base="preset name"}   (all optional;
+ *               `base` starts from a built-in sound, the rest override)
+ *
+ * A `sound` argument (SoundPlay, score events) is an id, or the name of
+ * a built-in sound ("laser", "piano": audio_presets.c), whose id is
+ * AUDIO_PRESET_BASE + its index. A play without a note uses the sound's
+ * own note (effects carry theirs), else C4.
  *
  * Score spec:  {loop=bool, channels={{event, ...}, ...}} with up to 8
  * channels and events {at=ms, sound=id, note=name|midi, dur=ms,
@@ -116,6 +127,63 @@ static int wave_from_name(const char *name) {
     return -1;
 }
 
+static const char *wave_name(int wave) {
+    switch (wave) {
+    case AUDIO_WAVE_TRIANGLE: return "triangle";
+    case AUDIO_WAVE_SAW: return "saw";
+    case AUDIO_WAVE_SINE: return "sine";
+    case AUDIO_WAVE_NOISE: return "noise";
+    default: return "square";
+    }
+}
+
+/* A sound argument: an id, or a built-in sound's name. -1 when neither. */
+static int sound_arg(lua_State *L, int idx) {
+    if (lua_type(L, idx) == LUA_TSTRING) {
+        int p = audio_preset_find(lua_tostring(L, idx));
+        return p < 0 ? -1 : AUDIO_PRESET_BASE + p;
+    }
+    return (int)luaL_checkinteger(L, idx);
+}
+
+/* Read a spec table at `idx` over `ins` (fields present override). */
+static int spec_fields(lua_State *L, int idx, audio_instrument_t *ins) {
+    lua_getfield(L, idx, "wave");
+    if (!lua_isnil(L, -1)) {
+        const char *wname = luaL_checkstring(L, -1);
+        int wave = wave_from_name(wname);
+        if (wave < 0) {
+            return luaL_error(L, "unknown wave '%s'", wname);
+        }
+        ins->wave = (uint8_t)wave;
+    }
+    lua_pop(L, 1);
+    ins->duty = (uint8_t)clamp_int(field_int(L, idx, "duty", ins->duty), 1, 15);
+    ins->attack_ms = (uint8_t)clamp_int(field_int(L, idx, "attack", ins->attack_ms), 0, 255);
+    ins->decay_ms = (uint8_t)clamp_int(field_int(L, idx, "decay", ins->decay_ms), 0, 255);
+    ins->sustain = (uint8_t)clamp_int(field_int(L, idx, "sustain", ins->sustain), 0, 255);
+    ins->release_ms = (uint8_t)clamp_int(field_int(L, idx, "release", ins->release_ms), 0, 255);
+    ins->volume = (uint8_t)clamp_int(field_int(L, idx, "volume", ins->volume), 0, 255);
+    ins->slide = (int16_t)clamp_int(field_int(L, idx, "slide", ins->slide), -3200, 3200);
+    ins->vib_depth = (uint8_t)clamp_int(field_int(L, idx, "vibrato", ins->vib_depth), 0, 255);
+    lua_getfield(L, idx, "vibrato_rate");
+    if (!lua_isnil(L, -1)) {
+        ins->vib_rate = (uint8_t)clamp_int((lua_Integer)(luaL_checknumber(L, -1) * 10.0 + 0.5), 0, 255);
+    }
+    lua_pop(L, 1);
+    ins->arp = (int8_t)clamp_int(field_int(L, idx, "arp", ins->arp), -48, 48);
+    ins->arp2 = (int8_t)clamp_int(field_int(L, idx, "arp2", ins->arp2), -48, 48);
+    ins->arp_ms = (uint8_t)clamp_int(field_int(L, idx, "arp_ms", ins->arp_ms), 0, 255);
+    ins->arp_loop = field_bool(L, idx, "arp_loop", ins->arp_loop != 0) ? 1 : 0;
+    ins->cutoff = (uint8_t)clamp_int(field_int(L, idx, "cutoff", ins->cutoff), 0, 255);
+    lua_getfield(L, idx, "note");
+    if (!lua_isnil(L, -1)) {
+        ins->note = (uint8_t)note_arg(L, lua_gettop(L), 60);
+    }
+    lua_pop(L, 1);
+    return 0;
+}
+
 static int sound_define(lua_State *L) {
     audio_state_t *a = current(L);
     int id = (int)luaL_checkinteger(L, 1);
@@ -124,26 +192,82 @@ static int sound_define(lua_State *L) {
         return luaL_error(L, "sound id out of range (0-%d)", AUDIO_INSTRUMENT_MAX - 1);
     }
 
-    lua_getfield(L, 2, "wave");
-    const char *wname = lua_isnil(L, -1) ? "square" : luaL_checkstring(L, -1);
-    int wave = wave_from_name(wname);
-    lua_pop(L, 1);
-    if (wave < 0) {
-        return luaL_error(L, "unknown wave '%s'", wname);
+    audio_instrument_t ins;
+    memset(&ins, 0, sizeof(ins));
+    ins.defined = 1;
+    ins.wave = AUDIO_WAVE_SQUARE;
+    ins.duty = AUDIO_DEFAULT_DUTY;
+    ins.sustain = 255;
+    ins.volume = AUDIO_DEFAULT_VOLUME;
+    ins.cutoff = AUDIO_CUTOFF_OPEN;
+    /* base = "name": start from a built-in sound and override fields. */
+    lua_getfield(L, 2, "base");
+    if (!lua_isnil(L, -1)) {
+        const char *base = luaL_checkstring(L, -1);
+        int p = audio_preset_find(base);
+        if (p < 0) {
+            return luaL_error(L, "unknown built-in sound '%s'", base);
+        }
+        ins = audio_preset(p)->ins;
     }
-
-    audio_instrument_t *ins = &a->instruments[id];
-    memset(ins, 0, sizeof(*ins));
-    ins->defined = 1;
-    ins->wave = (uint8_t)wave;
-    ins->duty = (uint8_t)clamp_int(field_int(L, 2, "duty", AUDIO_DEFAULT_DUTY), 1, 15);
-    ins->attack_ms = (uint8_t)clamp_int(field_int(L, 2, "attack", 0), 0, 255);
-    ins->decay_ms = (uint8_t)clamp_int(field_int(L, 2, "decay", 0), 0, 255);
-    ins->sustain = (uint8_t)clamp_int(field_int(L, 2, "sustain", 255), 0, 255);
-    ins->release_ms = (uint8_t)clamp_int(field_int(L, 2, "release", 0), 0, 255);
-    ins->volume = (uint8_t)clamp_int(field_int(L, 2, "volume", AUDIO_DEFAULT_VOLUME), 0, 255);
+    lua_pop(L, 1);
+    spec_fields(L, 2, &ins);
+    a->instruments[id] = ins;
     a->version++;
     lua_pushboolean(L, true);
+    return 1;
+}
+
+/* Push an instrument as a spec table. */
+static void push_spec(lua_State *L, const audio_instrument_t *ins) {
+    lua_createtable(L, 0, 16);
+    lua_pushstring(L, wave_name(ins->wave)); lua_setfield(L, -2, "wave");
+    lua_pushinteger(L, ins->duty); lua_setfield(L, -2, "duty");
+    lua_pushinteger(L, ins->attack_ms); lua_setfield(L, -2, "attack");
+    lua_pushinteger(L, ins->decay_ms); lua_setfield(L, -2, "decay");
+    lua_pushinteger(L, ins->sustain); lua_setfield(L, -2, "sustain");
+    lua_pushinteger(L, ins->release_ms); lua_setfield(L, -2, "release");
+    lua_pushinteger(L, ins->volume); lua_setfield(L, -2, "volume");
+    if (ins->note) { lua_pushinteger(L, ins->note); lua_setfield(L, -2, "note"); }
+    lua_pushinteger(L, ins->slide); lua_setfield(L, -2, "slide");
+    lua_pushinteger(L, ins->vib_depth); lua_setfield(L, -2, "vibrato");
+    lua_pushnumber(L, ins->vib_rate / 10.0); lua_setfield(L, -2, "vibrato_rate");
+    lua_pushinteger(L, ins->arp); lua_setfield(L, -2, "arp");
+    lua_pushinteger(L, ins->arp2); lua_setfield(L, -2, "arp2");
+    lua_pushinteger(L, ins->arp_ms); lua_setfield(L, -2, "arp_ms");
+    lua_pushboolean(L, ins->arp_loop); lua_setfield(L, -2, "arp_loop");
+    lua_pushinteger(L, ins->cutoff ? ins->cutoff : AUDIO_CUTOFF_OPEN); lua_setfield(L, -2, "cutoff");
+}
+
+/* SoundPreset(name) -> id, spec: a built-in sound's playable id and its
+ * definition as a table (to tweak and SoundDefine under an own id). */
+static int sound_preset(lua_State *L) {
+    current(L);
+    const char *name = luaL_checkstring(L, 1);
+    int p = audio_preset_find(name);
+    if (p < 0) {
+        lua_pushnil(L);
+        lua_pushfstring(L, "no built-in sound '%s'", name);
+        return 2;
+    }
+    lua_pushinteger(L, AUDIO_PRESET_BASE + p);
+    push_spec(L, &audio_preset(p)->ins);
+    return 2;
+}
+
+/* SoundPresets() -> { {name=, effect=, id=}, ... } in bank order. */
+static int sound_presets(lua_State *L) {
+    current(L);
+    int n = audio_preset_count();
+    lua_createtable(L, n, 0);
+    for (int i = 0; i < n; i++) {
+        const audio_preset_t *p = audio_preset(i);
+        lua_createtable(L, 0, 3);
+        lua_pushstring(L, p->name); lua_setfield(L, -2, "name");
+        lua_pushboolean(L, p->effect); lua_setfield(L, -2, "effect");
+        lua_pushinteger(L, AUDIO_PRESET_BASE + i); lua_setfield(L, -2, "id");
+        lua_rawseti(L, -2, i + 1);
+    }
     return 1;
 }
 
@@ -242,14 +366,23 @@ static int music_define(lua_State *L) {
             ev.time_ms = (uint32_t)clamp_int(field_int(L, -1, "at", 0), 0,
                                             0x7fffffff);
             ev.dur_ms = (uint32_t)clamp_int(field_int(L, -1, "dur", 0), 0, 65535);
-            ev.sound = (uint8_t)clamp_int(field_int(L, -1, "sound", -1), -1, 255);
+            lua_getfield(L, -1, "sound");
+            int sound_id = lua_isnil(L, -1) ? -1 : sound_arg(L, lua_gettop(L));
+            lua_pop(L, 1);
+            ev.sound = (uint8_t)clamp_int(sound_id, 0, 255);
+            if (sound_id < 0) {
+                lua_pushnil(L);
+                lua_pushfstring(L, "channel %d event %d: unknown sound", c + 1, i + 1);
+                return 2;
+            }
             ev.volume =
                 (uint8_t)clamp_int(field_int(L, -1, "vol", AUDIO_DEFAULT_VOLUME),
                                    0, 255);
             ev.pan = (int8_t)clamp_int(field_int(L, -1, "pan", 0), -64, 63);
             lua_getfield(L, -1, "note");
             if (lua_isnil(L, -1)) {
-                ev.note = 60; /* C4 */
+                const audio_instrument_t *ei = audio_instrument(a, sound_id);
+                ev.note = (uint8_t)((ei && ei->note) ? ei->note : 60); /* the sound's own, or C4 */
             } else if (lua_type(L, -1) == LUA_TSTRING) {
                 int n = audio_note_parse(lua_tostring(L, -1));
                 if (n < 0) {
@@ -301,13 +434,14 @@ static int music_define(lua_State *L) {
 
 static int sound_play(lua_State *L) {
     audio_state_t *a = current(L);
-    int sound = (int)luaL_checkinteger(L, 1);
+    int sound = sound_arg(L, 1);
     if (!audio_sound_defined(a, sound)) {
         lua_pushnil(L);
         lua_pushliteral(L, "sound not defined");
         return 2;
     }
-    int note = note_arg(L, 2, 60);
+    const audio_instrument_t *ins = audio_instrument(a, sound);
+    int note = note_arg(L, 2, (ins && ins->note) ? ins->note : 60);
     int dur = (int)clamp_int(luaL_optinteger(L, 3, 0), 0, 65535);
     int vol = (int)clamp_int(luaL_optinteger(L, 4, AUDIO_DEFAULT_VOLUME), 0, 255);
     int pan = (int)clamp_int(luaL_optinteger(L, 5, 0), -64, 63);
@@ -591,6 +725,8 @@ static int sound_load(lua_State *L) {
 
 static const luaL_Reg sound_funcs[] = {
     {"SoundDefine", sound_define},
+    {"SoundPreset", sound_preset},
+    {"SoundPresets", sound_presets},
     {"SoundLoad", sound_load},
     {"SoundPlay", sound_play},
     {"SoundStop", sound_stop},

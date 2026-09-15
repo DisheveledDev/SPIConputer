@@ -323,10 +323,254 @@ static const char *lua_global_string(lua_State *L, const char *field) {
     lua_getglobal(L, "results");
     lua_getfield(L, -1, field);
     const char *s = lua_tostring(L, -1);
-    static char tmp[128];
+    static char tmp[512];
     snprintf(tmp, sizeof(tmp), "%s", s ? s : "<nil>");
     lua_pop(L, 2);
     return tmp;
+}
+
+/* ---- pitch and tone effects, and the built-in bank ---- */
+
+/* Zero crossings of the left channel over `frames` frames: a frequency
+ * estimate that is independent of the waveform. */
+static int crossings_in(const int16_t *buf, int frames) {
+    int n = 0;
+    for (int i = 1; i < frames; i++) {
+        if ((buf[(i - 1) * 2] < 0) != (buf[i * 2] < 0)) n++;
+    }
+    return n;
+}
+
+static void test_effects(void) {
+    audio_state_t a;
+    static int16_t buf[AUDIO_SAMPLE_RATE * 2];
+    audio_state_init(&a);
+
+    /* A slide: the same note gets higher over time. */
+    a.instruments[0] = (audio_instrument_t){.defined = 1, .wave = AUDIO_WAVE_SQUARE,
+        .duty = 8, .sustain = 255, .volume = 255, .slide = 12};
+    audio_trigger(&a, 0, 57, 255, 0, 900); /* A3, +12 semitones a second */
+    audio_mix(&a, buf, 4410);              /* 0..100 ms */
+    int early = crossings_in(buf, 4410);
+    audio_mix(&a, buf, 4410 * 6);          /* ..700 ms */
+    audio_mix(&a, buf, 4410);              /* 700..800 ms */
+    int late = crossings_in(buf, 4410);
+    CHECK(early >= 40 && early <= 50, "slide starts near A3 (44 crossings per 100 ms)");
+    CHECK(late > early * 3 / 2, "slide raised the pitch");
+    audio_stop_all_voices(&a);
+    audio_mix(&a, buf, 64);
+
+    /* An arpeggio step: up 12 semitones after 50 ms, held. */
+    a.instruments[1] = (audio_instrument_t){.defined = 1, .wave = AUDIO_WAVE_SQUARE,
+        .duty = 8, .sustain = 255, .volume = 255, .arp = 12, .arp_ms = 50};
+    audio_trigger(&a, 1, 57, 255, 0, 600);
+    audio_mix(&a, buf, 2205); /* 0..50 ms */
+    int before = crossings_in(buf, 2205);
+    audio_mix(&a, buf, 2205);
+    audio_mix(&a, buf, 2205); /* 100..150 ms */
+    int after = crossings_in(buf, 2205);
+    CHECK(after > before * 17 / 10 && after < before * 23 / 10, "arpeggio doubles the pitch");
+    audio_stop_all_voices(&a);
+    audio_mix(&a, buf, 64);
+
+    /* Vibrato: the pitch wobbles, so per-block crossing counts vary. */
+    a.instruments[2] = (audio_instrument_t){.defined = 1, .wave = AUDIO_WAVE_SQUARE,
+        .duty = 8, .sustain = 255, .volume = 255, .vib_depth = 200, .vib_rate = 50};
+    audio_trigger(&a, 2, 69, 255, 0, 600);
+    int lo = 100000, hi = 0;
+    for (int i = 0; i < 20; i++) {
+        audio_mix(&a, buf, 2205);
+        int c = crossings_in(buf, 2205);
+        if (c < lo) lo = c;
+        if (c > hi) hi = c;
+    }
+    CHECK(hi - lo >= 4, "vibrato varies the pitch");
+    audio_stop_all_voices(&a);
+    audio_mix(&a, buf, 64);
+
+    /* Cutoff: a filtered square has smaller sample-to-sample steps. */
+    a.instruments[3] = (audio_instrument_t){.defined = 1, .wave = AUDIO_WAVE_SQUARE,
+        .duty = 8, .sustain = 255, .volume = 255, .cutoff = 40};
+    audio_trigger(&a, 3, 57, 255, 0, 300);
+    audio_mix(&a, buf, 4410);
+    int max_step = 0;
+    for (int i = 1; i < 4410; i++) {
+        int d = abs(buf[i * 2] - buf[(i - 1) * 2]);
+        if (d > max_step) max_step = d;
+    }
+    CHECK(max_step < 20000, "low cutoff rounds off the square's edges");
+    CHECK(buf[4000 * 2] != 0, "filtered voice still sounds");
+    audio_stop_all_voices(&a);
+    audio_mix(&a, buf, 64);
+}
+
+static void test_presets(void) {
+    audio_state_t a;
+    static int16_t buf[AUDIO_SAMPLE_RATE * 2];
+    audio_state_init(&a);
+    CHECK(audio_preset_count() >= 30, "a bank of at least 30 built-in sounds");
+    CHECK(audio_preset_find("laser") >= 0 && audio_preset_find("piano") >= 0 &&
+              audio_preset_find("nothing") < 0,
+          "presets found by name");
+    /* Every preset sounds when triggered and, as a one-shot, ends
+     * within its envelope plus a second. */
+    for (int i = 0; i < audio_preset_count(); i++) {
+        const audio_preset_t *p = audio_preset(i);
+        int id = AUDIO_PRESET_BASE + i;
+        CHECK(audio_sound_defined(&a, id), "preset id is defined");
+        int slot = audio_trigger(&a, id, p->ins.note ? p->ins.note : 60, 255, 0, 0);
+        CHECK(slot >= 0, "preset triggers");
+        audio_mix(&a, buf, 2205);
+        int loud = 0;
+        for (int k = 0; k < 2205; k++) {
+            if (abs(buf[k * 2]) > loud) loud = abs(buf[k * 2]);
+        }
+        if (loud < 1000) {
+            printf("FAIL: preset '%s' is silent in its first 50 ms\n", p->name);
+            g_failures++;
+        }
+        uint32_t frames = 0;
+        while (a.voices[AUDIO_CHANNELS + slot].active && frames < AUDIO_SAMPLE_RATE * 3) {
+            audio_mix(&a, buf, 4410);
+            frames += 4410;
+        }
+        if (a.voices[AUDIO_CHANNELS + slot].active) {
+            printf("FAIL: preset '%s' does not end\n", p->name);
+            g_failures++;
+        }
+    }
+    /* The laser slides down: more crossings early than late. */
+    int laser = AUDIO_PRESET_BASE + audio_preset_find("laser");
+    audio_trigger(&a, laser, 96, 255, 0, 0);
+    audio_mix(&a, buf, 1102);
+    int early = crossings_in(buf, 1102);
+    audio_mix(&a, buf, 1102);
+    audio_mix(&a, buf, 1102);
+    int late = crossings_in(buf, 1102);
+    CHECK(late < early, "laser slides down");
+    audio_stop_all_voices(&a);
+    audio_mix(&a, buf, 64);
+}
+
+static const char *PRESET_LUA =
+    "results = {}\n"
+    "function setup()\n"
+    "  local id, spec = SoundPreset('laser')\n"
+    "  results.preset_id = tostring(id)\n"
+    "  results.preset_wave = tostring(spec.wave) .. ':' .. tostring(spec.slide) .. ':' .. tostring(spec.note)\n"
+    "  local _, err = SoundPreset('nothing')\n"
+    "  results.preset_bad = tostring(err)\n"
+    "  results.play_name = tostring(SoundPlay('coin'))\n"
+    "  results.play_piano = tostring(SoundPlay('piano', 'E4', 200))\n"
+    "  local ok, e2 = SoundPlay('nothing')\n"
+    "  results.play_bad = tostring(e2)\n"
+    "  results.define_base = tostring(SoundDefine(3, { base = 'laser', slide = -900, cutoff = 80 }))\n"
+    "  local names = {}\n"
+    "  for _, p in ipairs(SoundPresets()) do names[#names + 1] = p.name end\n"
+    "  results.presets = #names .. ':' .. names[1]\n"
+    "  results.music = tostring(MusicDefine('t', { channels = { { { at = 0, sound = 'kick' }, { at = 100, sound = 3, note = 'C5' } } } }))\n"
+    "end\n"
+    "function tick() end\n";
+
+/* The Sound framework's Music.Track: the MML compiler, run from the
+ * framework file itself (skipped when the IDE sources are not beside
+ * the OS checkout). */
+static char *read_file(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long n = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *buf = malloc((size_t)n + 1);
+    if (!buf || fread(buf, 1, (size_t)n, f) != (size_t)n) { fclose(f); free(buf); return NULL; }
+    buf[n] = 0;
+    fclose(f);
+    return buf;
+}
+
+static const char *MML_LUA =
+    "results = {}\n"
+    "function setup()\n"
+    "  local ok, score = Music.Track('t', { tempo = 120, loop = true, channels = {\n"
+    "    { sound = 'lead', mml = 'o4 l4 c d8 e8. r2 > c v8 c#2 [ e f ]2 c4&c8' },\n"
+    "    { sound = 'kick', mml = 'l4 c c' } } })\n"
+    "  results.ok = tostring(ok)\n"
+    "  local ch = score.channels[1]\n"
+    "  local parts = {}\n"
+    "  for _, e in ipairs(ch) do parts[#parts + 1] = e.at .. '/' .. e.note .. '/' .. e.dur .. '/' .. e.vol end\n"
+    "  results.ch1 = table.concat(parts, ' ')\n"
+    "  results.ch2 = #score.channels[2] .. ':' .. score.channels[2][2].at .. ':' .. score.channels[2][1].note\n"
+    "  results.loop = tostring(score.loop)\n"
+    "  results.playing = tostring(MusicPlay('t') and MusicPlaying())\n"
+    "end\n"
+    "function tick() end\n";
+
+static void test_mml(void) {
+    char *sdk = read_file("../../../ide/macos/Sources/SPIIDECore/Resources/sdk/sound.lua");
+    if (!sdk) {
+        printf("skipped: MML test (no IDE checkout beside the OS)\n");
+        return;
+    }
+    size_t n = strlen(sdk) + strlen(MML_LUA) + 2;
+    char *prog = malloc(n);
+    snprintf(prog, n, "%s\n%s", sdk, MML_LUA);
+    mock_set_file("mml.lua", prog);
+    CHECK(program_boot("mml.lua", NULL), "MML program boots");
+    program_t *p = program_top();
+    CHECK(p != NULL, "MML program running");
+    if (p) {
+        CHECK(strcmp(lua_global_string(p->L, "ok"), "true") == 0, "Music.Track defines the score");
+        /* 120 bpm: a quarter is 500 ms, gate 7/8 = 437 ms; the eighth 250
+         * (218), the dotted eighth 375 (328); r2 rests 1000; > raises the
+         * octave for the rest of the channel: c is C5 (72), v8 = 136,
+         * c#2 = 73 for 1000 (875), [ e f ]2 plays 76 77 twice, and the
+         * tie c4&c8 is one 750 ms note held 437 + 250. */
+        CHECK(strcmp(lua_global_string(p->L, "ch1"),
+                     "0/60/437/187 500/62/218/187 750/64/328/187 2125/72/437/187 "
+                     "2625/73/875/136 3625/76/437/136 4125/77/437/136 4625/76/437/136 "
+                     "5125/77/437/136 5625/72/687/136") == 0,
+              "MML notes, lengths, dots, rests, octave, volume, repeats and ties");
+        if (g_failures) {
+            printf("  ch1: %s\n", lua_global_string(p->L, "ch1"));
+            printf("  ch2: %s\n", lua_global_string(p->L, "ch2"));
+        }
+        CHECK(strcmp(lua_global_string(p->L, "ch2"), "2:500:43") == 0,
+              "second channel: two kicks at the kick's own note");
+        CHECK(strcmp(lua_global_string(p->L, "loop"), "true") == 0, "loop flag kept");
+        CHECK(strcmp(lua_global_string(p->L, "playing"), "true") == 0, "the track plays");
+        program_terminate(p);
+    }
+    free(prog);
+    free(sdk);
+}
+
+static void test_lua_presets(void) {
+    mock_set_file("preset.lua", PRESET_LUA);
+    CHECK(program_boot("preset.lua", NULL), "preset program boots");
+    program_t *p = program_top();
+    CHECK(p != NULL, "preset program running");
+    if (!p) return;
+    char expect_id[16];
+    snprintf(expect_id, sizeof(expect_id), "%d", AUDIO_PRESET_BASE + audio_preset_find("laser"));
+    CHECK(strcmp(lua_global_string(p->L, "preset_id"), expect_id) == 0, "SoundPreset returns the id");
+    CHECK(strcmp(lua_global_string(p->L, "preset_wave"), "square:-300:96") == 0,
+          "SoundPreset returns the spec");
+    CHECK(strcmp(lua_global_string(p->L, "preset_bad"), "no built-in sound 'nothing'") == 0,
+          "unknown preset reported");
+    CHECK(strcmp(lua_global_string(p->L, "play_name"), "1") == 0, "SoundPlay by name");
+    CHECK(strcmp(lua_global_string(p->L, "play_piano"), "2") == 0, "SoundPlay instrument at a note");
+    CHECK(strcmp(lua_global_string(p->L, "play_bad"), "sound not defined") == 0, "unknown name refused");
+    CHECK(strcmp(lua_global_string(p->L, "define_base"), "true") == 0, "SoundDefine from a base");
+    CHECK(p->audio->instruments[3].slide == -900 && p->audio->instruments[3].cutoff == 80 &&
+              p->audio->instruments[3].wave == AUDIO_WAVE_SQUARE,
+          "base copied then overridden");
+    CHECK(strncmp(lua_global_string(p->L, "presets"), "3", 1) == 0 &&
+              strstr(lua_global_string(p->L, "presets"), ":lead") != NULL,
+          "SoundPresets lists the bank");
+    CHECK(strcmp(lua_global_string(p->L, "music"), "true") == 0, "score with a named sound");
+    /* The kick event took the preset's own note, not C4. */
+    CHECK(p->audio->events[0].note == 43, "score event defaults to the sound's note");
+    program_terminate(p);
 }
 
 static void test_lua_module(void) {
@@ -434,6 +678,7 @@ static void test_program_stack(void) {
 /* ---------------- main ---------------- */
 
 int main(void) {
+    setvbuf(stdout, NULL, _IONBF, 0); /* keep the last test's name on an abort */
     printf("=== audio tests ===\n");
     rpc_bind_wait(rpc_wait_host);
     rpc_bind_signal(NULL);
@@ -449,7 +694,11 @@ int main(void) {
     test_loop();
     test_pan_volume();
     test_sample();
+    test_effects();
+    test_presets();
     test_lua_module();
+    test_lua_presets();
+    test_mml();
     test_program_stack();
 
     if (g_failures == 0) {

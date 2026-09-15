@@ -56,7 +56,18 @@
 #define AUDIO_DEFAULT_VOLUME 255
 #define AUDIO_DEFAULT_DUTY 8
 #define AUDIO_ONESHOT_TAIL_MS 250
+#define AUDIO_CUTOFF_OPEN 255
 
+/* Built-in sounds (the ROM bank, audio_presets.c): instruments and
+ * effects a program plays by name or by id AUDIO_PRESET_BASE + n without
+ * defining anything, like the ROM font. */
+#define AUDIO_PRESET_BASE 64
+#define AUDIO_PRESET_MAX 64
+
+/* An instrument: a waveform, an ADSR envelope, and the pitch and tone
+ * effects that make chip sounds (a laser is a slide, a coin an
+ * arpeggio, a flute a vibrato, a muffled hit a low cutoff). The pitch
+ * effects are applied at control rate (every AUDIO_BLOCK frames). */
 typedef struct {
     uint8_t defined;
     uint8_t wave;       /* AUDIO_WAVE_* */
@@ -66,7 +77,30 @@ typedef struct {
     uint8_t sustain;    /* level 0..255 */
     uint8_t release_ms; /* 0..255 */
     uint8_t volume;     /* default volume 0..255 */
+    uint8_t note;       /* default note when a play gives none (0 = C4) */
+    int16_t slide;      /* pitch slide, semitones per second, -3200..3200 */
+    uint8_t vib_depth;  /* vibrato depth in cents, 0..255 */
+    uint8_t vib_rate;   /* vibrato rate in tenths of a Hz, 0..255 */
+    int8_t arp;         /* arpeggio step 1 in semitones (0 = none) */
+    int8_t arp2;        /* arpeggio step 2 (with arp_loop: 0, arp, arp2, ...) */
+    uint8_t arp_ms;     /* ms per arpeggio step (0 = none) */
+    uint8_t arp_loop;   /* 1: cycle the steps; 0: step once and hold */
+    uint8_t cutoff;     /* low-pass tone: 255 (or 0, unset) open, lower = darker */
 } audio_instrument_t;
+
+/* A built-in sound: its name and definition. `effect` marks the sound
+ * effects (played at their own note) from the instruments (played at
+ * the note asked for). */
+typedef struct {
+    const char *name;
+    uint8_t effect;
+    audio_instrument_t ins;
+} audio_preset_t;
+
+/* The preset bank (audio_presets.c). */
+int audio_preset_count(void);
+const audio_preset_t *audio_preset(int index);
+int audio_preset_find(const char *name); /* index, or -1 */
 
 typedef struct {
     uint32_t time_ms; /* absolute from score start */
@@ -128,6 +162,9 @@ typedef struct {
     uint64_t pos;       /* sample position, Q32.32 (interleaved frames) */
     uint64_t step;      /* sample position increment, Q32.32/frame */
     uint16_t lfsr;      /* noise generator state */
+    uint32_t age;       /* frames since the trigger (pitch effects) */
+    uint16_t vib_phase; /* vibrato oscillator, 0..65535 = one cycle */
+    int32_t lp;         /* low-pass filter state (cutoff) */
     uint8_t env_state;
     int32_t env_level;   /* 0..65536, Q16 */
     int32_t env_rate;    /* delta per frame, Q16 */
@@ -180,8 +217,13 @@ void audio_state_free(audio_state_t *a);
  * Returns -1 when the name is malformed. */
 int audio_note_parse(const char *name);
 
-/* True when `sound` is a defined instrument or a loaded sample. */
+/* True when `sound` is a defined instrument, a loaded sample or a
+ * preset (AUDIO_PRESET_BASE + n). */
 bool audio_sound_defined(const audio_state_t *a, int sound);
+
+/* The instrument behind a tone sound id (a program's or a preset's);
+ * NULL for samples and undefined ids. */
+const audio_instrument_t *audio_instrument(const audio_state_t *a, int sound);
 
 /* ---- playback requests (core 1) ---- */
 
