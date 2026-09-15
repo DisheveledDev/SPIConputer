@@ -1,8 +1,14 @@
 -- The board: walls, bricks, paddle, ball and the score line.
 
+-- The score changes on every brick, so it is its own single write; the
+-- rest of the line changes only with a life or a level.
+local function draw_score()
+    Screen.OutText(1, 0, string.format("SCORE %05d", score), Attributes.Yellow)
+end
+
 local function draw_hud()
     Screen.Clean(0, 0, COLS - 1, 0)
-    Screen.OutText(1, 0, string.format("SCORE %05d", score), Attributes.Yellow)
+    draw_score()
     Screen.CenterText(0, "BREAKOUT", Attributes.Cyan)
     Screen.RightText(0, "LIVES " .. lives .. "  LV " .. level .. " ", Attributes.Green)
 end
@@ -50,7 +56,7 @@ local function remove_brick(row, col)
     local x1, y, x2 = brick_cells(row, col)
     Screen.Fill(x1, y, x2, y, 32, EMPTY_ATTR)
     score = score + BRICK_ROWS[row].points
-    draw_hud()
+    draw_score()
 end
 
 local function draw_paddle()

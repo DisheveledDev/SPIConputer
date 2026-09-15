@@ -1,5 +1,6 @@
--- Input: held keys from the raw event stream (presses and releases),
--- joystick 1 read each frame, and the one-shot actions.
+-- Input: keyboard and joystick 1 both come from the event stream
+-- (presses and releases), so nothing is polled or allocated per frame
+-- when no input arrives.
 
 local function action()
     if state == "serve" then
@@ -34,21 +35,24 @@ local function key_event(key, pressed)
     end
 end
 
--- Merge the keyboard and joystick 1 into held_left/held_right; fire is
--- edge-triggered so holding it serves once.
+-- A joystick event carries the directions that changed (INPUT_DIR_*
+-- bits: 4 left, 8 right, 16 fire) and whether they went down or up.
+local function joystick_event(dirs, pressed)
+    if dirs & 4 ~= 0 then joy_left = pressed end
+    if dirs & 8 ~= 0 then joy_right = pressed end
+    if dirs & 16 ~= 0 and pressed then action() end
+end
+
 local function read_input()
     while true do
         local ev = Input.Poll()
         if not ev then break end
         if ev.type == "key" then
             key_event(ev.key, ev.pressed == 1)
+        elseif ev.type == "control1" then
+            joystick_event(ev.dirs, ev.pressed == 1)
         end
     end
-    local joy = Input.Joystick.State(1) or {}
-    held_left = key_left or joy.left or false
-    held_right = key_right or joy.right or false
-    if joy.fire and not fire_latched then
-        action()
-    end
-    fire_latched = joy.fire or false
+    held_left = key_left or joy_left
+    held_right = key_right or joy_right
 end
