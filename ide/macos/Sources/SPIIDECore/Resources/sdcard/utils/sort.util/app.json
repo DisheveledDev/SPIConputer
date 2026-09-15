@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Sort the lines of a file",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "sort",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

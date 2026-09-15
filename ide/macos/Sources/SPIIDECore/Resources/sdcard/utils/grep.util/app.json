@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Search files for text",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "grep",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

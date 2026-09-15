@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Command help: HELP [COMMAND]",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "help",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

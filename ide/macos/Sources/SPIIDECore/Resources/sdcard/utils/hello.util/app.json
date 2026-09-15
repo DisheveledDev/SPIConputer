@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Example utility: echoes its arguments",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "hello",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

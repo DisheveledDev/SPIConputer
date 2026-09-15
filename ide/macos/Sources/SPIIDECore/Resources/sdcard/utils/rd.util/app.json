@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Remove directories: RD [-S] DIR...",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "rd",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

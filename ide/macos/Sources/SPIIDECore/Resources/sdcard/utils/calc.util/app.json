@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Evaluate a maths expression",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "calc",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

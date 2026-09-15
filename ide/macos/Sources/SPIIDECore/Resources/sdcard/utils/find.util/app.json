@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Find files by name, with * and ? wildcards",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "find",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

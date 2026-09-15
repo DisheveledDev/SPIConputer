@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Count lines, words and bytes in files",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "wc",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

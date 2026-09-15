@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Show the first lines of a file",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "head",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "System information: version, uptime, card, programs",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "sysinfo",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

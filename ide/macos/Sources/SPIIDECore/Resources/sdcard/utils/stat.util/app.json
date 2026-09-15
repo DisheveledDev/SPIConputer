@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "File details: STAT PATH...",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "stat",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

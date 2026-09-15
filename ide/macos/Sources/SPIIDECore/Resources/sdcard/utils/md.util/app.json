@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Make directories: MD DIR...",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "md",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

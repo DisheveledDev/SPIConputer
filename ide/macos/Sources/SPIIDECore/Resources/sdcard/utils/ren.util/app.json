@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Rename or move: REN OLD NEW",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "ren",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

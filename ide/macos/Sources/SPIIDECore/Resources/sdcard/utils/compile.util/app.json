@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Build a .prg: COMPILE FILE.LUA [OUT]",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "compile",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

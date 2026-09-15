@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Show a file's bytes in hex and ASCII",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "hexdump",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

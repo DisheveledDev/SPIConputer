@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Show a directory tree with sizes",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "tree",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "Copy files: COPY FROM... TO",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "copy",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}

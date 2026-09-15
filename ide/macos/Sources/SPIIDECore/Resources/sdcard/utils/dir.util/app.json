@@ -1,0 +1,10 @@
+{
+  "audio" : false,
+  "description" : "List a directory: DIR [PATH|*.EXT]",
+  "entry" : "app.prg",
+  "interactive" : false,
+  "name" : "dir",
+  "type" : "utility",
+  "version" : "1.0",
+  "video" : false
+}
