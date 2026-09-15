@@ -300,6 +300,11 @@ higher-level calls such as `Screen.CenterText(y, text)`,
 selected per project in the IDE's settings, and stripped at build time to
 the functions the program uses. The framework sources (and their
 documentation) are `ide/macos/Sources/SPIIDECore/Resources/sdk/*.lua`.
+The Screen framework also defines the `Attributes` namespace: the colours
+by name (`Attributes.White`/`Red`/`Cyan`/`Purple`/`Green`/`Blue`/`Yellow`/
+`Orange`, the mode-1 default palette) and `Attributes.Inverse`, to be added
+for an `attr` argument (`Attributes.Red + Attributes.Inverse` is a red
+block behind a space) without knowing the byte layout below.
 
 Attribute byte: bit 7 = invert (swap fg/bg), bits 0-2 = colour index,
 bit 6 = transparent overlay cell. Colour index `c` uses palette entry `c+1`
@@ -519,7 +524,7 @@ are SPIEdit projects developed alongside it and copied onto the SD card
 provides the runtime and this contract.
 
 In this workspace those projects live in `software/` (`os`, `boot`,
-`editor`, `bench`, `demo`, `hello`, `spin`). Each builds into its own
+`editor`, `bench`, `demo`, `hello`, `spin`, `breakout`). Each builds into its own
 `build/` folder; `software/install.sh [folder]` builds them all and
 installs the products into a card image (default `software/sdcard/`,
 ignored by git) laid out like the card. Copy that folder to a real card,

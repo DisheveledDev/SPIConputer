@@ -1,0 +1,40 @@
+{
+  "components" : [
+    {
+      "file" : "components/00-header.lua",
+      "id" : "51AC5543-3CFB-4347-B966-764C5D3B0033",
+      "kind" : "lua",
+      "name" : "header"
+    },
+    {
+      "file" : "components/10-board.lua",
+      "id" : "B6A4C334-30F9-4A79-9E08-8C8154E827B4",
+      "kind" : "lua",
+      "name" : "board"
+    },
+    {
+      "file" : "components/20-play.lua",
+      "id" : "5F1726C9-0FCA-42F6-A2B0-2B7A627E7440",
+      "kind" : "lua",
+      "name" : "play"
+    },
+    {
+      "file" : "components/30-input.lua",
+      "id" : "F32F7C77-E2A8-424D-BF70-3DB2AF72CF7E",
+      "kind" : "lua",
+      "name" : "input"
+    },
+    {
+      "file" : "components/40-main.lua",
+      "id" : "51F19064-93EC-4A65-9CF5-09126B2B0CB5",
+      "kind" : "lua",
+      "name" : "main"
+    }
+  ],
+  "description" : "Breakout: bricks, paddle and ball drawn with coloured attribute cells",
+  "format_version" : 2,
+  "kind" : "game",
+  "name" : "breakout",
+  "requires_audio" : true,
+  "sdks" : [ "screen", "overlay", "text", "sound", "input" ]
+}
