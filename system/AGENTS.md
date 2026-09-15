@@ -574,6 +574,17 @@ are the core patch type, samples are the later addition):
   (C4 = original rate) usable with `SoundPlay` and in scores. WAV keeps
   decoding trivial; IMA ADPCM (WAV tag 0x11) remains a possible later 4:1
   size option with a table-based decoder.
+- **Modules**: `mod.c` plays ProTracker MODs (4 channels) streamed from
+  the card: header, order list and two patterns resident (the next
+  pattern prefetched, a jump's target loaded on demand), a 40 KB pool of
+  whole short samples and 1 KB heads of long ones, and a 4 KB ring per
+  channel that core 1 refills ahead of the reader (`mod_service`, called
+  every scheduler step from `lua_main.c` and the simulator loop) while
+  core 0 runs the tick clock, the effects and the mixing inside
+  `audio_mix`. Ring and pattern hand-over are volatile indices in the
+  SPSC style of the video queue; a note that outruns its ring plays
+  silence and counts an underrun. One module per program; a module and a
+  score do not play together.
 - **Song files**: pre-rendered audio is not the plan (a 3 minute tune as
   22 kHz 8-bit mono PCM is ~4 MB — no RAM for it); tunes are score files,
   i.e. a Lua file returning the `MusicDefine` spec, loaded with

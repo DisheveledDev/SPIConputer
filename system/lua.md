@@ -422,7 +422,7 @@ over HSTX (see `WaitVSync` above).
 | `SoundDefine(id, spec)` | `true`, or `nil, err` (id = 0..31) |
 | `SoundPreset(name)` | a built-in sound's id (64+) and its spec table, or `nil, err` |
 | `SoundPresets()` | the built-in bank: `{ {name=, effect=, id=}, ... }` |
-| `SoundLoad(path [, root])` | sound id (32..39), or `nil, err`; `root` is the note recorded (default C4) |
+| `SoundLoad(path [, root [, loop_start, loop_end]])` | sound id (32..39), or `nil, err`; `root` is the note recorded (default C4); a loop (frames) sustains a note |
 | `SoundPlay(sound [, note [, dur_ms [, vol [, pan]]]])` | voice id (1..8), or `nil, err`; `sound` is an id or a built-in name |
 | `SoundStop([voice])` | `true`/`false` (no argument: all one-shots) |
 | `SoundStopAll()` | `true` (stops the score too) |
@@ -495,7 +495,26 @@ The Sound framework's `Music.Track` writes a score as MML note strings
 (`"o4 l8 c d e f g a b > c"`) per channel instead.
 Events may be written in any order (they are sorted per channel).
 `MusicPlay` overrides the score's own `loop` when the second argument is
-given. `MusicPlaying()` is true from the call to `MusicPlay` until the
+given.
+
+### Modules
+
+| Function | Returns |
+|---|---|
+| `ModLoad(path)` | `true`, or `nil, err`: a ProTracker `.mod` (4 channels, 31 samples), one per program |
+| `ModPlay([loop])` | `true`, or `nil, err`; loops unless `loop` is false; stops a playing score |
+| `ModStop()` / `ModPlaying()` / `ModUnload()` | as for scores |
+| `ModPosition()` | `order, row, pattern`, or `nil` |
+| `ModInfo()` | `{name, orders, patterns, samples, resident_kb, underruns}` |
+
+A module streams from the card: the header, order list and two
+patterns are in RAM; samples up to a 40 KB resident budget stay in RAM
+(shortest first), the rest keep a 1 KB head so a note starts at once
+and stream through 4 KB per-channel rings the OS core refills between
+scheduler steps. About 60 KB of system heap per loaded module. Effects
+0-9, A-F and E1/2/5/6/9/A/B/C/D/E are played; 6/8-channel modules are
+refused. A module with many long samples can outrun the card:
+`ModInfo().underruns` counts the frames a sample was late for. `MusicPlaying()` is true from the call to `MusicPlay` until the
 score ends or `MusicStop`/`SoundStopAll`; a paused program is silenced
 and resumes from its score position.
 
