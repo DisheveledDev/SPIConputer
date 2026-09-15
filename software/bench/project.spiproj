@@ -23,5 +23,8 @@
   "format_version": 2,
   "kind": "application",
   "name": "bench",
-  "requires_audio": false
+  "requires_audio": false,
+  "sdks": [
+    "screen"
+  ]
 }

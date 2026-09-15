@@ -3,10 +3,10 @@ local results = {}        -- { name, ms, ops_per_ms }
 local next_test = 1
 local finished = false
 
+-- One display op per line (the framework's block write), not a
+-- ScreenOut per character.
 local function text(x, row, message, attr)
-    for i = 1, math.min(#message, COLS - x) do
-        ScreenOut(x + i - 1, row, message:byte(i), attr or 0)
-    end
+    Screen.OutText(x, row, message:sub(1, COLS - x), attr or 0)
 end
 
 -- Describe the Lua build in one line: the integer width and float
@@ -22,20 +22,20 @@ local function result_line(r)
 end
 
 local function draw()
-    ScreenClear(32)
-    text(0, 0, "SPICOMPUTER LUA BENCHMARK", 0x80)
+    Screen.Clear()
+    text(0, 0, "SPICOMPUTER LUA BENCHMARK", Attributes.Inverse)
     text(0, 1, build_line(), 0)
-    text(0, 3, string.format("%-14s %8s %11s", "test", "time", "rate"), 0x02)
+    text(0, 3, string.format("%-14s %8s %11s", "test", "time", "rate"), Attributes.Cyan)
     for i, r in ipairs(results) do
         text(0, 3 + i, result_line(r), 0)
     end
     if finished then
         text(0, 5 + #results, string.format("gc full stall  %6dms", gc_stall_ms or 0), 0)
-        text(0, 6 + #results, "saved to /data/bench.txt", 0x02)
-        text(0, 7 + #results, "! = hit the heap cap (see file)", 0x02)
-        text(0, 9 + #results, "press any key to exit", 0x80)
+        text(0, 6 + #results, "saved to /data/bench.txt", Attributes.Cyan)
+        text(0, 7 + #results, "! = hit the heap cap (see file)", Attributes.Cyan)
+        text(0, 9 + #results, "press any key to exit", Attributes.Inverse)
     elseif next_test <= #tests then
-        text(0, 4 + #results, "running " .. tests[next_test].name .. "...", 0x02)
+        text(0, 4 + #results, "running " .. tests[next_test].name .. "...", Attributes.Cyan)
     end
 end
 
@@ -51,7 +51,7 @@ local function save()
 end
 
 function setup()
-    ScreenMode(1)
+    Screen.Mode(1)
     draw()
 end
 

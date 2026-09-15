@@ -22,8 +22,8 @@
   "requires_video": true,
   "sdks": [
     "screen",
-    "overlay",
     "timer"
   ],
-  "version": "1.0"
+  "version": "1.0",
+  "strip_debug": true
 }

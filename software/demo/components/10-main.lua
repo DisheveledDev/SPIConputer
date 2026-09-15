@@ -51,6 +51,8 @@ function setup()
     check("label", Screen.Label(24, 24, 14, "right", "right", 0x02))
     check("progress", Screen.Progress(24, 26, 14, 0.6))
     check("line", Screen.Line(2, 27, 20, 28, 250))
+    check("attributes", Attributes.Red + Attributes.Inverse == 0x81, Attributes.Red + Attributes.Inverse)
+    check("outattrs", Screen.OutAttrs(24, 28, string.char(Attributes.Red, Attributes.Green + Attributes.Inverse)))
 
     -- Timers: a one-shot fires, a paused timer does not tick while
     -- paused and resumes, a cancelled timer never fires. Checked by a

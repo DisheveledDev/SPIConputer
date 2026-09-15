@@ -132,6 +132,16 @@ add("ScreenOut", N_SCREEN, function()
     return 0
 end)
 
+-- The block text call the frameworks use: one queued op per 40-cell
+-- line, however long. Compare its per-cell rate with ScreenOut's.
+add("ScreenWrite", N_SCREEN * 40, function()
+    local line = string.rep("#", 40)
+    for _ = 1, N_SCREEN do
+        ScreenWrite(0, 28, line)
+    end
+    return 0
+end)
+
 -- A full collection with a live set of a hundred small tables (~15 KB
 -- on the board, more on a 64-bit host): the stall a game would see if
 -- the collector runs mid-frame.

@@ -12,10 +12,10 @@ local function draw_boot()
 end
 
 local function draw_failure()
-    ScreenClear(32)
+    Screen.Clear()
     text(7, "SPI COMPUTER", 0)
-    text(10, "SYSTEM STARTUP FAILED", 0x80)
-    text(13, "CANNOT FIND OS IMAGE", 0x80)
+    text(10, "SYSTEM STARTUP FAILED", Attributes.Inverse)
+    text(13, "CANNOT FIND OS IMAGE", Attributes.Inverse)
     text(16, "EXPECTED CORE/OS.PRG", 0)
     text(17, "OR CORE/OS.LUA", 0)
     text(20, "CHECK THE SD CARD", 0)
@@ -35,10 +35,10 @@ local function start_os()
 end
 
 function setup()
-    ScreenMode(1)
-    ScreenPalette(0, 0, 0, 160)
-    ScreenPalette(1, 255, 255, 255)
-    ScreenPalette(2, 180, 220, 255)
+    Screen.Mode(1)
+    Screen.Palette(0, 0, 0, 160)
+    Screen.Palette(1, 255, 255, 255)
+    Screen.Palette(2, 180, 220, 255)
     draw_boot()
     Timer.After(2000, start_os)
 end

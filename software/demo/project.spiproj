@@ -24,5 +24,6 @@
     "timer",
     "sound",
     "input"
-  ]
+  ],
+  "strip_debug": true
 }
