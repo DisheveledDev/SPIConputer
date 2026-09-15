@@ -1389,7 +1389,7 @@
       "name": "SoundLoad",
       "kind": "function",
       "group": "Sound",
-      "signature": "SoundLoad(path [, root])",
+      "signature": "SoundLoad(path [, root [, loop_start, loop_end]])",
       "summary": "Loads a WAV file (8/16-bit PCM, mono/stereo, <= 48 kHz) into the program's 64 KB sample pool.",
       "description": "`root` is the note the recording is of (a name or MIDI number, default C4): playing the sample at another note resamples it by the difference, so one recording of a bass at C2 plays the whole scale (an octave up doubles the rate, so keep large shifts to drums and effects where the change of character is welcome). The sample is an instrument for SoundPlay and scores, ids 32-39.",
       "parameters": [
@@ -1404,6 +1404,18 @@
           "type": "string|number",
           "optional": true,
           "description": "the note recorded, default C4"
+        },
+        {
+          "name": "loop_start",
+          "type": "number",
+          "optional": true,
+          "description": "first frame of the sustain loop"
+        },
+        {
+          "name": "loop_end",
+          "type": "number",
+          "optional": true,
+          "description": "frame after the loop; the note repeats the stretch until released"
         }
       ],
       "returns": "sound id usable with SoundPlay and in scores, or nil, err",
@@ -1519,6 +1531,121 @@
       "returns": "boolean",
       "example": "",
       "seeAlso": []
+    },
+    {
+      "name": "ModLoad",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModLoad(path)",
+      "summary": "Loads a ProTracker .mod (4 channels, 31 samples) from the card, streamed as it plays.",
+      "description": "One module per program (a second load replaces the first). The header, order list and two patterns are kept; samples up to a 40 KB resident budget stay in RAM (shortest first) and the rest keep a 1 KB head and stream through 4 KB per-channel rings that the OS core refills from the card between scheduler steps, about 60 KB in all. 6/8-channel and 15-sample modules are refused. Very sample-heavy modules may not stream fast enough (ModInfo reports underruns).",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "optional": false,
+          "description": "a .mod file"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ModLoad(app.resources .. \"/song.mod\")\nModPlay()",
+      "seeAlso": [
+        "ModPlay",
+        "ModInfo",
+        "Music.LoadMod"
+      ]
+    },
+    {
+      "name": "ModPlay",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModPlay([loop])",
+      "summary": "Plays the loaded module from the top (looping unless loop is false); a playing score stops.",
+      "description": "",
+      "parameters": [
+        {
+          "name": "loop",
+          "type": "boolean",
+          "optional": true,
+          "description": "default true"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ModPlay(false)",
+      "seeAlso": [
+        "ModStop",
+        "ModPosition"
+      ]
+    },
+    {
+      "name": "ModStop",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModStop()",
+      "summary": "Stops the module.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "ModStop()",
+      "seeAlso": [
+        "ModPlay"
+      ]
+    },
+    {
+      "name": "ModPlaying",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModPlaying()",
+      "summary": "True while the module plays.",
+      "description": "",
+      "parameters": [],
+      "returns": "boolean",
+      "example": "if not ModPlaying() then ModPlay() end",
+      "seeAlso": [
+        "ModPlay"
+      ]
+    },
+    {
+      "name": "ModPosition",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModPosition()",
+      "summary": "The player's order, row and pattern, to sync a game to the music.",
+      "description": "",
+      "parameters": [],
+      "returns": "order, row, pattern, or nil",
+      "example": "local order, row = ModPosition()",
+      "seeAlso": [
+        "ModInfo"
+      ]
+    },
+    {
+      "name": "ModInfo",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModInfo()",
+      "summary": "The loaded module's name, orders, patterns, samples, resident KB and underruns.",
+      "description": "",
+      "parameters": [],
+      "returns": "a table, or nil",
+      "example": "print(ModInfo().name)",
+      "seeAlso": [
+        "ModLoad"
+      ]
+    },
+    {
+      "name": "ModUnload",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "ModUnload()",
+      "summary": "Stops and frees the loaded module.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "ModUnload()",
+      "seeAlso": [
+        "ModLoad"
+      ]
     },
     {
       "name": "fs",

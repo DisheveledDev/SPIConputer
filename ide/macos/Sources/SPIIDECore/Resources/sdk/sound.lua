@@ -1,5 +1,5 @@
 -- SDK: Sound
--- Summary: Built-in instruments and effects by name, tones and noise, and music written as notes (MML) without samples.
+-- Summary: Built-in instruments and effects by name, tones and noise, music written as notes (MML), and ProTracker .mod files streamed from the card.
 -- Namespaces: Sound, Music
 --
 -- Same format contract as screen.lua (preamble, `function Name.Sub`
@@ -22,7 +22,11 @@
 -- Music.Track writes a tune as notes in MML (Music Macro Language),
 -- one string per channel, up to 8 channels playing together:
 --   "T120 L8 O4 c d e f g a b > c"   notes with lengths, octave, tempo
--- See Music.Track for the notation. The engine mixes 8 tune channels
+-- See Music.Track for the notation. Music.LoadMod plays a ProTracker
+-- .mod file from the card, streamed (short samples resident, long ones
+-- read ahead), so a song of a few hundred KB costs about 60 KB of RAM.
+-- Big modules with many long samples may not keep up on the card.
+-- The engine mixes 8 tune channels
 -- plus 8 effect voices, stereo, 44.1 kHz; the product board's audio
 -- output is not wired yet, so on hardware these calls succeed silently
 -- until it is (the simulator plays them).
@@ -242,15 +246,16 @@ function Sound.Define(id, spec)
     return SoundDefine(id, spec)
 end
 
---- Sound.Load(path [, root])
+--- Sound.Load(path [, root [, loop_start, loop_end]])
 -- Loads a WAV file from the card (8/16-bit PCM, mono or stereo, up to
 -- 48 kHz, 64 KB of samples a program) as an instrument: `root` is the
 -- note the recording is of ("C2" for a bass sampled at C2; default C4),
 -- and playing any other note shifts the pitch by the difference, so a
--- single recording covers the scale. Returns a sound id for Sound.Play
--- and Music.Track channels.
-function Sound.Load(path, root)
-    return SoundLoad(path, root)
+-- single recording covers the scale. `loop_start`/`loop_end` (frames)
+-- sustain a note by repeating that stretch until it is released.
+-- Returns a sound id for Sound.Play and Music.Track channels.
+function Sound.Load(path, root, loop_start, loop_end)
+    return SoundLoad(path, root, loop_start, loop_end)
 end
 
 --- Sound.Stop([voice])
@@ -335,4 +340,55 @@ end
 -- True while a tune is playing.
 function Music.Playing()
     return MusicPlaying()
+end
+
+--- Music.LoadMod(path)
+-- Loads a ProTracker module (.mod, 4 channels, 31 samples) from the
+-- card: one per program; a second load replaces it. Samples up to the
+-- resident budget stay in RAM, longer ones stream from the card as they
+-- play. Returns a module object with Play, Stop, Playing, Position and
+-- Info methods, or nil, err.
+function Music.LoadMod(path)
+    local ok, err = ModLoad(path)
+    if not ok then return nil, err end
+    return setmetatable({}, { __index = {
+        Play = function(_, loop) return Music.PlayMod(loop) end,
+        Stop = function() return Music.StopMod() end,
+        Playing = function() return Music.ModPlaying() end,
+        Position = function() return Music.ModPosition() end,
+        Info = function() return Music.ModInfo() end,
+    } })
+end
+
+--- Music.PlayMod([loop])
+-- Plays the loaded module from the top, looping unless `loop` is false;
+-- a playing tune stops.
+function Music.PlayMod(loop)
+    return ModPlay(loop)
+end
+
+--- Music.StopMod()
+-- Stops the module.
+function Music.StopMod()
+    return ModStop()
+end
+
+--- Music.ModPlaying()
+-- True while the module plays.
+function Music.ModPlaying()
+    return ModPlaying()
+end
+
+--- Music.ModPosition()
+-- Where the module is: order, row, pattern (or nil): a game can sync to
+-- the music (a new order every few seconds, a row several times a second).
+function Music.ModPosition()
+    return ModPosition()
+end
+
+--- Music.ModInfo()
+-- The loaded module: { name, orders, patterns, samples, resident_kb,
+-- underruns } (underruns counts frames a streamed sample was late for).
+function Music.ModInfo()
+    return ModInfo()
 end

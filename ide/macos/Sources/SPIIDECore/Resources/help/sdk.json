@@ -97,8 +97,8 @@
       "group": "Music",
       "framework": "sound",
       "signature": "Music",
-      "summary": "Tunes written as notes (MML) on up to 8 channels of built-in or own sounds, played by name and looped.",
-      "description": "Music.Track compiles MML strings (notes, lengths, octaves, tempo, volume, ties, repeats) into a score the engine plays on its 8 tune channels; Music.Define takes event tables directly. One tune plays at a time; effects play over it.",
+      "summary": "Tunes written as notes (MML) on up to 8 channels, and ProTracker .mod files streamed from the card.",
+      "description": "Music.Track compiles MML strings (notes, lengths, octaves, tempo, volume, ties, repeats) into a score the engine plays on its 8 tune channels; Music.Define takes event tables directly. One tune plays at a time; effects play over it. Music.LoadMod plays a .mod file (4 channels) streamed from the card, with short samples resident and long ones read ahead; a module and a score do not play at once.",
       "parameters": [],
       "returns": "",
       "example": "Music.Track(\"theme\", { tempo = 120, loop = true, channels = { { sound = \"lead\", mml = \"o4 l8 c d e f g a b > c\" } } })\nMusic.Play(\"theme\")",
@@ -376,9 +376,9 @@
       "kind": "function",
       "group": "Sound",
       "framework": "sound",
-      "signature": "Sound.Load(path [, root])",
-      "summary": "Loads a WAV from the card as an instrument, with the note it was recorded at.",
-      "description": "Loads a WAV file from the card (8/16-bit PCM, mono or stereo, up to 48 kHz, 64 KB of samples a program) as an instrument: `root` is the note the recording is of (\"C2\" for a bass sampled at C2; default C4), and playing any other note shifts the pitch by the difference, so a single recording covers the scale. Returns a sound id for Sound.Play and Music.Track channels.",
+      "signature": "Sound.Load(path [, root [, loop_start, loop_end]])",
+      "summary": "Loads a WAV file from the card (8/16-bit PCM, mono or stereo, up to 48 kHz, 64 KB of samples a program) as an instrument: `root` is the note the recording is of (\"C2\" for a bass sampled at C2; default C4), and playing any other note shifts the pitch by the difference, so a single recording covers the scale.",
+      "description": "Loads a WAV file from the card (8/16-bit PCM, mono or stereo, up to 48 kHz, 64 KB of samples a program) as an instrument: `root` is the note the recording is of (\"C2\" for a bass sampled at C2; default C4), and playing any other note shifts the pitch by the difference, so a single recording covers the scale. `loop_start`/`loop_end` (frames) sustain a note by repeating that stretch until it is released. Returns a sound id for Sound.Play and Music.Track channels.",
       "parameters": [
         {
           "name": "path",
@@ -390,6 +390,18 @@
           "name": "root",
           "type": "",
           "optional": true,
+          "description": ""
+        },
+        {
+          "name": "loop_start",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "loop_end",
+          "type": "",
+          "optional": false,
           "description": ""
         }
       ],
@@ -555,6 +567,110 @@
       "parameters": [],
       "returns": "",
       "example": "if not Music.Playing() then Music.Play(\"theme\") end",
+      "seeAlso": [
+        "Music"
+      ]
+    },
+    {
+      "name": "Music.LoadMod",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.LoadMod(path)",
+      "summary": "Loads a ProTracker module (.mod, 4 channels, 31 samples) from the card: one per program; a second load replaces it.",
+      "description": "Loads a ProTracker module (.mod, 4 channels, 31 samples) from the card: one per program; a second load replaces it. Samples up to the resident budget stay in RAM, longer ones stream from the card as they play. Returns a module object with Play, Stop, Playing, Position and Info methods, or nil, err.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local song = Music.LoadMod(app.resources .. \"/song.mod\")\nsong:Play()",
+      "seeAlso": [
+        "Music"
+      ]
+    },
+    {
+      "name": "Music.PlayMod",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.PlayMod([loop])",
+      "summary": "Plays the loaded module from the top, looping unless `loop` is false; a playing tune stops.",
+      "description": "Plays the loaded module from the top, looping unless `loop` is false; a playing tune stops.",
+      "parameters": [
+        {
+          "name": "loop",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Music.PlayMod(false)  -- once through",
+      "seeAlso": [
+        "Music"
+      ]
+    },
+    {
+      "name": "Music.StopMod",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.StopMod()",
+      "summary": "Stops the module.",
+      "description": "Stops the module.",
+      "parameters": [],
+      "returns": "",
+      "example": "Music.StopMod()",
+      "seeAlso": [
+        "Music"
+      ]
+    },
+    {
+      "name": "Music.ModPlaying",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.ModPlaying()",
+      "summary": "True while the module plays.",
+      "description": "True while the module plays.",
+      "parameters": [],
+      "returns": "",
+      "example": "if not Music.ModPlaying() then Music.PlayMod() end",
+      "seeAlso": [
+        "Music"
+      ]
+    },
+    {
+      "name": "Music.ModPosition",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.ModPosition()",
+      "summary": "Where the module is: order, row, pattern (or nil): a game can sync to the music (a new order every few seconds, a row several times a second).",
+      "description": "Where the module is: order, row, pattern (or nil): a game can sync to the music (a new order every few seconds, a row several times a second).",
+      "parameters": [],
+      "returns": "",
+      "example": "local order, row = Music.ModPosition()",
+      "seeAlso": [
+        "Music"
+      ]
+    },
+    {
+      "name": "Music.ModInfo",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.ModInfo()",
+      "summary": "The loaded module: { name, orders, patterns, samples, resident_kb, underruns } (underruns counts frames a streamed sample was late for).",
+      "description": "The loaded module: { name, orders, patterns, samples, resident_kb, underruns } (underruns counts frames a streamed sample was late for).",
+      "parameters": [],
+      "returns": "",
+      "example": "print(Music.ModInfo().underruns)",
       "seeAlso": [
         "Music"
       ]
