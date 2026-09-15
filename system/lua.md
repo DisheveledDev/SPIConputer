@@ -420,8 +420,10 @@ over HSTX (see `WaitVSync` above).
 | Function | Returns |
 |---|---|
 | `SoundDefine(id, spec)` | `true`, or `nil, err` (id = 0..31) |
+| `SoundPreset(name)` | a built-in sound's id (64+) and its spec table, or `nil, err` |
+| `SoundPresets()` | the built-in bank: `{ {name=, effect=, id=}, ... }` |
 | `SoundLoad(path)` | sound id (32..39), or `nil, err` |
-| `SoundPlay(sound [, note [, dur_ms [, vol [, pan]]]])` | voice id (1..8), or `nil, err` |
+| `SoundPlay(sound [, note [, dur_ms [, vol [, pan]]]])` | voice id (1..8), or `nil, err`; `sound` is an id or a built-in name |
 | `SoundStop([voice])` | `true`/`false` (no argument: all one-shots) |
 | `SoundStopAll()` | `true` (stops the score too) |
 | `SoundVolume(v)` | `true` (master 0..255) |
@@ -429,10 +431,29 @@ over HSTX (see `WaitVSync` above).
 `SoundDefine` spec: `wave` (`"square"`/`"pulse"`, `"triangle"`, `"saw"`,
 `"sine"`, `"noise"`), `duty` (1..15, pulse width in 16ths), `attack`,
 `decay`, `release` (ms, 0..255), `sustain` (level 0..255), `volume`
-(0..255). All fields are optional.
+(0..255), `note` (the sound's own pitch, used when a play gives none),
+and the pitch/tone effects: `slide` (semitones per second, -3200..3200;
+a laser is -300, a jump +180), `vibrato` (depth in cents) with
+`vibrato_rate` (Hz), `arp` and `arp2` (semitone steps applied every
+`arp_ms` ms; `arp_loop = true` cycles 0, arp, arp2, else the steps are
+taken once and held: a coin is `arp = 7, arp_ms = 60`), `cutoff` (a
+low-pass tone, 255 open, lower darker). `base = "name"` starts from a
+built-in sound and the other fields override it. All fields are
+optional.
+
+**The built-in bank.** Like the ROM font, the OS carries sounds a
+program plays without defining anything, by name or by id 64 + index
+(`audio_presets.c`): instruments, played at the note given (`lead`,
+`pulse`, `bass`, `piano`, `organ`, `strings`, `flute`, `brass`, `bell`,
+`pluck`, `chime`, `kick`, `snare`, `hihat`, `tom`, `clap`), and effects
+that carry their own pitch (`coin`, `jump`, `laser`, `zap`, `explosion`,
+`hit`, `hurt`, `powerup`, `blip`, `select`, `error`, `alarm`, `engine`,
+`splash`, `bounce`, `teleport`). `SoundPlay("coin")` plays one;
+`SoundPreset("laser")` returns its id and spec (change a field and
+`SoundDefine` it under your own id, or use `base`).
 
 `note` is a name (`"C4"` = middle C, `"A#3"`, `"Bb3"`, `"C-1"`..`"G9"`) or
-a MIDI number 0..127 (default C4). `dur_ms` holds the envelope before
+a MIDI number 0..127 (default: the sound's own note, else C4). `dur_ms` holds the envelope before
 release; omit/0 = one-shot (release after attack+decay). `vol` 0..255,
 `pan` -64 (left) .. 63 (right).
 
@@ -465,8 +486,11 @@ MusicDefine("tune", {
 MusicPlay("tune")
 ```
 
-Event fields: `at` (ms from the start), `sound` (id, required), `note`,
-`dur` (ms; omit/0 = one-shot envelope), `vol` (0..255), `pan` (-64..63).
+Event fields: `at` (ms from the start), `sound` (an id or a built-in
+name, required), `note` (default: the sound's own note, else C4), `dur`
+(ms; omit/0 = one-shot envelope), `vol` (0..255), `pan` (-64..63).
+The Sound framework's `Music.Track` writes a score as MML note strings
+(`"o4 l8 c d e f g a b > c"`) per channel instead.
 Events may be written in any order (they are sorted per channel).
 `MusicPlay` overrides the score's own `loop` when the second argument is
 given. `MusicPlaying()` is true from the call to `MusicPlay` until the

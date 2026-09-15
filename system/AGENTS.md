@@ -531,8 +531,10 @@ the free-running `tick()`.
 
 ## Audio Subsystem (planned)
 
-Status: engine, Lua API, per-program state and WAV loading implemented and
-host-tested (`audio.c`, `sound_lua.c`, `spicomputer_audio_tests`); the HDMI
+Status: engine, Lua API, per-program state, WAV loading, pitch/tone
+effects and the built-in bank implemented and host-tested (`audio.c`,
+`audio_presets.c`, `sound_lua.c`, `spicomputer_audio_tests`; the
+simulator's `--wav` records a headless run's mix for listening); the HDMI
 data-island output backend is the remaining hardware-gated part (Phase 7).
 Product board only — the RP2040 dev board has no HSTX and no allocated
 audio pins.
@@ -552,7 +554,14 @@ are the core patch type, samples are the later addition):
 
 - **Sounds** are instruments: waveform (square/pulse/triangle/saw/sine/
   noise) + envelope (attack/decay/sustain/release) + pitch effects
-  (slide/vibrato/arpeggio). Defined from Lua by id, or predefined.
+  (slide, vibrato, a one-step or looping arpeggio; applied at control
+  rate, once per 64-frame block) + a one-pole low-pass `cutoff` for
+  tone. Defined from Lua by id, or built in: `audio_presets.c` is the
+  ROM bank (16 instruments, 16 effects, ids 64+; append-only, the id is
+  the index), played by name through `SoundPlay("coin")`, copied and
+  tweaked with `SoundPreset`/`SoundDefine{base=}`. The Sound framework's
+  `Music.Track` compiles MML note strings into scores, so tunes need no
+  samples and no event tables.
 - **Scores** are per-channel timelines of `(time, sound, note, length,
   volume/pan, effect)` events; they play to the end or loop. Scores are
   defined once (`MusicDefine`) and played by name, so a program can
