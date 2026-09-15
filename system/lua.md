@@ -270,11 +270,19 @@ that queues faster than a frame's worth of changes is briefly blocked.
 |---|---|---|---|
 | 0 | 40x30 tiles | 8x8 tiles + attribute map | B&W (invert attr applies) |
 | 1 | 40x30 tiles | 8x8 tiles + attribute map | per-cell invert + 7 colours |
+| 2 | 80x60 tiles | 8x8 tiles + attribute map | B&W (invert attr applies) |
+| 3 | 80x60 tiles | 8x8 tiles + attribute map | per-cell invert + 7 colours |
 | 10 | 320x240 | direct pixels | 256-entry palette |
 
-The 80x60 modes 2 and 3 are retired for now (`ScreenMode` returns
-`nil, err`). Output is always 640x480 at 50 Hz; the 320x240 logical
-modes are scaled 2x. The RP2040 dev board supports modes 0 and 1 only.
+Output is always 640x480 at 60 Hz. Modes 0, 1 and 10 are 320x240
+logically and scaled 2x; modes 2 and 3 draw their 8x8 cells 1:1 at the
+full resolution (twice the cells per row, every output line rendered),
+so they cost the display core about four times the rendering per line:
+use them for text screens, not for animation. Every cell call
+(`ScreenOut`, the block ops, the `Screen`/`Overlay` frameworks) takes
+coordinates in the geometry of the mode the program selected, and
+`Screen.Mode` updates `Screen.COLS`/`ROWS` and `Overlay.COLS`/`ROWS`.
+The RP2040 dev board supports modes 0 and 1 only.
 
 ### Functions
 

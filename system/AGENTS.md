@@ -162,18 +162,28 @@ the per-character invert + 7-colour attribute.
 
 | Mode | Geometry | Type | Colour |
 |---|---|---|---|
-| 0 | 40x30 tiles (320x240) | 8x8 tiles + attribute map | 1-bit (B&W, invert attr) |
-| 1 | 40x30 tiles (320x240) | 8x8 tiles + attribute map | per-char invert + 7 colours |
-| 10 | 320x240 | direct pixel | 8-bit colour, core 0's shared 76 KB buffer |
-
-The 80x60 modes 2/3 are retired for now (`ScreenMode` refuses them).
+| 0 | 40x30 tiles (320x240, 2x) | 8x8 tiles + attribute map | 1-bit (B&W, invert attr) |
+| 1 | 40x30 tiles (320x240, 2x) | 8x8 tiles + attribute map | per-char invert + 7 colours |
+| 2 | 80x60 tiles (640x480, 1x) | 8x8 tiles + attribute map | 1-bit (B&W, invert attr) |
+| 3 | 80x60 tiles (640x480, 1x) | 8x8 tiles + attribute map | per-char invert + 7 colours |
+| 10 | 320x240 (2x) | direct pixel | 8-bit colour, core 0's shared 76 KB buffer |
 
 Resolution: **fixed 640x480 output for all modes** (single DVI timing,
 25.2 MHz pixel clock, configured once at boot — no mode-switch resync
 on the monitor). Modes 0/1 and 10 are logically 320x240 and rendered 2x:
 each tile pixel written twice horizontally and each output line sent twice
-(trivial in the scanline renderer; aspect ratio is preserved). Scanline
-buffers are always 640 px wide. The default refresh is **60 Hz** (the
+(trivial in the scanline renderer; aspect ratio is preserved). Modes 2/3
+are the 80-column modes: 80x60 cells drawn 1:1, 480 logical rows a frame
+(the sequencer's `rows_total`/`row_2x` come from the mode on screen at
+each frame boundary, re-read after the op drain so a switch takes effect
+on the next frame). The cell maps are sized 80x60 per slot (`video.h`
+`VIDEO_MAX_CELLS`; 22.5 KB a slot, 4 slots) and every op uses the mode's
+column count as its stride (`video_mode_cols`), never a constant. Cost:
+a 40-column row is 40 cells per two output lines, an 80-column row 80
+cells per line, so the 1x modes ask core 0 for four times the cells per
+line (`render332.c` estimates ~13 us of the 31.7 us line; the render
+diagnostics report the measured row time). Scanline buffers are always
+640 px wide. The default refresh is **60 Hz** (the
 VESA 800x525-line timing; `-DSPICOMPUTER_REFRESH_HZ=50` selects a
 non-standard 800x630 mode that gives core 0 a 4.8 ms vblank but that
 some monitors refuse to lock to; the display produced no output while

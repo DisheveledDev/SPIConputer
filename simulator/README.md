@@ -63,7 +63,7 @@ screen geometry.
 --boot FILE         program to boot (default: core/boot.lua)
 --ticks N           at most N scheduler ticks per frame (default: 64)
 --dump-frame FILE   write the final 640x480 frame as a PPM
---dump-text FILE    write the final text screen: 30 lines of 40 chars, overlay
+--dump-text FILE    write the final text screen (40x30, or 80x60 in modes 2/3), overlay
                     on top, '#' for non-ASCII codes, '|' then '^' under inverted cells
 --check FILE        compile FILE with the OS Lua and exit
 --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit
