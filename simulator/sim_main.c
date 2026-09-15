@@ -55,6 +55,7 @@ typedef struct {
     int ticks_per_frame;
     int exit_after_ms;
     bool headless;
+    bool strip;
 } sim_opts_t;
 
 static volatile bool s_running = true;
@@ -113,8 +114,10 @@ static int dump_writer(lua_State *L, const void *p, size_t size, void *ud) {
 /* Compile a Lua source file into a binary chunk (`luac` format) with
  * the OS's own Lua build, so the result loads on the device and in the
  * simulator. The chunk name is the source's base name, so runtime
- * errors read like on-card ones ("program.lua:12: ..."). */
-static int compile_lua_file(const char *in_path, const char *out_path) {
+ * errors read like on-card ones ("program.lua:12: ..."). `strip` drops
+ * the debug info (line numbers, local and upvalue names): the resident
+ * shell opts in, trading line numbers in its errors for heap. */
+static int compile_lua_file(const char *in_path, const char *out_path, bool strip) {
     FILE *in = fopen(in_path, "rb");
     if (!in) {
         fprintf(stderr, "cannot open %s\n", in_path);
@@ -153,7 +156,7 @@ static int compile_lua_file(const char *in_path, const char *out_path) {
             fprintf(stderr, "cannot write %s\n", out_path);
             rc = 2;
         } else {
-            if (lua_dump(L, dump_writer, out, 0) != 0) {
+            if (lua_dump(L, dump_writer, out, strip ? 1 : 0) != 0) {
                 fprintf(stderr, "bytecode dump failed\n");
                 rc = 1;
             }
@@ -526,6 +529,8 @@ static void usage(const char *argv0) {
         "  --dump-text FILE    write the final text screen (40x30, overlay on top)\n"
         "  --check FILE        compile FILE with the OS Lua and exit\n"
         "  --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit\n"
+        "  --strip             with --compile: leave out debug info (line numbers,\n"
+        "                      local names): about a fifth less heap once loaded\n"
         "  --headless          no window/audio (smoke tests)\n"
         "  --exit-after-ms N   quit automatically after N ms\n"
         "  --type TEXT         type TEXT one key per frame after boot\n"
@@ -635,6 +640,8 @@ int main(int argc, char **argv) {
             o.dump_text = argv[++i];
         } else if (strcmp(argv[i], "--check") == 0 && i + 1 < argc) {
             o.check_file = argv[++i];
+        } else if (strcmp(argv[i], "--strip") == 0) {
+            o.strip = true;
         } else if (strcmp(argv[i], "--compile") == 0 && i + 2 < argc) {
             o.compile_in = argv[++i];
             o.compile_out = argv[++i];
@@ -658,7 +665,7 @@ int main(int argc, char **argv) {
         return check_lua_file(o.check_file);
     }
     if (o.compile_in && o.compile_out) {
-        return compile_lua_file(o.compile_in, o.compile_out);
+        return compile_lua_file(o.compile_in, o.compile_out, o.strip);
     }
     if (!o.sdcard) {
         o.sdcard = default_card_folder(argc > 0 ? argv[0] : NULL);

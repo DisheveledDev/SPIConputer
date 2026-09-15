@@ -67,6 +67,9 @@ screen geometry.
                     on top, '#' for non-ASCII codes, '|' then '^' under inverted cells
 --check FILE        compile FILE with the OS Lua and exit
 --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit
+--strip             with --compile: leave out debug info (line numbers, local
+                    names); the loaded program needs about a fifth less heap,
+                    but its runtime errors carry no line numbers
 --headless          no window/audio (smoke tests, CI)
 --exit-after-ms N   quit automatically after N ms
 --type TEXT         scripted keystrokes, one per frame (\n Return, \e Esc,
