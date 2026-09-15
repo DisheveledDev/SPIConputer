@@ -1,0 +1,15 @@
+-- pixels.lua — the Graphics framework in action (a game: it owns the
+-- machine and the device restarts when it exits).
+--
+-- Mode 11 (160x120, one byte a pixel): a scrolling starfield, a ship
+-- sprite built from ASCII art that turns with LEFT/RIGHT (rotated frames
+-- are made once per angle and kept), moves with UP/DOWN, an asteroid
+-- that bounces (Overlaps ends the run), pixel text for the HUD at 1x and
+-- a 3x banner. SPACE toggles mode 10 (320x240) to compare; ESC exits.
+--
+-- Cost per frame: one Scroll, two ops per moved sprite, one Text for
+-- the score. The sprites redraw the starfield they uncover through
+-- their `background` function (a scrolled backdrop moves under them).
+--
+-- Built from the SPIEdit project in this folder: `swift run
+-- --package-path ide/macos spibuild software/pixels`.

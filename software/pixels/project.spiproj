@@ -1,0 +1,27 @@
+{
+  "components": [
+    {
+      "file": "components/00-header.lua",
+      "id": "41CE15C2-B3A6-4D77-B30C-72E1BCEC3831",
+      "kind": "snippet",
+      "name": "header"
+    },
+    {
+      "file": "components/10-main.lua",
+      "id": "5923A916-BC2F-4998-9EC9-B004199DDE99",
+      "kind": "lua",
+      "name": "main"
+    }
+  ],
+  "description": "Sprites, rotation and pixel text demo",
+  "format_version": 2,
+  "kind": "game",
+  "name": "pixels",
+  "requires_audio": false,
+  "requires_video": true,
+  "sdks": [
+    "graphics",
+    "input"
+  ],
+  "version": "1.0"
+}
