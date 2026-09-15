@@ -518,9 +518,9 @@ static void serialize_value(lua_State *L, int idx, dyn_buf_t *b, int depth) {
  * table; the utility exits after the current callback. */
 static int sys_utility_result(lua_State *L) {
     program_t *p = program_of(L);
-    if (p->interactive) {
-        return luaL_error(L, "UtilityResult requires a noninteractive program");
-    }
+    /* Any program may end with a result: a utility always does, and an
+     * interactive program (a picker, a dialog) uses it to hand a choice
+     * back to the program that launched it. */
     dyn_buf_t b = {0};
     bool is_table = lua_type(L, 2) == LUA_TTABLE;
     if (is_table) {
@@ -543,6 +543,98 @@ static int sys_utility_result(lua_State *L) {
     return 0;
 }
 
+/* Rebuild a serialized result (the restricted table-constructor text
+ * serialize_value writes) directly on the Lua stack. Parsing it as Lua
+ * source instead compiled a function holding every string as a constant
+ * in the parent's heap, several times the result's size: a resident
+ * shell near its cap ran out of memory on an 8 KB listing. This reader
+ * allocates only the resulting tables and strings. */
+typedef struct {
+    const char *p;
+    const char *end;
+} result_reader_t;
+
+static bool read_value(lua_State *L, result_reader_t *r, int depth);
+
+static bool read_string(lua_State *L, result_reader_t *r) {
+    if (r->p >= r->end || *r->p != '"') return false;
+    r->p++;
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+    while (r->p < r->end && *r->p != '"') {
+        char c = *r->p++;
+        if (c == '\\' && r->p < r->end) {
+            char e = *r->p++;
+            if (e == 'n') {
+                c = '\n';
+            } else if (e >= '0' && e <= '9') {
+                int v = e - '0';
+                for (int i = 0; i < 2 && r->p < r->end && *r->p >= '0' && *r->p <= '9'; i++) {
+                    v = v * 10 + (*r->p++ - '0');
+                }
+                c = (char)v;
+            } else {
+                c = e; /* \" and \\ */
+            }
+        }
+        luaL_addchar(&b, c);
+    }
+    if (r->p >= r->end) return false;
+    r->p++; /* closing quote */
+    luaL_pushresult(&b);
+    return true;
+}
+
+static bool read_value(lua_State *L, result_reader_t *r, int depth) {
+    if (r->p >= r->end) return false;
+    char c = *r->p;
+    if (c == '"') return read_string(L, r);
+    if (c == '{') {
+        if (depth > UTILITY_DEPTH_MAX || !lua_checkstack(L, 4)) return false;
+        r->p++;
+        lua_newtable(L);
+        while (r->p < r->end && *r->p != '}') {
+            if (*r->p == ',') {
+                r->p++;
+                continue;
+            }
+            if (*r->p != '[') return false;
+            r->p++;
+            if (!read_value(L, r, depth + 1)) return false; /* key */
+            if (r->p + 1 >= r->end || r->p[0] != ']' || r->p[1] != '=') return false;
+            r->p += 2;
+            if (!read_value(L, r, depth + 1)) return false; /* value */
+            lua_rawset(L, -3);
+        }
+        if (r->p >= r->end) return false;
+        r->p++;
+        return true;
+    }
+    if (r->end - r->p >= 4 && memcmp(r->p, "true", 4) == 0) {
+        r->p += 4;
+        lua_pushboolean(L, 1);
+        return true;
+    }
+    if (r->end - r->p >= 5 && memcmp(r->p, "false", 5) == 0) {
+        r->p += 5;
+        lua_pushboolean(L, 0);
+        return true;
+    }
+    if (r->end - r->p >= 3 && memcmp(r->p, "nil", 3) == 0) {
+        r->p += 3;
+        lua_pushnil(L);
+        return true;
+    }
+    /* A number: integer or %.17g float. */
+    char tmp[48];
+    size_t n = 0;
+    while (r->p < r->end && n < sizeof(tmp) - 1 && strchr("+-0123456789.eEinfa", *r->p)) {
+        tmp[n++] = *r->p++;
+    }
+    tmp[n] = '\0';
+    return n > 0 && lua_stringtonumber(L, tmp) != 0;
+}
+
 /* UtilityPoll() -> ok, value | nil: the child's result, once. A table
  * result is rebuilt in this state. */
 static int sys_utility_poll(lua_State *L) {
@@ -555,18 +647,12 @@ static int sys_utility_poll(lua_State *L) {
     const char *output = p->child_result_output ? p->child_result_output : "";
     bool pushed = false;
     if (p->child_result_is_table) {
-        size_t n = strlen(output);
-        char *chunk = (char *)malloc(n + 8);
-        if (chunk) {
-            memcpy(chunk, "return ", 7);
-            memcpy(chunk + 7, output, n + 1);
-            if (luaL_loadbufferx(L, chunk, n + 7, "=utility", "t") == LUA_OK &&
-                lua_pcall(L, 0, 1, 0) == LUA_OK) {
-                pushed = true;
-            } else {
-                lua_pop(L, 1); /* the error message */
-            }
-            free(chunk);
+        int top = lua_gettop(L);
+        result_reader_t r = {output, output + strlen(output)};
+        if (read_value(L, &r, 0) && lua_istable(L, -1)) {
+            pushed = true;
+        } else {
+            lua_settop(L, top);
         }
     }
     if (!pushed) {

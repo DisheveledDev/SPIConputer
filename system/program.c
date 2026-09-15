@@ -500,9 +500,10 @@ void program_terminate(program_t *p) {
         return;
     }
     program_log_event(p, "terminate", p->exit_requested ? "requested" : "error");
-    if (!p->interactive && p->next) {
-        /* Hand the result to the parent; a result it never polled is
-         * replaced. */
+    if (p->next && (!p->interactive || p->utility_result_set)) {
+        /* Hand the result to the parent (a utility's, or an interactive
+         * program's that ended with UtilityResult); a result it never
+         * polled is replaced. */
         program_t *parent = p->next;
         free(parent->child_result_output);
         parent->child_result_pending = true;
@@ -879,10 +880,17 @@ void program_scheduler_step(void) {
     /* 1. Drain core 0's input queue into the top program's ring, then run
      *    the optional input callbacks; events stay available to
      *    InputPoll() either way. */
+    /* A noninteractive utility has no keyboard: keys typed while one
+     * runs belong to the interactive program below it (type-ahead in the
+     * shell), and wait in its ring until it is back on top. */
+    program_t *keys_to = p;
+    while (!keys_to->interactive && keys_to->next) {
+        keys_to = keys_to->next;
+    }
     input_event_t ev;
     while (input_queue_pop(&g_system_state.input, &ev)) {
-        program_event_push(p, &ev);
-        if (!dispatch_input_callbacks(p, &ev)) {
+        program_event_push(keys_to, &ev);
+        if (keys_to == p && !dispatch_input_callbacks(p, &ev)) {
             return; /* program terminated by a callback error */
         }
         if (p != s_top) {

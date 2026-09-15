@@ -736,6 +736,115 @@ static void test_noninteractive_utility(void) {
     expect_log("false:table:wc: 3 file(s):3:true:3:b \"quoted\"\n:1.5:nil\n");
 }
 
+/* Keys typed while a utility runs reach the interactive parent. */
+static const char *SLOW_UTIL_LUA =
+    "__spi_interactive = false\n"
+    "local n = 0\n"
+    "function tick() n = n + 1 if n == 2 then UtilityResult(true, 'done') end end\n";
+
+static const char *TYPEAHEAD_PARENT_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "local got = ''\n"
+    "function setup() Execute('slow.lua') end\n"
+    "function tick()\n"
+    "  while true do\n"
+    "    local ev = InputPoll()\n"
+    "    if not ev then break end\n"
+    "    if ev.type == 'key' and ev.pressed == 1 then got = got .. string.char(ev.key) end\n"
+    "  end\n"
+    "  local ok, r = UtilityPoll()\n"
+    "  if ok ~= nil then log(r .. ':keys:' .. got .. '\\n') ExitProgram() end\n"
+    "end\n";
+
+static void test_typeahead_under_utility(void) {
+    mock_set_file("slow.lua", SLOW_UTIL_LUA);
+    mock_set_file("typeahead.lua", TYPEAHEAD_PARENT_LUA);
+    boot("typeahead.lua");
+    CHECK(program_top() && !program_top()->interactive, "slow utility on top");
+    input_event_t ev = {0};
+    ev.type = INPUT_EV_KEY;
+    ev.key = 'k';
+    ev.pressed = 1;
+    input_queue_push(&g_system_state.input, &ev);
+    for (int i = 0; i < 8 && program_top() != NULL; i++) {
+        program_scheduler_step();
+    }
+    CHECK(program_top() == NULL, "type-ahead parent exits");
+    expect_log("done:keys:k\n");
+}
+
+/* A result near the 8 KB limit (150 forty-character lines) rebuilds
+ * line for line in the parent. */
+static const char *BIG_RESULT_LUA =
+    "__spi_interactive = false\n"
+    "function setup()\n"
+    "  local lines = {}\n"
+    "  for i = 1, 150 do lines[i] = string.format('%03d', i) .. string.rep('x', 37) end\n"
+    "  UtilityResult(true, {message = 'big', lines = lines, f = -2.25, t = {'a\"b\\\\c\\1'}})\n"
+    "end\n";
+
+static const char *BIG_RESULT_PARENT_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "function setup() Execute('bigresult.lua') end\n"
+    "function tick()\n"
+    "  local ok, r = UtilityPoll()\n"
+    "  if ok ~= nil then\n"
+    "    log(type(r) .. ':' .. #r.lines .. ':' .. r.lines[150] .. ':' .. r.f .. ':' ..\n"
+    "        #r.t[1] .. ':' .. (r.t[1] == 'a\"b\\\\c\\1' and 'same' or 'diff') .. '\\n')\n"
+    "    ExitProgram()\n"
+    "  end\n"
+    "end\n";
+
+static void test_big_result(void) {
+    mock_set_file("bigresult.lua", BIG_RESULT_LUA);
+    mock_set_file("bigresult-parent.lua", BIG_RESULT_PARENT_LUA);
+    boot("bigresult-parent.lua");
+    for (int i = 0; i < 8 && program_top() != NULL; i++) {
+        program_scheduler_step();
+    }
+    CHECK(program_top() == NULL, "big result parent exits");
+    expect_log("table:150:150xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:-2.25:6:same\n");
+}
+
+/* An interactive program (a picker) may end with UtilityResult: its
+ * parent receives the choice; one that just exits delivers nothing. */
+static const char *PICKER_LUA =
+    "__spi_interactive = true\n"
+    "function setup() end\n"
+    "function tick() UtilityResult(true, {run = '/apps/x.app/app.prg', kind = 'game'}) end\n";
+
+static const char *QUIET_LUA =
+    "__spi_interactive = true\n"
+    "function tick() ExitProgram() end\n";
+
+static const char *PICKER_PARENT_LUA =
+    "local function log(m) local f = fs.open('boot.log','a') f:write(m) f:close() end\n"
+    "local stage = 0\n"
+    "function setup() Execute('picker.lua') end\n"
+    "function tick()\n"
+    "  local ok, r = UtilityPoll()\n"
+    "  if stage == 0 then\n"
+    "    log(tostring(ok) .. ':' .. r.run .. ':' .. r.kind .. '\\n')\n"
+    "    stage = 1\n"
+    "    Execute('quiet.lua')\n"
+    "  else\n"
+    "    log('after quiet:' .. tostring(ok) .. '\\n')\n"
+    "    ExitProgram()\n"
+    "  end\n"
+    "end\n";
+
+static void test_interactive_result(void) {
+    mock_set_file("picker.lua", PICKER_LUA);
+    mock_set_file("quiet.lua", QUIET_LUA);
+    mock_set_file("picker-parent.lua", PICKER_PARENT_LUA);
+    boot("picker-parent.lua");
+    for (int i = 0; i < 12 && program_top() != NULL; i++) {
+        program_scheduler_step();
+    }
+    CHECK(program_top() == NULL, "picker parent exits");
+    expect_log("true:/apps/x.app/app.prg:game\nafter quiet:nil\n");
+}
+
 static void test_compiled_programs(void) {
     /* 1. A compiled program runs on a card that has no source file. */
     mock_set_compiled("only.prg", PRG_BIN);
@@ -879,6 +988,9 @@ int main(void) {
     test_execute();
     test_compile();
     test_noninteractive_utility();
+    test_interactive_result();
+    test_big_result();
+    test_typeahead_under_utility();
     test_compiled_programs();
     test_retire_graveyard();
     test_wait_vsync();
