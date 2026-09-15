@@ -206,8 +206,8 @@ static void push_key(int key, bool down) {
 
 /* --type: scripted keystrokes, one per frame, starting half a second
  * after boot so the program has drawn its first screen. Escapes: \n
- * Return, \e Escape, \u \d \l \r cursor keys, \1..\7 F1..F7, \w a
- * half-second pause (TYPE_WAIT), \\ backslash. Returns the next key and
+ * Return, \t Tab, \e Escape, \u \d \l \r cursor keys, \1..\7 F1..F7, \w
+ * a half-second pause (TYPE_WAIT), \\ backslash. Returns the next key and
  * advances, or 0 at the end of the text. */
 #define TYPE_WAIT (-1)
 
@@ -220,6 +220,7 @@ static int typed_key(const char **text) {
     if (key == '\\' && *p) {
         switch (*p++) {
         case 'n': key = 13; break;
+        case 't': key = 9; break;
         case 'e': key = 27; break;
         case 'u': key = INPUT_KEY_UP; break;
         case 'd': key = INPUT_KEY_DOWN; break;
@@ -541,7 +542,7 @@ static void usage(const char *argv0) {
         "  --headless          no window/audio (smoke tests)\n"
         "  --exit-after-ms N   quit automatically after N ms\n"
         "  --type TEXT         type TEXT one key per frame after boot\n"
-        "                      (\\n Return, \\e Escape, \\u \\d \\l \\r cursor keys, \\1..\\7 F1..F7, \\w wait 0.5 s)\n"
+        "                      (\\n Return, \\t Tab, \\e Escape, \\u \\d \\l \\r cursor keys, \\1..\\7 F1..F7, \\w wait 0.5 s)\n"
         "  --type-delay-ms N   wait N ms after boot before typing (default 500;\n"
         "                      keys typed while boot.lua shows its splash are lost)\n",
         argv0);

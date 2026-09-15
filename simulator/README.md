@@ -74,9 +74,9 @@ screen geometry.
                     but its runtime errors carry no line numbers
 --headless          no window/audio (smoke tests, CI)
 --exit-after-ms N   quit automatically after N ms
---type TEXT         scripted keystrokes, one per frame (\n Return, \e Esc,
-                    \u \d \l \r cursor keys, \1..\7 F1..F7, \w a half-second
-                    pause, \\ backslash)
+--type TEXT         scripted keystrokes, one per frame (\n Return, \t Tab,
+                    \e Esc, \u \d \l \r cursor keys, \1..\7 F1..F7, \w a
+                    half-second pause, \\ backslash)
 --type-delay-ms N   wait N ms after start before typing (default 500;
                     use ~3500 to type into the shell after the boot splash)
 ```
