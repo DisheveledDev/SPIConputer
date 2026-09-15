@@ -47,6 +47,7 @@ typedef struct {
     const char *boot_file;
     const char *dump_frame;
     const char *dump_text;
+    const char *wav_out;
     const char *check_file;
     const char *compile_in;
     const char *compile_out;
@@ -205,8 +206,11 @@ static void push_key(int key, bool down) {
 
 /* --type: scripted keystrokes, one per frame, starting half a second
  * after boot so the program has drawn its first screen. Escapes: \n
- * Return, \e Escape, \u \d \l \r cursor keys, \\ backslash. Returns the
- * next key and advances, or 0 at the end of the text. */
+ * Return, \e Escape, \u \d \l \r cursor keys, \1..\7 F1..F7, \w a
+ * half-second pause (TYPE_WAIT), \\ backslash. Returns the next key and
+ * advances, or 0 at the end of the text. */
+#define TYPE_WAIT (-1)
+
 static int typed_key(const char **text) {
     const char *p = *text;
     if (!p || !*p) {
@@ -223,6 +227,7 @@ static int typed_key(const char **text) {
         case 'r': key = INPUT_KEY_RIGHT; break;
         case '1': case '2': case '3': case '4': case '5': case '6': case '7':
             key = INPUT_KEY_F1 + (p[-1] - '1'); break; /* \1..\7 = F1..F7 */
+        case 'w': key = TYPE_WAIT; break;
         default: key = '\\'; p--; break;
         }
     }
@@ -528,6 +533,7 @@ static void usage(const char *argv0) {
         "  --ticks N           scheduler ticks per frame (default: 64)\n"
         "  --dump-frame FILE   write the final 640x480 frame as a PPM\n"
         "  --dump-text FILE    write the final text screen (40x30, overlay on top)\n"
+        "  --wav FILE          headless: write the mixed audio as a 44.1 kHz stereo WAV\n"
         "  --check FILE        compile FILE with the OS Lua and exit\n"
         "  --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit\n"
         "  --strip             with --compile: leave out debug info (line numbers,\n"
@@ -535,7 +541,7 @@ static void usage(const char *argv0) {
         "  --headless          no window/audio (smoke tests)\n"
         "  --exit-after-ms N   quit automatically after N ms\n"
         "  --type TEXT         type TEXT one key per frame after boot\n"
-        "                      (\\n Return, \\e Escape, \\u \\d \\l \\r cursor keys, \\1..\\7 F1..F7)\n"
+        "                      (\\n Return, \\e Escape, \\u \\d \\l \\r cursor keys, \\1..\\7 F1..F7, \\w wait 0.5 s)\n"
         "  --type-delay-ms N   wait N ms after boot before typing (default 500;\n"
         "                      keys typed while boot.lua shows its splash are lost)\n",
         argv0);
@@ -600,6 +606,72 @@ static void dump_text_screen(const char *path) {
     printf("[sim] text written to %s\n", path);
 }
 
+/* --wav: the mixed audio of a headless run, written as 16-bit stereo
+ * 44.1 kHz WAV, so a sound can be listened to and checked without a
+ * sound device. Mixed once per simulator frame in headless mode. */
+static FILE *s_wav;
+static uint32_t s_wav_bytes;
+
+static void wav_open(const char *path) {
+    s_wav = fopen(path, "wb");
+    if (!s_wav) {
+        fprintf(stderr, "[sim] cannot write %s\n", path);
+        return;
+    }
+    uint8_t header[44] = {0};
+    fwrite(header, 1, sizeof(header), s_wav); /* patched on close */
+}
+
+static void wav_put32(uint8_t *p, uint32_t v) {
+    p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
+}
+
+/* Mix as many frames as wall-clock time has passed since the last pump,
+ * so the file plays back in real time whatever the loop's pace. */
+static void wav_pump(void) {
+    if (!s_wav) {
+        return;
+    }
+    static int16_t buf[AUDIO_PUMP_FRAMES * 2];
+    static uint64_t started_us;
+    static uint64_t written;
+    if (started_us == 0) {
+        started_us = os_time_us();
+    }
+    uint64_t due = (os_time_us() - started_us) * AUDIO_SAMPLE_RATE / 1000000u;
+    while (written < due) {
+        int n = (int)(due - written);
+        if (n > AUDIO_PUMP_FRAMES) n = AUDIO_PUMP_FRAMES;
+        audio_state_t *a = g_current_audio;
+        if (a) {
+            audio_mix(a, buf, n);
+        } else {
+            memset(buf, 0, (size_t)n * 4);
+        }
+        fwrite(buf, 1, (size_t)n * 4, s_wav);
+        s_wav_bytes += (uint32_t)n * 4;
+        written += (uint64_t)n;
+    }
+}
+
+static void wav_close(void) {
+    if (!s_wav) {
+        return;
+    }
+    uint8_t h[44];
+    memcpy(h, "RIFF", 4); wav_put32(h + 4, 36 + s_wav_bytes); memcpy(h + 8, "WAVE", 4);
+    memcpy(h + 12, "fmt ", 4); wav_put32(h + 16, 16);
+    h[20] = 1; h[21] = 0; h[22] = 2; h[23] = 0; /* PCM, stereo */
+    wav_put32(h + 24, AUDIO_SAMPLE_RATE); wav_put32(h + 28, AUDIO_SAMPLE_RATE * 4);
+    h[32] = 4; h[33] = 0; h[34] = 16; h[35] = 0;
+    memcpy(h + 36, "data", 4); wav_put32(h + 40, s_wav_bytes);
+    fseek(s_wav, 0, SEEK_SET);
+    fwrite(h, 1, sizeof(h), s_wav);
+    fclose(s_wav);
+    s_wav = NULL;
+    printf("[sim] audio written (%u frames)\n", (unsigned)(s_wav_bytes / 4));
+}
+
 static void rpc_wait_sim(void) {
     (void)fs_core0_service();
 }
@@ -645,6 +717,8 @@ int main(int argc, char **argv) {
             o.dump_frame = argv[++i];
         } else if (strcmp(argv[i], "--dump-text") == 0 && i + 1 < argc) {
             o.dump_text = argv[++i];
+        } else if (strcmp(argv[i], "--wav") == 0 && i + 1 < argc) {
+            o.wav_out = argv[++i];
         } else if (strcmp(argv[i], "--check") == 0 && i + 1 < argc) {
             o.check_file = argv[++i];
         } else if (strcmp(argv[i], "--strip") == 0) {
@@ -763,7 +837,11 @@ int main(int argc, char **argv) {
     }
 
     uint64_t started_us = os_time_us();
+    uint64_t type_next_us = started_us + (uint64_t)o.type_delay_ms * 1000u;
     uint64_t ticks = 0;
+    if (o.wav_out && o.headless) {
+        wav_open(o.wav_out);
+    }
     uint64_t frames = 0; /* display frames: renders and input polls */
 
     while (s_running) {
@@ -804,10 +882,11 @@ int main(int argc, char **argv) {
 
         /* Scripted input: one key per frame once the program has had
          * half a second to draw its first screen. */
-        if (o.type_text &&
-            os_time_us() - started_us >= (uint64_t)o.type_delay_ms * 1000u) {
+        if (o.type_text && os_time_us() >= type_next_us) {
             int key = typed_key(&o.type_text);
-            if (key) {
+            if (key == TYPE_WAIT) {
+                type_next_us = os_time_us() + 500000u; /* \w: half a second */
+            } else if (key) {
                 push_key(key, true);
                 push_key(key, false);
             }
@@ -848,6 +927,8 @@ int main(int argc, char **argv) {
         if (!o.headless) {
             sim_pump_audio(audio);
             sim_render(ren, tex, frame);
+        } else {
+            wav_pump();
         }
         frames++;
 
@@ -871,6 +952,7 @@ int main(int argc, char **argv) {
     if (o.dump_text) {
         dump_text_screen(o.dump_text);
     }
+    wav_close();
 
     /* Smoke summary (useful with --headless). */
     program_t *p = program_top();

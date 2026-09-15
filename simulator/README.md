@@ -65,6 +65,8 @@ screen geometry.
 --dump-frame FILE   write the final 640x480 frame as a PPM
 --dump-text FILE    write the final text screen (40x30, or 80x60 in modes 2/3), overlay
                     on top, '#' for non-ASCII codes, '|' then '^' under inverted cells
+--wav FILE          headless: write the run's mixed audio as a 44.1 kHz stereo WAV
+                    (one 60 Hz frame of samples per simulator frame)
 --check FILE        compile FILE with the OS Lua and exit
 --compile IN OUT    compile Lua source IN to a .prg binary chunk and exit
 --strip             with --compile: leave out debug info (line numbers, local
@@ -73,7 +75,8 @@ screen geometry.
 --headless          no window/audio (smoke tests, CI)
 --exit-after-ms N   quit automatically after N ms
 --type TEXT         scripted keystrokes, one per frame (\n Return, \e Esc,
-                    \u \d \l \r cursor keys, \1..\7 F1..F7, \\ backslash)
+                    \u \d \l \r cursor keys, \1..\7 F1..F7, \w a half-second
+                    pause, \\ backslash)
 --type-delay-ms N   wait N ms after start before typing (default 500;
                     use ~3500 to type into the shell after the boot splash)
 ```
