@@ -369,8 +369,8 @@
       "kind": "function",
       "group": "System",
       "signature": "UtilityResult(ok, value)",
-      "summary": "Ends a utility, handing a result to the program that ran it.",
-      "description": "Only for non-interactive programs (utilities). `value` is a string or a table; a table crosses into the caller's state with strings, numbers, booleans and nested tables (anything else becomes nil; 8 KB cap). The shell prints a table's `message` field, then the other fields as KEY = VALUE.",
+      "summary": "Ends the program, handing a result to the program that ran it.",
+      "description": "A utility always ends this way; an interactive program may too (a picker returning the user's choice). `value` is a string or a table; a table crosses into the caller's state with strings, numbers, booleans and nested tables (anything else becomes nil; 8 KB cap). The shell prints a table's `message` first, then its `lines` array in order, then every other field as KEY = VALUE; a table with a `run` path (and `kind`, `args`) makes the shell run that program instead, which is how the APPS launcher starts a game.",
       "parameters": [
         {
           "name": "ok",
@@ -398,7 +398,7 @@
       "group": "System",
       "signature": "UtilityPoll()",
       "summary": "Collects a finished utility's result, once.",
-      "description": "",
+      "description": "Returns the result of a child that ended with UtilityResult (a utility, or an interactive program that chose to), once, after the child exits; a table is rebuilt in the caller's state. A child that simply exits leaves nothing to collect (a utility that exits without a result reports that as an error).",
       "parameters": [],
       "returns": "ok, value (string or table), or nil when nothing is waiting",
       "example": "local ok, result = UtilityPoll()\nif ok ~= nil then print(result.message) end",
@@ -1204,7 +1204,7 @@
       "group": "Filesystem (fs)",
       "signature": "fs.ls([path])",
       "summary": "Lists a folder.",
-      "description": "",
+      "description": "Entries of a folder on the card, in directory order. A folder that does not exist (or cannot be opened) returns nil and an error message, not an empty list. Each entry is a table, so a very large folder costs heap: list it in a utility (the shell's DIR does) when memory is tight.",
       "parameters": [],
       "returns": "array of {name, size, dir} tables, or nil, err",
       "example": "for _, e in ipairs(fs.ls(\"/data\")) do print(e.name, e.size, e.dir) end",

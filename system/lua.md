@@ -59,8 +59,8 @@ Available as globals in every program.
 | `Execute(path, arg1, ...)` | `true`, or `nil, err`; runs a program file in the foreground with up to 16 string arguments |
 | `ExecuteString(source, arg1, ...)` | `true`, or `nil, err`; compiles and runs a Lua source string the same way |
 | `Compile(src [, dst])` | `true, bytes`, or `nil, err` (missing file, syntax error with line, write failure); compiles the Lua source file `src` on the card into a `.prg` binary chunk, the same format the IDE builds and `Launch`/`Execute`/`dofile`/`require` load. `dst` defaults to `src` with `.lua` replaced by `.prg`. Paths are program-relative like the `fs` module's. The parser runs outside the caller's heap cap |
-| `UtilityResult(ok, message)` | completes a noninteractive utility and returns a result to its caller |
-| `UtilityPoll()` | `ok, message`, or `nil`; retrieves a utility child result |
+| `UtilityResult(ok, message)` | ends the program with a result for its caller: every utility does; an interactive program may (a picker returning a choice) |
+| `UtilityPoll()` | `ok, message`, or `nil`; retrieves the result of a child that ended with `UtilityResult` |
 
 Launch/Execute semantics: on success the new program runs on top of
 the stack and the caller stops being scheduled until it exits. The call
@@ -105,11 +105,31 @@ video/audio state. They call `UtilityResult(ok, value)` once, where `value`
 is a string or a table (strings, numbers, booleans and nested tables with
 string or integer keys survive the crossing; anything else becomes nil;
 8 KB at most); the launching program receives `ok, value` through
-`UtilityPoll()` after the utility exits, the table rebuilt in its own
-state. The shell prints a table's `message` field first and every other
-field as `KEY = VALUE`. Installed in `utils/` as `name.util`, a utility
+`UtilityPoll()` after the utility exits, the table rebuilt directly in its
+own state (no Lua compile, so a near-limit result costs the caller little
+more than its strings). Installed in `utils/` as `name.util`, a utility
 is a shell command: `HELLO one two` runs `utils/hello.util` with
-`args = {"one", "two"}`.
+`args = {"one", "two"}`. Keys typed while a utility runs go to the
+interactive program below it (the shell's type-ahead), not to the utility.
+
+An interactive program may end with `UtilityResult` too: its parent gets
+the value the same way (a program that just exits leaves nothing to
+poll). The APPS launcher (`core/apps.prg`) uses this to hand its choice
+back to the shell.
+
+The shell prints a result table's `message` first, then its `lines`
+array in order, then every other field as `KEY = VALUE`; long output
+stops at `-- MORE --`. A table with a `run` field (`{ run = path, kind =
+"application"|"game"|"utility", args = {...} }`) is instead run by the
+shell as if typed, so a game started that way still replaces the shell.
+
+Shell arguments: words that name an existing data entry, or look like a
+file name (only name characters, a letter, and a slash or an extension:
+`notes.txt`, `games/x`), arrive as full card paths (`/data/...`);
+unquoted words with `*` or `?` expand to the matching entries' paths;
+options (`-n`), numbers (`2.5`, `1/3`), expressions and `"quoted words"`
+arrive exactly as typed. `command > file` / `>> file` sends a built-in's
+or utility's output to a file; `/data/autoexec.txt` runs at start-up.
 
 Games are the other special kind: launched with `Launch(path, arg, true)`
 by the shell, so the shell's state is released and the game has the
@@ -435,7 +455,7 @@ SD card filesystem, loaded with `local fs = require("fs")`.
 | Function | Returns |
 |---|---|
 | `fs.open(path [, mode])` | file object, or `nil, err` |
-| `fs.ls([path])` | array of `{name=, size=, dir=}` (default path `/`) |
+| `fs.ls([path])` | array of `{name=, size=, dir=}` (default path `/`), or `nil, err` for a folder that does not exist |
 | `fs.find(name [, path])` | the real entry name for a case-insensitive match (`fs.find("EDITOR.LUA")` -> `"editor.lua"`), or `nil` |
 | `fs.stat(path)` | `{size=, dir=}`, or `nil, err` |
 | `fs.exists(path)` | boolean |
@@ -501,7 +521,8 @@ resources are addressed relative to its bundle root, for example
 | WAV sample pool per program | 64 KB (8 samples max) |
 
 - `Launch()` from a program pauses it; input arriving while paused goes
-  to whichever program is on top when the scheduler drains the queue.
+  to whichever program is on top when the scheduler drains the queue
+  (the topmost interactive one: a running utility has no keyboard).
 - Programs cannot call each other's functions; each has its own
   `lua_State`. The only cross-program interaction is launch/exit.
 - There is no `os.exit`/`os.time` style API — use `ExitProgram()` and
@@ -524,7 +545,11 @@ are SPIEdit projects developed alongside it and copied onto the SD card
 provides the runtime and this contract.
 
 In this workspace those projects live in `software/` (`os`, `boot`,
-`editor`, `bench`, `demo`, `hello`, `spin`, `breakout`). Each builds into its own
+`boot`, `apps` (the launcher), `editor`, `files`, `view`, `chars`, `keys`,
+`bench`, `demo`, the utilities `dir`, `copy`, `del`, `ren`, `md`, `rd`,
+`touch`, `stat`, `compile`, `help`, `wc`, `grep`, `find`, `tree`, `hexdump`,
+`head`, `tail`, `sort`, `calc`, `sysinfo`, `hello`, and the games `breakout`,
+`snake`, `spin`). Each builds into its own
 `build/` folder; `software/install.sh [folder]` builds them all and
 installs the products into a card image (default `software/sdcard/`,
 ignored by git) laid out like the card. Copy that folder to a real card,
