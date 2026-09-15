@@ -1,61 +1,45 @@
 #!/bin/sh
+# Produces dist/SPIComputer IDE.app from this package alone: the IDE
+# executable, its resource bundles (the app icon; the SPIIDECore bundle
+# with the SDK frameworks, the vendored simulator + SDL library and the
+# minimal card image) and an Info.plist. Nothing outside this repository
+# is needed; refresh the vendored simulator and OS with
+# scripts/update-vendor.sh when the OS workspace changes.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 IDE_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-ROOT_DIR=$(CDPATH= cd -- "$IDE_DIR/../.." && pwd)
-BUILD_DIR="$ROOT_DIR/simulator/build-app"
 DIST_DIR="$IDE_DIR/dist"
 APP="$DIST_DIR/SPIComputer IDE.app"
 APP_CONTENTS="$APP/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
-APP_FRAMEWORKS="$APP_CONTENTS/Frameworks"
 
-if [ -n "${CMAKE:-}" ]; then
-    CMAKE_BIN="$CMAKE"
-elif command -v cmake >/dev/null 2>&1; then
-    CMAKE_BIN=$(command -v cmake)
-elif [ -x "$HOME/.pico-sdk/cmake/v4.3.4/bin/cmake" ]; then
-    CMAKE_BIN="$HOME/.pico-sdk/cmake/v4.3.4/bin/cmake"
-else
-    printf '%s\n' 'cmake is required to build the simulator' >&2
-    exit 1
-fi
-
-"$CMAKE_BIN" -S "$ROOT_DIR/simulator" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
-"$CMAKE_BIN" --build "$BUILD_DIR"
 cd "$IDE_DIR"
 swift build -c release --product SPIIDE
 SWIFT_BIN_DIR=$(swift build -c release --show-bin-path)
-SIMULATOR="$BUILD_DIR/spicomputer_sim"
 IDE_EXECUTABLE="$SWIFT_BIN_DIR/SPIIDE"
-RESOURCE_BUNDLE="$SWIFT_BIN_DIR/SPIIDE_SPIIDE.bundle"
+APP_BUNDLE="$SWIFT_BIN_DIR/SPIIDE_SPIIDE.bundle"
+CORE_BUNDLE="$SWIFT_BIN_DIR/SPIIDE_SPIIDECore.bundle"
 
-[ -x "$SIMULATOR" ] || { printf '%s\n' "missing simulator: $SIMULATOR" >&2; exit 1; }
 [ -x "$IDE_EXECUTABLE" ] || { printf '%s\n' "missing IDE executable: $IDE_EXECUTABLE" >&2; exit 1; }
-[ -d "$RESOURCE_BUNDLE" ] || { printf '%s\n' "missing resource bundle: $RESOURCE_BUNDLE" >&2; exit 1; }
+[ -d "$APP_BUNDLE" ] || { printf '%s\n' "missing resource bundle: $APP_BUNDLE" >&2; exit 1; }
+[ -d "$CORE_BUNDLE" ] || { printf '%s\n' "missing resource bundle: $CORE_BUNDLE" >&2; exit 1; }
+[ -x "$CORE_BUNDLE/simulator/spicomputer_sim" ] || {
+    printf '%s\n' "the vendored simulator is missing or not executable: run scripts/update-vendor.sh" >&2
+    exit 1
+}
 
 rm -rf "$APP"
-mkdir -p "$APP_MACOS" "$APP_RESOURCES/simulator" "$APP_FRAMEWORKS"
+mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$IDE_EXECUTABLE" "$APP_MACOS/SPIIDE"
-ditto "$RESOURCE_BUNDLE" "$APP/SPIIDE_SPIIDE.bundle"
-# The core library's bundle carries the SDK framework files (Resources/sdk).
-CORE_BUNDLE="$SWIFT_BIN_DIR/SPIIDE_SPIIDECore.bundle"
-[ -d "$CORE_BUNDLE" ] || { printf '%s\n' "missing resource bundle: $CORE_BUNDLE" >&2; exit 1; }
+chmod 755 "$APP_MACOS/SPIIDE"
+# SwiftPM resource bundles are looked up next to the executable's bundle
+# (Bundle.module), so they sit at the app's top level.
+ditto "$APP_BUNDLE" "$APP/SPIIDE_SPIIDE.bundle"
 ditto "$CORE_BUNDLE" "$APP/SPIIDE_SPIIDECore.bundle"
-cp "$RESOURCE_BUNDLE/AppIcon.png" "$APP_RESOURCES/AppIcon.png"
-cp "$SIMULATOR" "$APP_RESOURCES/simulator/spicomputer_sim"
-chmod 755 "$APP_MACOS/SPIIDE" "$APP_RESOURCES/simulator/spicomputer_sim"
-
-SDL_PATH=$(otool -L "$SIMULATOR" | awk '/libSDL2/ {print $1; exit}')
-if [ -n "$SDL_PATH" ] && [ -f "$SDL_PATH" ]; then
-    SDL_NAME=$(basename "$SDL_PATH")
-    cp "$SDL_PATH" "$APP_FRAMEWORKS/$SDL_NAME"
-    install_name_tool -change "$SDL_PATH" "@rpath/$SDL_NAME" "$APP_RESOURCES/simulator/spicomputer_sim"
-    install_name_tool -add_rpath '@loader_path/../../Frameworks' "$APP_RESOURCES/simulator/spicomputer_sim"
-    install_name_tool -id "@rpath/$SDL_NAME" "$APP_FRAMEWORKS/$SDL_NAME"
-fi
+chmod 755 "$APP/SPIIDE_SPIIDECore.bundle/simulator/spicomputer_sim"
+cp "$APP_BUNDLE/AppIcon.png" "$APP_RESOURCES/AppIcon.png"
 
 cat > "$APP_CONTENTS/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -85,5 +69,8 @@ cat > "$APP_CONTENTS/Info.plist" <<EOF
 </dict>
 </plist>
 EOF
+
+# Ad-hoc signature so the app launches on Apple silicon after copying.
+codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
 
 printf '%s\n' "$APP"

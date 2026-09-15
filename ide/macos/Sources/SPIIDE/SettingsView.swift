@@ -40,7 +40,9 @@ struct SettingsView: View {
                     the shell), apps/, utils/, games/, data/. Install copies a \
                     project's product into it; running an application or utility \
                     boots the OS from its core/ with the product installed. Copy \
-                    the folder to a real card to run on the device.
+                    the folder to a real card to run on the device. Leave it empty \
+                    and Run uses the OS bundled with the IDE (Install then needs \
+                    a folder).
                     """)
                     .font(.caption)
                     .foregroundStyle(.secondary)

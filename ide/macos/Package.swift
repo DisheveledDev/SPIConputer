@@ -9,7 +9,17 @@ let package = Package(
     targets: [
         .target(
             name: "SPIIDECore",
-            resources: [.copy("Resources/sdk")]
+            resources: [
+                // Frameworks injected into programs (read-only Lua).
+                .copy("Resources/sdk"),
+                // The OS simulator (with its SDL library beside it): the
+                // .prg compiler and the Run target, vendored so this
+                // package builds and runs without the OS workspace.
+                .copy("Resources/simulator"),
+                // A minimal card image: core/boot and core/os, so an
+                // application can run under the OS out of the box.
+                .copy("Resources/sdcard"),
+            ]
         ),
         .executableTarget(
             name: "SPIIDE",

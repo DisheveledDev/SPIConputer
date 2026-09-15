@@ -1,15 +1,19 @@
 import Foundation
 
 /// Finds the simulator binary. Searches an explicit path, the environment,
-/// the bundled app resource, and workspace folders containing the simulator.
+/// the copy vendored in this package's resources, the app bundle, and
+/// workspace folders containing a freshly built simulator.
 public enum SimulatorLocator {
     public static let relativePath = "simulator/build/spicomputer_sim"
     public static let environmentKey = "SPICOMPUTER_SIMULATOR"
 
+    /// `includeBundled` false skips the vendored copy (tests of the
+    /// workspace search).
     public static func locate(
         startingAt starts: [URL],
         explicitPath: String? = nil,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        includeBundled: Bool = true
     ) -> URL? {
         var candidates: [URL] = []
         if let explicitPath, !explicitPath.isEmpty {
@@ -17,6 +21,9 @@ public enum SimulatorLocator {
         }
         if let fromEnvironment = environment[environmentKey], !fromEnvironment.isEmpty {
             candidates.append(expanded(fromEnvironment))
+        }
+        if includeBundled, let bundled = BundledResources.simulatorURL {
+            candidates.append(bundled)
         }
         if let resourceURL = Bundle.main.resourceURL {
             candidates.append(resourceURL.appendingPathComponent("simulator/spicomputer_sim"))

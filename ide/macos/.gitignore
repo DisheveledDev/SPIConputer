@@ -1,3 +1,8 @@
 .build/
 .swiftpm/
 dist/
+
+# Vendored simulator runtime (scripts/update-vendor.sh): the SDL library
+# must be committed even though the workspace's root .gitignore drops
+# *.dylib.
+!Sources/SPIIDECore/Resources/simulator/*.dylib

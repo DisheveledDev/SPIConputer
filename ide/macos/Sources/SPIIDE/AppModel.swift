@@ -73,6 +73,12 @@ final class AppModel {
         return URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath, isDirectory: true)
     }
 
+    /// The image Run boots the OS from: the user's, or the minimal one
+    /// vendored with the IDE (boot and the shell) when none is set.
+    var runCardImageURL: URL? {
+        sdcardImageURL ?? BundledResources.cardImageURL
+    }
+
     // Recently opened projects (welcome screen and File > Open Recent).
     private let recents = RecentProjectsStore()
     var recentProjects: [RecentProject] = []
@@ -636,7 +642,7 @@ final class AppModel {
         }
         do {
             let session = try Runner.prepare(
-                project: project, build: product, cardImage: sdcardImageURL)
+                project: project, build: product, cardImage: runCardImageURL)
             if session.underOS {
                 appendConsole(
                     "Booting the OS from the card image with \(project.bundleName ?? project.prgFileName) "

@@ -18,14 +18,25 @@ swift run spibuild <project-folder>   # headless Build (see below)
 ./scripts/build-app.sh  # release .app with bundled simulator
 ```
 
-The IDE finds the simulator automatically from the bundled app resource
-(`Contents/Resources/simulator/spicomputer_sim`). Development launches also
-search the workspace at `simulator/build/spicomputer_sim`. Override the path
-in **Settings** if needed.
+The package is self-contained: `Sources/SPIIDECore/Resources/` vendors the
+OS simulator (`simulator/spicomputer_sim` with its SDL2 library beside it,
+loaded via `@loader_path`) and a minimal card image (`sdcard/core/` with
+`boot.prg` and `os.prg`). SwiftPM copies both into the SPIIDECore resource
+bundle, so `swift run`, `swift test`, `spibuild` and the packaged app all
+find the same simulator (`BundledResources`), and Run can boot an
+application under the bundled OS with no SD card image configured. The
+locator still honours `SPICOMPUTER_SIMULATOR`, the path in **Settings**, and
+a `simulator/build/spicomputer_sim` in an enclosing OS workspace, in that
+order of preference after the explicit path.
 
-`./scripts/build-app.sh` builds a release `SPIComputer IDE.app` in `dist/`.
-It builds the simulator with CMake, embeds the simulator and SDL2 runtime,
-and includes the SwiftPM resource bundle and app metadata.
+`./scripts/update-vendor.sh [os-workspace]` refreshes the vendored files
+from an OS checkout: it builds the simulator in Release, rewrites its SDL
+reference, ad-hoc signs it, and rebuilds `boot` and `os` with `spibuild`.
+Run it whenever the OS changes and commit the results.
+
+`./scripts/build-app.sh` builds a release `SPIComputer IDE.app` in `dist/`
+from this package alone: the executable, the two resource bundles (icon;
+frameworks, simulator, card image) and an Info.plist, ad-hoc signed.
 
 `spibuild` is the headless counterpart of the IDE's Build button: it
 loads `project.spiproj`, compiles the components and writes the program
