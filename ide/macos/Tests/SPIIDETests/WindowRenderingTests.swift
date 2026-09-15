@@ -148,6 +148,33 @@ struct WindowRenderingTests {
         #expect(model.recentProjects.isEmpty)
     }
 
+    @Test func helpPanelShowsATopic() {
+        let model = AppModel()
+        model.showHelp(for: "Screen.OutText")
+        #expect(model.showingHelp && model.helpTopic == "Screen.OutText")
+        model.showHelp(for: "Timer.Pause")
+        #expect(model.helpHistory == ["Screen.OutText"])
+        model.helpBack()
+        #expect(model.helpTopic == "Screen.OutText" && model.helpHistory.isEmpty)
+
+        let view = HelpPanelView().environment(model)
+        if let rep = captureView(view, size: NSSize(width: 360, height: 640)),
+           let dir = ProcessInfo.processInfo.environment["SPIIDE_SNAPSHOT_DIR"],
+           let png = rep.representation(using: .png, properties: [:]) {
+            try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("help.png"))
+        }
+        // The editor's context-menu name finder.
+        let code = "local f = fs.open(p)\n-- Screen.OutText in a comment\nScreen.OutText(0, 0, \"Screen.Box\")\nf:read(4)\n"
+        #expect(CodeEditorView.Coordinator.helpName(in: code, at: 12) == "fs.open")
+        #expect(CodeEditorView.Coordinator.helpName(in: code, at: 26) == nil, "comment")
+        let call = (code as NSString).range(of: "Screen.OutText(0").location + 3
+        #expect(CodeEditorView.Coordinator.helpName(in: code, at: call) == "Screen.OutText")
+        let inString = (code as NSString).range(of: "\"Screen.Box\"").location + 3
+        #expect(CodeEditorView.Coordinator.helpName(in: code, at: inString) == nil, "string")
+        let method = (code as NSString).range(of: "f:read").location + 3
+        #expect(CodeEditorView.Coordinator.helpName(in: code, at: method) == "f:read")
+    }
+
     @Test func textStaysVisibleWithLineNumberGutter() {
         let without = capture(gutter: false)
         let with = capture(gutter: true)

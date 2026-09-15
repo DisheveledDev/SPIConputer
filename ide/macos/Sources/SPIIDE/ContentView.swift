@@ -13,19 +13,30 @@ struct ContentView: View {
             ComponentListView()
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260)
         } detail: {
-            VStack(spacing: 0) {
-                if model.project == nil {
-                    WelcomeView()
-                } else if model.showingProjectSettings {
-                    ProjectSettingsView()
-                } else {
-                    ComponentEditorView()
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    if model.project == nil {
+                        WelcomeView()
+                    } else if model.showingProjectSettings {
+                        ProjectSettingsView()
+                    } else {
+                        ComponentEditorView()
+                    }
+                    Divider()
+                    ConsoleView()
                 }
-                Divider()
-                ConsoleView()
+                if model.showingHelp {
+                    Divider()
+                    HelpPanelView()
+                }
             }
             .navigationTitle(model.project?.manifest.name ?? "SPIComputer IDE")
             .toolbar { toolbarContent }
+            .onReceive(NotificationCenter.default.publisher(for: .spiHelpTopic)) { note in
+                if let topic = note.userInfo?["topic"] as? String {
+                    model.showHelp(for: topic)
+                }
+            }
         }
         .sheet(isPresented: $model.showingNewProject) {
             NewProjectSheet()
@@ -56,6 +67,10 @@ struct ContentView: View {
         @Bindable var model = model
 
         ToolbarItemGroup {
+            Button("Help", systemImage: model.showingHelp ? "book.fill" : "book") {
+                model.showingHelp.toggle()
+            }
+            .help("Show or hide the help panel (right-click a name in the editor for its help)")
             Button("New Project", systemImage: "plus.rectangle.on.folder") {
                 model.showingNewProject = true
             }

@@ -1,0 +1,1491 @@
+{
+  "source": "os",
+  "title": "SPIComputer OS API",
+  "entries": [
+    {
+      "name": "setup",
+      "kind": "function",
+      "group": "Program contract",
+      "signature": "function setup()",
+      "summary": "Runs once when the program starts, before the first tick.",
+      "description": "Define it as a global. Choose the screen mode, apply assets and set up state here. A Lua error in setup() ends the program before it ticks (the launcher gets nil, err).",
+      "parameters": [],
+      "returns": "",
+      "example": "function setup()\n    ScreenMode(1)\n    Screen.CenterText(2, \"READY\")\nend",
+      "seeAlso": [
+        "tick",
+        "finish",
+        "ApplyAssets"
+      ]
+    },
+    {
+      "name": "tick",
+      "kind": "function",
+      "group": "Program contract",
+      "signature": "function tick()",
+      "summary": "Runs repeatedly, as often as the scheduler can, after setup().",
+      "description": "There are no arguments: read TimeNow() for elapsed time or WaitVSync() to pace to the display. Input arrives through InputPoll()/InputControl() or the on_keypress/on_control callbacks, which the scheduler runs between ticks. A due timer callback runs instead of the tick for that step; ticks and timer callbacks never overlap. A Lua error in tick() ends the program.",
+      "parameters": [],
+      "returns": "",
+      "example": "function tick()\n    local frames = WaitVSync()\n    if frames > 0 then update(frames) end\nend",
+      "seeAlso": [
+        "setup",
+        "WaitVSync",
+        "InputPoll",
+        "TimerCreate"
+      ]
+    },
+    {
+      "name": "finish",
+      "kind": "function",
+      "group": "Program contract",
+      "signature": "function finish()",
+      "summary": "Runs once when the program exits, by ExitProgram() or an error.",
+      "description": "Video, audio and timers are released by the OS afterwards; use finish() to save state to the card.",
+      "parameters": [],
+      "returns": "",
+      "example": "function finish()\n    fs.writeall(\"/data/score.txt\", tostring(score))\nend",
+      "seeAlso": [
+        "ExitProgram"
+      ]
+    },
+    {
+      "name": "on_keypress",
+      "kind": "function",
+      "group": "Program contract",
+      "signature": "function on_keypress(key, shift, ctrl, cbm, restore)",
+      "summary": "Optional callback for key-down events.",
+      "description": "Called by the scheduler before the next tick for each key press (releases and modifier-only events are only visible through InputPoll). Looked up by name for every event, so it can be defined, replaced or removed at any time, including from setup(); the Input framework's Input.Keyboard.Callback installs one for you.",
+      "parameters": [
+        {
+          "name": "key",
+          "type": "number",
+          "optional": false,
+          "description": "ASCII code, or 128-140 for cursor/function keys (see Input.KEY_*)"
+        },
+        {
+          "name": "shift",
+          "type": "boolean",
+          "optional": false,
+          "description": "SHIFT held"
+        },
+        {
+          "name": "ctrl",
+          "type": "boolean",
+          "optional": false,
+          "description": "CTRL held"
+        },
+        {
+          "name": "cbm",
+          "type": "boolean",
+          "optional": false,
+          "description": "C= held"
+        },
+        {
+          "name": "restore",
+          "type": "boolean",
+          "optional": false,
+          "description": "RESTORE held"
+        }
+      ],
+      "returns": "",
+      "example": "function on_keypress(key)\n    if key == 27 then ExitProgram() end\nend",
+      "seeAlso": [
+        "on_control",
+        "InputPoll",
+        "Input.Keyboard.Callback"
+      ]
+    },
+    {
+      "name": "on_control",
+      "kind": "function",
+      "group": "Program contract",
+      "signature": "function on_control(index, up, down, left, right, fire)",
+      "summary": "Optional callback for joystick changes, with the full state.",
+      "description": "Called for every change on either joystick; index is 0 for joystick 1 and 1 for joystick 2. Looked up by name per event like on_keypress.",
+      "parameters": [
+        {
+          "name": "index",
+          "type": "number",
+          "optional": false,
+          "description": "0 = joystick 1, 1 = joystick 2"
+        },
+        {
+          "name": "up",
+          "type": "boolean",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "down",
+          "type": "boolean",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "left",
+          "type": "boolean",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "right",
+          "type": "boolean",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fire",
+          "type": "boolean",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "function on_control(index, up, down, left, right, fire)\n    if fire then shoot() end\nend",
+      "seeAlso": [
+        "on_keypress",
+        "InputControl",
+        "Input.Joystick.Callback"
+      ]
+    },
+    {
+      "name": "args",
+      "kind": "constant",
+      "group": "Program contract",
+      "signature": "args",
+      "summary": "The launch arguments as an array of strings.",
+      "description": "args[1] is the first word typed after the program name in the shell (also the chunk's first vararg); #args is the count. The shell turns a relative first argument into a /data path.",
+      "parameters": [],
+      "returns": "",
+      "example": "local filename = args[1] or \"untitled.txt\"",
+      "seeAlso": [
+        "app",
+        "Execute"
+      ]
+    },
+    {
+      "name": "app",
+      "kind": "constant",
+      "group": "Program contract",
+      "signature": "app",
+      "summary": "Paths of the app bundle the program was launched from.",
+      "description": "A table with app.program (the file that was run), app.root (the bundle folder), app.resources (root/resources), app.metadata (root/app.json) and app.cwd. For a loose .prg the root is its folder.",
+      "parameters": [],
+      "returns": "",
+      "example": "local help = fs.readall(app.resources .. \"/help.txt\")",
+      "seeAlso": [
+        "args"
+      ]
+    },
+    {
+      "name": "pid",
+      "kind": "constant",
+      "group": "Program contract",
+      "signature": "pid",
+      "summary": "This program's process id (also returned by Pid()).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "Pid"
+      ]
+    },
+    {
+      "name": "ApplyAssets",
+      "kind": "function",
+      "group": "Program contract",
+      "signature": "ApplyAssets()",
+      "summary": "Applies the project's tile, palette, sound and score assets.",
+      "description": "Generated by the IDE for projects with asset components; the starter setup() calls it. Safe to call again to restore assets after another program ran.",
+      "parameters": [],
+      "returns": "",
+      "example": "if ApplyAssets then ApplyAssets() end",
+      "seeAlso": []
+    },
+    {
+      "name": "TimeNow",
+      "kind": "function",
+      "group": "System",
+      "signature": "TimeNow()",
+      "summary": "Milliseconds since boot (monotonic).",
+      "description": "",
+      "parameters": [],
+      "returns": "number",
+      "example": "local t0 = TimeNow()\n-- ...\nlocal ms = TimeNow() - t0",
+      "seeAlso": [
+        "WaitVSync",
+        "TimerCreate"
+      ]
+    },
+    {
+      "name": "Pid",
+      "kind": "function",
+      "group": "System",
+      "signature": "Pid()",
+      "summary": "This program's process id.",
+      "description": "",
+      "parameters": [],
+      "returns": "number",
+      "example": "",
+      "seeAlso": [
+        "pid"
+      ]
+    },
+    {
+      "name": "ExitProgram",
+      "kind": "function",
+      "group": "System",
+      "signature": "ExitProgram()",
+      "summary": "Asks the OS to end the program after the current tick or callback returns.",
+      "description": "finish() runs, then the parent program resumes. If nothing is left on the program stack (a game, or the shell) the device restarts.",
+      "parameters": [],
+      "returns": "",
+      "example": "if key == 27 then ExitProgram() end",
+      "seeAlso": [
+        "finish",
+        "Launch"
+      ]
+    },
+    {
+      "name": "Launch",
+      "kind": "function",
+      "group": "System",
+      "signature": "Launch(path [, arg [, replace]])",
+      "summary": "Starts another program on top of this one, which pauses until it exits.",
+      "description": "The new program gets `arg` as args[1]. With replace = true the caller leaves the program stack instead: its state is released once this call returns (its remaining screen calls are ignored), and the new program's parent becomes the caller's parent. Boot uses replace to hand over to the shell; the shell uses it for games. Fails from mode 10 (nil, err).",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "optional": false,
+          "description": "program file: .prg or .lua, or an app bundle's app.prg"
+        },
+        {
+          "name": "arg",
+          "type": "string",
+          "optional": true,
+          "description": "first argument for the program"
+        },
+        {
+          "name": "replace",
+          "type": "boolean",
+          "optional": true,
+          "description": "take the caller's place on the stack"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "local ok, err = Launch(\"apps/editor.app/app.prg\", \"/data/notes.txt\")",
+      "seeAlso": [
+        "Execute",
+        "ExitProgram",
+        "UtilityPoll"
+      ]
+    },
+    {
+      "name": "Execute",
+      "kind": "function",
+      "group": "System",
+      "signature": "Execute(path, arg1, ...)",
+      "summary": "Runs a program in the foreground with up to 16 string arguments; the caller pauses until it exits.",
+      "description": "Like Launch without replace, but with a full argument list (the program sees them as args). A utility's result arrives later through UtilityPoll().",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "optional": false,
+          "description": "program file"
+        },
+        {
+          "name": "arg1, ...",
+          "type": "string",
+          "optional": true,
+          "description": "arguments, at most 16"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "Execute(\"/utils/hello.util/app.prg\", \"one\", \"two\")",
+      "seeAlso": [
+        "Launch",
+        "UtilityPoll",
+        "ExecuteString"
+      ]
+    },
+    {
+      "name": "ExecuteString",
+      "kind": "function",
+      "group": "System",
+      "signature": "ExecuteString(source, arg1, ...)",
+      "summary": "Compiles and runs a Lua source string as a program in the foreground.",
+      "description": "",
+      "parameters": [
+        {
+          "name": "source",
+          "type": "string",
+          "optional": false,
+          "description": "Lua source of a whole program (setup/tick)"
+        },
+        {
+          "name": "arg1, ...",
+          "type": "string",
+          "optional": true,
+          "description": "arguments"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ExecuteString([[function setup() UtilityResult(true, \"hi\") end]])",
+      "seeAlso": [
+        "Execute"
+      ]
+    },
+    {
+      "name": "Compile",
+      "kind": "function",
+      "group": "System",
+      "signature": "Compile(src [, dst])",
+      "summary": "Compiles a Lua source file on the card into a .prg binary chunk.",
+      "description": "Same output as the IDE's build: parsed by the OS's own Lua in a scratch state (outside the caller's heap cap), debug info kept, chunk named after the source. dst defaults to src with .lua replaced by .prg. The shell's COMPILE command wraps it.",
+      "parameters": [
+        {
+          "name": "src",
+          "type": "string",
+          "optional": false,
+          "description": "source file path (program-relative or absolute)"
+        },
+        {
+          "name": "dst",
+          "type": "string",
+          "optional": true,
+          "description": "output path"
+        }
+      ],
+      "returns": "true, bytes, or nil, err",
+      "example": "local ok, n = Compile(\"/data/game.lua\")",
+      "seeAlso": []
+    },
+    {
+      "name": "UtilityResult",
+      "kind": "function",
+      "group": "System",
+      "signature": "UtilityResult(ok, value)",
+      "summary": "Ends a utility, handing a result to the program that ran it.",
+      "description": "Only for non-interactive programs (utilities). `value` is a string or a table; a table crosses into the caller's state with strings, numbers, booleans and nested tables (anything else becomes nil; 8 KB cap). The shell prints a table's `message` field, then the other fields as KEY = VALUE.",
+      "parameters": [
+        {
+          "name": "ok",
+          "type": "boolean",
+          "optional": false,
+          "description": "success flag"
+        },
+        {
+          "name": "value",
+          "type": "string|table",
+          "optional": true,
+          "description": "message or result table"
+        }
+      ],
+      "returns": "",
+      "example": "UtilityResult(true, { message = \"3 files\", count = 3 })",
+      "seeAlso": [
+        "UtilityPoll",
+        "Execute"
+      ]
+    },
+    {
+      "name": "UtilityPoll",
+      "kind": "function",
+      "group": "System",
+      "signature": "UtilityPoll()",
+      "summary": "Collects a finished utility's result, once.",
+      "description": "",
+      "parameters": [],
+      "returns": "ok, value (string or table), or nil when nothing is waiting",
+      "example": "local ok, result = UtilityPoll()\nif ok ~= nil then print(result.message) end",
+      "seeAlso": [
+        "UtilityResult",
+        "Execute"
+      ]
+    },
+    {
+      "name": "TimerCreate",
+      "kind": "function",
+      "group": "System",
+      "signature": "TimerCreate(fn, interval_ms [, oneshot])",
+      "summary": "Starts an OS timer calling fn every interval_ms (or once).",
+      "description": "Callbacks take no arguments and run from the scheduler between ticks. At most 8 timers per program; 1 ms minimum. Timers pause while the program is paused by a launch. The Timer framework builds pausable timer objects on this.",
+      "parameters": [
+        {
+          "name": "fn",
+          "type": "function",
+          "optional": false,
+          "description": "callback, no arguments"
+        },
+        {
+          "name": "interval_ms",
+          "type": "number",
+          "optional": false,
+          "description": "period in ms (>= 1)"
+        },
+        {
+          "name": "oneshot",
+          "type": "boolean",
+          "optional": true,
+          "description": "fire once, then release the timer"
+        }
+      ],
+      "returns": "timer id (number)",
+      "example": "local id = TimerCreate(function() blink() end, 500)",
+      "seeAlso": [
+        "TimerStop",
+        "Timer.Every"
+      ]
+    },
+    {
+      "name": "TimerStop",
+      "kind": "function",
+      "group": "System",
+      "signature": "TimerStop(id)",
+      "summary": "Stops an OS timer.",
+      "description": "",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "number",
+          "optional": false,
+          "description": "id from TimerCreate"
+        }
+      ],
+      "returns": "true if it was running",
+      "example": "",
+      "seeAlso": [
+        "TimerCreate"
+      ]
+    },
+    {
+      "name": "InputPoll",
+      "kind": "function",
+      "group": "System",
+      "signature": "InputPoll()",
+      "summary": "The next input event, or nil.",
+      "description": "Events queue while the program runs (128 deep, oldest dropped) and stay available even when callbacks are also defined. Releases and modifier keys are only visible here.",
+      "parameters": [],
+      "returns": "table {type = \"key\"|\"control1\"|\"control2\", key, mods, pressed, ctrl, dirs} or nil",
+      "example": "while true do\n    local ev = InputPoll()\n    if not ev then break end\n    if ev.type == \"key\" and ev.pressed == 1 then handle(ev.key) end\nend",
+      "seeAlso": [
+        "InputControl",
+        "on_keypress"
+      ]
+    },
+    {
+      "name": "InputControl",
+      "kind": "function",
+      "group": "System",
+      "signature": "InputControl(n)",
+      "summary": "The current state of joystick n (1 or 2).",
+      "description": "",
+      "parameters": [],
+      "returns": "table {up, down, left, right, fire} of booleans, or nil",
+      "example": "local j = InputControl(1)\nif j and j.fire then shoot() end",
+      "seeAlso": [
+        "InputPoll",
+        "on_control"
+      ]
+    },
+    {
+      "name": "WaitVSync",
+      "kind": "function",
+      "group": "System",
+      "signature": "WaitVSync([ms])",
+      "summary": "Blocks until the display finishes a frame; returns frames elapsed since the previous call.",
+      "description": "Paces a game loop to 60 Hz. Without ms it gives up after about six frames so a stalled display cannot hang the program. WaitVSync(0) just reports the frames elapsed.",
+      "parameters": [
+        {
+          "name": "ms",
+          "type": "number",
+          "optional": true,
+          "description": "maximum wait in ms (default 100)"
+        }
+      ],
+      "returns": "number of frames since this program's previous call",
+      "example": "function tick()\n    local n = WaitVSync()\n    x = x + speed * n\nend",
+      "seeAlso": [
+        "TimeNow",
+        "tick"
+      ]
+    },
+    {
+      "name": "ScreenMode",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenMode(mode)",
+      "summary": "Selects a screen mode; switching clears both layers.",
+      "description": "0 = 40x30 tiles B&W, 1 = 40x30 tiles with per-cell invert and 7 colours, 10 = 320x240 pixels with a 256-entry palette (one program at a time; Launch from mode 10 fails).",
+      "parameters": [
+        {
+          "name": "mode",
+          "type": "number",
+          "optional": false,
+          "description": "0, 1 or 10"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenMode(1)",
+      "seeAlso": [
+        "ScreenPlot",
+        "Screen.Mode"
+      ]
+    },
+    {
+      "name": "ScreenOut",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenOut(x, y, char [, attr])",
+      "summary": "Writes one character code to a cell of the base layer.",
+      "description": "x is 0-39, y 0-29, char 0-255 (tile index = character code; see the ROM character set in lua.md). Attribute byte: bit 7 inverts, bits 0-2 pick colour c, which uses palette entry c+1.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "number",
+          "optional": false,
+          "description": "column 0-39"
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "optional": false,
+          "description": "row 0-29"
+        },
+        {
+          "name": "char",
+          "type": "number",
+          "optional": false,
+          "description": "character code 0-255"
+        },
+        {
+          "name": "attr",
+          "type": "number",
+          "optional": true,
+          "description": "attribute byte (default 0)"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenOut(0, 0, 65, 0x80) -- inverted 'A'",
+      "seeAlso": [
+        "ScreenWrite",
+        "ScreenAttr",
+        "Screen.Out"
+      ]
+    },
+    {
+      "name": "ScreenAttr",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenAttr(x, y, flags)",
+      "summary": "Sets a cell's attribute, keeping its character.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "ScreenAttr(5, 3, 0x02)",
+      "seeAlso": [
+        "ScreenOut",
+        "ScreenFillAttr"
+      ]
+    },
+    {
+      "name": "ScreenDefineTile",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenDefineTile(index, bytes)",
+      "summary": "Redefines a character's 8x8 tile.",
+      "description": "bytes is a table of 8 row bytes or an 8-byte string; bit 0 of a row is the leftmost pixel (the ROM font's convention). The definition is part of the program's screen state and is restored when it resumes.",
+      "parameters": [
+        {
+          "name": "index",
+          "type": "number",
+          "optional": false,
+          "description": "character code 0-255"
+        },
+        {
+          "name": "bytes",
+          "type": "table|string",
+          "optional": false,
+          "description": "8 rows"
+        }
+      ],
+      "returns": "true",
+      "example": "ScreenDefineTile(128, {0x18,0x3C,0x7E,0xFF,0xFF,0x7E,0x3C,0x18})",
+      "seeAlso": []
+    },
+    {
+      "name": "ScreenPalette",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenPalette(i, r, g, b)",
+      "summary": "Sets palette entry i (0-255) to an RGB colour.",
+      "description": "Entry 0 is the background, entry 1 the default text colour, entries 2-8 the seven attribute colours; mode 10 uses all 256.",
+      "parameters": [],
+      "returns": "true",
+      "example": "ScreenPalette(0, 0, 0, 160) -- blue background",
+      "seeAlso": [
+        "ScreenPaletteSet"
+      ]
+    },
+    {
+      "name": "ScreenPaletteSet",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenPaletteSet(t)",
+      "summary": "Sets palette entries from an array of {r, g, b} tables or 0xRRGGBB numbers.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "ScreenPaletteSet({ {0,0,0}, 0xFFFFFF, {255,0,0} })",
+      "seeAlso": [
+        "ScreenPalette"
+      ]
+    },
+    {
+      "name": "ScreenClear",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenClear([char])",
+      "summary": "Fills the base layer with a character (default space) and attribute 0.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "ScreenClear(32)",
+      "seeAlso": []
+    },
+    {
+      "name": "ScreenBox",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenBox(x, y, w, h [, style [, attr]])",
+      "summary": "Draws a frame with the ROM box-drawing glyphs; one display op.",
+      "description": "style 1 = single line (default), 2 = double. Needs w and h >= 2; clipped at the screen edge. The inside is untouched.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "number",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "number",
+          "optional": false,
+          "description": "width in cells"
+        },
+        {
+          "name": "h",
+          "type": "number",
+          "optional": false,
+          "description": "height in cells"
+        },
+        {
+          "name": "style",
+          "type": "number",
+          "optional": true,
+          "description": "1 or 2"
+        },
+        {
+          "name": "attr",
+          "type": "number",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenBox(2, 2, 36, 10, 2, 0x80)",
+      "seeAlso": [
+        "ScreenFill",
+        "Screen.Window"
+      ]
+    },
+    {
+      "name": "ScreenFill",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenFill(x, y, w, h [, char [, attr]])",
+      "summary": "Writes one character and attribute into every cell of a rectangle; one display op.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "ScreenFill(0, 0, 40, 1, 32, 0x80) -- inverted title bar",
+      "seeAlso": [
+        "ScreenFillAttr",
+        "ScreenBox"
+      ]
+    },
+    {
+      "name": "ScreenFillAttr",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenFillAttr(x, y, w, h, attr)",
+      "summary": "Sets the attribute of every cell in a rectangle, characters unchanged; one display op.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "ScreenFillAttr(0, 10, 40, 1, 0x80) -- highlight row 10",
+      "seeAlso": []
+    },
+    {
+      "name": "ScreenWrite",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenWrite(x, y, text [, attr])",
+      "summary": "Writes a string as consecutive cells from (x, y), wrapping to the next row; one display op however long.",
+      "description": "A 1200-byte string at (0, 0) replaces the whole screen. With attr, every cell gets that attribute too.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "number",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "number",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "optional": false,
+          "description": "bytes to write"
+        },
+        {
+          "name": "attr",
+          "type": "number",
+          "optional": true,
+          "description": "attribute for every cell"
+        }
+      ],
+      "returns": "true, or nil, err",
+      "example": "ScreenWrite(0, 0, \"Hello, world!\", 0x02)",
+      "seeAlso": [
+        "ScreenWriteAttr",
+        "ScreenOut",
+        "Screen.OutText"
+      ]
+    },
+    {
+      "name": "ScreenWriteAttr",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenWriteAttr(x, y, attrs)",
+      "summary": "The bytes of attrs become the attributes of consecutive cells from (x, y).",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "ScreenWriteAttr(0, 0, string.rep(\"\\128\", 40)) -- invert row 0",
+      "seeAlso": [
+        "ScreenWrite"
+      ]
+    },
+    {
+      "name": "ScreenCopy",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenCopy(sx, sy, w, h, dx, dy)",
+      "summary": "Copies a block (characters and attributes) so its top-left lands at (dx, dy); one display op.",
+      "description": "Clipped so both rectangles fit; overlapping copies are safe.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "ScreenCopy(0, 0, 10, 5, 20, 0)",
+      "seeAlso": [
+        "ScreenMove",
+        "ScreenScroll"
+      ]
+    },
+    {
+      "name": "ScreenMove",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenMove(sx, sy, w, h, dx, dy [, char [, attr]])",
+      "summary": "Moves a block, blanking what it uncovers with char and attr.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "ScreenMove(0, 0, 10, 5, 12, 6)",
+      "seeAlso": [
+        "ScreenCopy"
+      ]
+    },
+    {
+      "name": "ScreenScroll",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenScroll(x, y, w, h, dx, dy [, char [, attr]])",
+      "summary": "Shifts a region's contents by (dx, dy) cells; uncovered cells are filled.",
+      "description": "Negative dx/dy scroll left/up. One display op.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "ScreenScroll(0, 0, 40, 30, 0, -1) -- scroll the screen up one row",
+      "seeAlso": [
+        "Screen.ScrollUp"
+      ]
+    },
+    {
+      "name": "ScreenLoadImage",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenLoadImage(path, x, y [, w, h])",
+      "summary": "Reserved: draws an image file at (x, y). Not implemented yet.",
+      "description": "Always returns nil and a message for now; the framework's Screen.LoadImage wraps it so programs can be written against the interface.",
+      "parameters": [],
+      "returns": "nil, err",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "ScreenPlot",
+      "kind": "function",
+      "group": "Display",
+      "signature": "ScreenPlot(x, y, colour)",
+      "summary": "Sets one pixel in mode 10 (320x240) to a palette index.",
+      "description": "One display op per pixel: fine for drawing, slow for animation; the Screen framework's PixelLine/PixelRect build on it.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "ScreenMode(10)\nScreenPlot(160, 120, 2)",
+      "seeAlso": [
+        "ScreenMode",
+        "Screen.PixelLine"
+      ]
+    },
+    {
+      "name": "OverlayOut",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayOut(x, y, char [, attr])",
+      "summary": "Writes one character to the overlay layer (the cell becomes visible).",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "OverlayOut(5, 5, 65, 0x80)",
+      "seeAlso": [
+        "ScreenOut",
+        "OverlayClear"
+      ]
+    },
+    {
+      "name": "OverlayAttr",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayAttr(x, y, flags)",
+      "summary": "Sets an overlay cell's attribute; bit 6 set makes it transparent again.",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": [
+        "OverlayOut"
+      ]
+    },
+    {
+      "name": "OverlayClear",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayClear([char])",
+      "summary": "Hides the whole overlay: every cell transparent again.",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "OverlayClear()",
+      "seeAlso": [
+        "OverlayOut"
+      ]
+    },
+    {
+      "name": "OverlayBox",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayBox(x, y, w, h [, style [, attr]])",
+      "summary": "Frame on the overlay; as ScreenBox.",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "OverlayBox(8, 9, 24, 8, 2, 0x80)",
+      "seeAlso": [
+        "ScreenBox"
+      ]
+    },
+    {
+      "name": "OverlayFill",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayFill(x, y, w, h [, char [, attr]])",
+      "summary": "Rectangle fill on the overlay; as ScreenFill.",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "OverlayFill(8, 9, 24, 8, 32, 0x80)",
+      "seeAlso": [
+        "ScreenFill"
+      ]
+    },
+    {
+      "name": "OverlayFillAttr",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayFillAttr(x, y, w, h, attr)",
+      "summary": "Attribute fill on the overlay; as ScreenFillAttr.",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": [
+        "ScreenFillAttr"
+      ]
+    },
+    {
+      "name": "OverlayCopy",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayCopy(sx, sy, w, h, dx, dy)",
+      "summary": "Block copy on the overlay; as ScreenCopy.",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": [
+        "ScreenCopy"
+      ]
+    },
+    {
+      "name": "OverlayMove",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayMove(sx, sy, w, h, dx, dy [, char [, attr]])",
+      "summary": "Block move on the overlay; as ScreenMove (fill with attr 0x40 to leave transparency).",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": [
+        "ScreenMove"
+      ]
+    },
+    {
+      "name": "OverlayScroll",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayScroll(x, y, w, h, dx, dy [, char [, attr]])",
+      "summary": "Region scroll on the overlay; as ScreenScroll.",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": [
+        "ScreenScroll"
+      ]
+    },
+    {
+      "name": "OverlayWrite",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayWrite(x, y, text [, attr])",
+      "summary": "String write on the overlay; as ScreenWrite.",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "OverlayWrite(10, 11, \"Save file?\", 0x80)",
+      "seeAlso": [
+        "ScreenWrite"
+      ]
+    },
+    {
+      "name": "OverlayWriteAttr",
+      "kind": "function",
+      "group": "Display",
+      "signature": "OverlayWriteAttr(x, y, attrs)",
+      "summary": "Attribute bytes on the overlay; as ScreenWriteAttr.",
+      "description": "The overlay is one layer composited over the base: cells you write show, untouched cells stay transparent, OverlayClear hides everything. Dialogs and menus go here so the base screen survives underneath.",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": [
+        "ScreenWriteAttr"
+      ]
+    },
+    {
+      "name": "SoundDefine",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundDefine(id, spec)",
+      "summary": "Defines instrument id (0-31) from a spec table.",
+      "description": "spec = {wave = \"square\"|\"pulse\"|\"triangle\"|\"saw\"|\"sine\"|\"noise\", duty = 1..15, attack = ms, decay = ms, sustain = 0..255, release = ms, volume = 0..255}; every field is optional.",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "number",
+          "optional": false,
+          "description": "0-31 (the Sound framework reserves 30 and 31)"
+        },
+        {
+          "name": "spec",
+          "type": "table",
+          "optional": false,
+          "description": "instrument description"
+        }
+      ],
+      "returns": "true",
+      "example": "SoundDefine(1, { wave = \"square\", duty = 8, attack = 2, decay = 40, sustain = 180, release = 60 })",
+      "seeAlso": [
+        "SoundPlay",
+        "Sound.Define"
+      ]
+    },
+    {
+      "name": "SoundLoad",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundLoad(path)",
+      "summary": "Loads a WAV file (8/16-bit PCM, mono/stereo, <= 48 kHz) into the program's 64 KB sample pool.",
+      "description": "",
+      "parameters": [],
+      "returns": "sound id usable with SoundPlay and in scores, or nil, err",
+      "example": "local jump = SoundLoad(app.resources .. \"/jump.wav\")",
+      "seeAlso": [
+        "SoundPlay"
+      ]
+    },
+    {
+      "name": "SoundPlay",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundPlay(sound [, note [, dur_ms [, vol [, pan]]]])",
+      "summary": "Plays an instrument or sample on a free one-shot voice.",
+      "description": "note is a MIDI number (C4 = 60) or a name such as \"C4\" or \"A#3\"; dur_ms 0 uses the instrument's own envelope; vol 0-255; pan -64 (left) to 63 (right).",
+      "parameters": [],
+      "returns": "voice id, or nil, err when no voice is free",
+      "example": "SoundPlay(1, \"C5\", 200, 255)",
+      "seeAlso": [
+        "SoundStop",
+        "SoundDefine"
+      ]
+    },
+    {
+      "name": "SoundStop",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundStop([voice])",
+      "summary": "Releases one voice returned by SoundPlay.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "",
+      "seeAlso": [
+        "SoundStopAll"
+      ]
+    },
+    {
+      "name": "SoundStopAll",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundStopAll()",
+      "summary": "Releases every one-shot voice.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "SoundVolume",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "SoundVolume(v)",
+      "summary": "Sets the master volume 0-255.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "MusicDefine",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "MusicDefine(name, spec)",
+      "summary": "Defines a score: channels of note events, played by name.",
+      "description": "spec = {loop = bool, length = ms, channels = { { {time, sound, note, dur, vol, pan}, ... }, ... } } with up to 8 channels and 1024 events per program. Scores live outside the Lua heap.",
+      "parameters": [],
+      "returns": "true",
+      "example": "MusicDefine(\"intro\", { loop = true, channels = { { {0, 1, \"C4\", 250}, {300, 1, \"E4\", 250} } } })",
+      "seeAlso": [
+        "MusicPlay"
+      ]
+    },
+    {
+      "name": "MusicPlay",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "MusicPlay(name [, loop])",
+      "summary": "Starts a defined score; loop overrides the score's own flag.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "",
+      "seeAlso": [
+        "MusicStop",
+        "MusicPlaying"
+      ]
+    },
+    {
+      "name": "MusicStop",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "MusicStop()",
+      "summary": "Stops the playing score.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "MusicPlaying",
+      "kind": "function",
+      "group": "Sound",
+      "signature": "MusicPlaying()",
+      "summary": "True while a score plays.",
+      "description": "",
+      "parameters": [],
+      "returns": "boolean",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "fs",
+      "kind": "module",
+      "group": "Filesystem (fs)",
+      "signature": "fs",
+      "summary": "The SD card module: files, folders and whole-file helpers.",
+      "description": "Paths are absolute (/data/notes.txt) or relative to the program's folder. The shell only lets its own commands touch /data; programs can read anywhere and should write under /data.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "fs.open",
+        "fs.readall",
+        "fs.writeall",
+        "fs.ls"
+      ]
+    },
+    {
+      "name": "fs.open",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.open(path [, mode])",
+      "summary": "Opens a file and returns a file object.",
+      "description": "mode \"r\" (default), \"w\" (create/truncate), \"a\" (append), \"r+\"/\"w+\"/\"a+\". Up to 8 files open at once. Methods: read, write, seek, tell, size, flush, close.",
+      "parameters": [],
+      "returns": "file object, or nil, err",
+      "example": "local f = fs.open(\"/data/log.txt\", \"a\")\nf:write(\"hello\\n\")\nf:close()",
+      "seeAlso": [
+        ":read",
+        ":write",
+        ":close",
+        "fs.readall"
+      ]
+    },
+    {
+      "name": "fs.ls",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.ls([path])",
+      "summary": "Lists a folder.",
+      "description": "",
+      "parameters": [],
+      "returns": "array of {name, size, dir} tables, or nil, err",
+      "example": "for _, e in ipairs(fs.ls(\"/data\")) do print(e.name, e.size, e.dir) end",
+      "seeAlso": [
+        "fs.stat",
+        "fs.find"
+      ]
+    },
+    {
+      "name": "fs.find",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.find(name, folder)",
+      "summary": "Finds an entry by name in a folder, case-insensitively.",
+      "description": "",
+      "parameters": [],
+      "returns": "the entry's actual name, or nil",
+      "example": "local real = fs.find(\"notes.txt\", \"/data\")",
+      "seeAlso": [
+        "fs.ls"
+      ]
+    },
+    {
+      "name": "fs.stat",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.stat(path)",
+      "summary": "Information about a file or folder.",
+      "description": "",
+      "parameters": [],
+      "returns": "table {size, dir}, or nil, err",
+      "example": "local info = fs.stat(\"/data/notes.txt\")\nif info and not info.dir then ... end",
+      "seeAlso": [
+        "fs.exists"
+      ]
+    },
+    {
+      "name": "fs.exists",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.exists(path)",
+      "summary": "True when the path exists.",
+      "description": "",
+      "parameters": [],
+      "returns": "boolean",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "fs.mkdir",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.mkdir(path)",
+      "summary": "Creates a folder.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "fs.remove",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.remove(path)",
+      "summary": "Deletes a file or an empty folder.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "fs.rename",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.rename(old, new)",
+      "summary": "Renames or moves a file or folder.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "fs.free",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.free()",
+      "summary": "Free and total space on the card, in KB.",
+      "description": "",
+      "parameters": [],
+      "returns": "free_kb, total_kb",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "fs.ready",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.ready()",
+      "summary": "True while the card is mounted.",
+      "description": "",
+      "parameters": [],
+      "returns": "boolean",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "fs.mount",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.mount()",
+      "summary": "Re-mounts the card (after a swap).",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "fs.readall",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.readall(path)",
+      "summary": "Reads a whole file (128 KB cap).",
+      "description": "",
+      "parameters": [],
+      "returns": "string, or nil, err",
+      "example": "local text = fs.readall(\"/data/notes.txt\")",
+      "seeAlso": [
+        "fs.writeall",
+        "fs.open"
+      ]
+    },
+    {
+      "name": "fs.writeall",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "fs.writeall(path, data)",
+      "summary": "Writes a whole file, creating or replacing it.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "fs.writeall(\"/data/score.txt\", tostring(score))",
+      "seeAlso": [
+        "fs.readall"
+      ]
+    },
+    {
+      "name": ":read",
+      "kind": "method",
+      "group": "Filesystem (fs)",
+      "signature": "file:read(n)",
+      "summary": "Reads up to n bytes from a file object.",
+      "description": "",
+      "parameters": [],
+      "returns": "string, or nil at end of file",
+      "example": "local chunk = f:read(512)",
+      "seeAlso": [
+        "fs.open",
+        ":write"
+      ]
+    },
+    {
+      "name": ":write",
+      "kind": "method",
+      "group": "Filesystem (fs)",
+      "signature": "file:write(s)",
+      "summary": "Writes a string to a file object.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, or nil, err",
+      "example": "",
+      "seeAlso": [
+        "fs.open"
+      ]
+    },
+    {
+      "name": ":seek",
+      "kind": "method",
+      "group": "Filesystem (fs)",
+      "signature": "file:seek(offset [, whence])",
+      "summary": "Moves the file position; whence \"set\" (default), \"cur\" or \"end\".",
+      "description": "",
+      "parameters": [],
+      "returns": "new position",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": ":tell",
+      "kind": "method",
+      "group": "Filesystem (fs)",
+      "signature": "file:tell()",
+      "summary": "The current file position.",
+      "description": "",
+      "parameters": [],
+      "returns": "number",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": ":size",
+      "kind": "method",
+      "group": "Filesystem (fs)",
+      "signature": "file:size()",
+      "summary": "The file's size in bytes.",
+      "description": "",
+      "parameters": [],
+      "returns": "number",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": ":flush",
+      "kind": "method",
+      "group": "Filesystem (fs)",
+      "signature": "file:flush()",
+      "summary": "Writes buffered data to the card.",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": ":close",
+      "kind": "method",
+      "group": "Filesystem (fs)",
+      "signature": "file:close()",
+      "summary": "Closes the file object (do this: only 8 can be open).",
+      "description": "",
+      "parameters": [],
+      "returns": "true",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "dofile",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "dofile(path)",
+      "summary": "Runs a Lua file from the card and returns what it returns.",
+      "description": "SD-backed; a .prg sibling is preferred over the .lua source.",
+      "parameters": [],
+      "returns": "the chunk's results",
+      "example": "local config = dofile(\"config.lua\")",
+      "seeAlso": [
+        "loadfile",
+        "require"
+      ]
+    },
+    {
+      "name": "loadfile",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "loadfile(path)",
+      "summary": "Loads a Lua file from the card without running it.",
+      "description": "",
+      "parameters": [],
+      "returns": "function, or nil, err",
+      "example": "",
+      "seeAlso": [
+        "dofile"
+      ]
+    },
+    {
+      "name": "require",
+      "kind": "function",
+      "group": "Filesystem (fs)",
+      "signature": "require(name)",
+      "summary": "Loads a module from the card, once.",
+      "description": "Looks for NAME.prg, NAME.lua, /NAME(.prg/.lua) and /lib/NAME(.prg/.lua); compiled modules win. The result is cached in package.loaded.",
+      "parameters": [],
+      "returns": "the module's value",
+      "example": "local vec = require(\"vec2\")",
+      "seeAlso": [
+        "dofile",
+        "package.loaded"
+      ]
+    }
+  ]
+}

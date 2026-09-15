@@ -64,7 +64,6 @@ public enum LuaSignatures {
 
         // Display
         add("ScreenMode", "mode")
-        add("ScreenZOrder", "layer")
         add("ScreenOut", "x", "y", "char", "[attr]")
         add("ScreenAttr", "x", "y", "flags")
         add("ScreenDefineTile", "index", "bytes")
@@ -263,7 +262,7 @@ public enum LuaSignatureHelp {
 
     /// Replaces strings and comments with spaces (same length, so offsets
     /// and newlines are preserved), which makes the backwards scan safe.
-    static func maskedText(_ text: String) -> NSString {
+    public static func maskedText(_ text: String) -> NSString {
         let ns = text as NSString
         var characters = [unichar](repeating: 0, count: ns.length)
         ns.getCharacters(&characters)

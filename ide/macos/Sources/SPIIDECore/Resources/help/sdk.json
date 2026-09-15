@@ -1,0 +1,4271 @@
+{
+  "source": "sdk",
+  "title": "Frameworks (SDKs)",
+  "entries": [
+    {
+      "name": "Screen",
+      "kind": "namespace",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen",
+      "summary": "Text-mode drawing on the base layer: text, boxes, fills, block moves, lines, shades, progress bars, and pixel helpers for mode 10.",
+      "description": "Text-mode drawing on the base layer: text, boxes, fills, block moves, lines, shades, progress bars, and pixel helpers for mode 10. Region calls take inclusive corners (x1, y1, x2, y2). Constants: Screen.COLS (40), Screen.ROWS (30), Screen.SINGLE, Screen.DOUBLE, Screen.INVERT (0x80).",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay",
+      "kind": "namespace",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay",
+      "summary": "The same drawing calls on the overlay layer, composited over the base: dialogs, menus, HUDs.",
+      "description": "The same drawing calls on the overlay layer, composited over the base: dialogs, menus, HUDs. Cells you write show, untouched cells stay transparent, Overlay.Clear() hides everything. Constants as Screen.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Text",
+      "kind": "namespace",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text",
+      "summary": "String helpers for a 40-column screen: alignment and padding, truncation, word wrap, splitting and joining, zero-padding and thousands separators..",
+      "description": "String helpers for a 40-column screen: alignment and padding, truncation, word wrap, splitting and joining, zero-padding and thousands separators.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer",
+      "kind": "namespace",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer",
+      "summary": "Timer objects with an id: one-shots (After) and repeats (Every) that can be cancelled, paused, resumed and restarted.",
+      "description": "Timer objects with an id: one-shots (After) and repeats (Every) that can be cancelled, paused, resumed and restarted. Methods on the object (t:Pause()) and functions (Timer.Pause(t) or Timer.Pause(t.id)) are the same. Built on the OS's 8 timers per program.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Sound",
+      "kind": "namespace",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound",
+      "summary": "Tones, beeps and noise without defining instruments, plus the instrument/sample API (Define, Load, Play, Stop, Volume).",
+      "description": "Tones, beeps and noise without defining instruments, plus the instrument/sample API (Define, Load, Play, Stop, Volume). The engine runs in the simulator; the device's audio output is not wired yet.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Music",
+      "kind": "namespace",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music",
+      "summary": "Score playback by name: Define, Play, Stop, Playing..",
+      "description": "Score playback by name: Define, Play, Stop, Playing.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input",
+      "kind": "namespace",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input",
+      "summary": "Keyboard and joystick callbacks by key or action, joystick state, raw event polling and key-code names.",
+      "description": "Keyboard and joystick callbacks by key or action, joystick state, raw event polling and key-code names. Constants: Input.KEY_RETURN, KEY_ESCAPE, KEY_BACKSPACE, KEY_DELETE, KEY_TAB, KEY_SPACE, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_F1..KEY_F7, KEY_HOME, KEY_RUNSTOP.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.Keyboard",
+      "kind": "namespace",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.Keyboard",
+      "summary": "Callback(key, fn), Remove(key), Name(key)..",
+      "description": "Callback(key, fn), Remove(key), Name(key).",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.Joystick",
+      "kind": "namespace",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.Joystick",
+      "summary": "Callback(port, action, fn), Remove(port, action), State(port)..",
+      "description": "Callback(port, action, fn), Remove(port, action), State(port).",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.COLS",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.COLS",
+      "summary": "Columns on the screen (40).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.ROWS",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.ROWS",
+      "summary": "Rows on the screen (30).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.SINGLE",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.SINGLE",
+      "summary": "Box style: single line (1).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.DOUBLE",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.DOUBLE",
+      "summary": "Box style: double line (2).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.INVERT",
+      "kind": "constant",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.INVERT",
+      "summary": "Attribute bit 0x80: swap foreground and background.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.COLS",
+      "kind": "constant",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.COLS",
+      "summary": "Columns (40).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.ROWS",
+      "kind": "constant",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.ROWS",
+      "summary": "Rows (30).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.SINGLE",
+      "kind": "constant",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.SINGLE",
+      "summary": "Box style: single line (1).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.DOUBLE",
+      "kind": "constant",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.DOUBLE",
+      "summary": "Box style: double line (2).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.INVERT",
+      "kind": "constant",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.INVERT",
+      "summary": "Attribute bit 0x80.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_RETURN",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_RETURN",
+      "summary": "Key code for RETURN.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_ESCAPE",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_ESCAPE",
+      "summary": "Key code for ESCAPE.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_BACKSPACE",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_BACKSPACE",
+      "summary": "Key code for BACKSPACE.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_DELETE",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_DELETE",
+      "summary": "Key code for DELETE.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_TAB",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_TAB",
+      "summary": "Key code for TAB.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_SPACE",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_SPACE",
+      "summary": "Key code for SPACE.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_UP",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_UP",
+      "summary": "Key code for UP.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_DOWN",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_DOWN",
+      "summary": "Key code for DOWN.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_LEFT",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_LEFT",
+      "summary": "Key code for LEFT.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_RIGHT",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_RIGHT",
+      "summary": "Key code for RIGHT.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_F1",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_F1",
+      "summary": "Key code for F1.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_F2",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_F2",
+      "summary": "Key code for F2.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_F3",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_F3",
+      "summary": "Key code for F3.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_F4",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_F4",
+      "summary": "Key code for F4.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_F5",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_F5",
+      "summary": "Key code for F5.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_F6",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_F6",
+      "summary": "Key code for F6.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_F7",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_F7",
+      "summary": "Key code for F7.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_HOME",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_HOME",
+      "summary": "Key code for HOME.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.KEY_RUNSTOP",
+      "kind": "constant",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.KEY_RUNSTOP",
+      "summary": "Key code for RUNSTOP.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.Keyboard.Callback",
+      "kind": "function",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.Keyboard.Callback(key, fn)",
+      "summary": "Calls fn(key, shift, ctrl, cbm, restore) when `key` is pressed: a key code, a one-character string such as \"a\", or \"any\" for every key.",
+      "description": "Calls fn(key, shift, ctrl, cbm, restore) when `key` is pressed: a key code, a one-character string such as \"a\", or \"any\" for every key.",
+      "parameters": [
+        {
+          "name": "key",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fn",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Input.Keyboard.Callback(\"any\", function(key) last = key end)\nInput.Keyboard.Callback(Input.KEY_ESCAPE, function() ExitProgram() end)",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.Keyboard.Remove",
+      "kind": "function",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.Keyboard.Remove(key)",
+      "summary": "Removes the callback registered for `key` (or \"any\").",
+      "description": "Removes the callback registered for `key` (or \"any\").",
+      "parameters": [
+        {
+          "name": "key",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Input.Keyboard.Remove(\"any\")",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.Joystick.Callback",
+      "kind": "function",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.Joystick.Callback(port, action, fn)",
+      "summary": "Calls fn(port, action, pressed) when joystick `port` (1 or 2) changes `action`: \"up\", \"down\", \"left\", \"right\", \"fire\" or \"any\".",
+      "description": "Calls fn(port, action, pressed) when joystick `port` (1 or 2) changes `action`: \"up\", \"down\", \"left\", \"right\", \"fire\" or \"any\".",
+      "parameters": [
+        {
+          "name": "port",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "action",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fn",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Input.Joystick.Callback(1, \"fire\", function(port, action, pressed) if pressed then shoot() end end)",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.Joystick.Remove",
+      "kind": "function",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.Joystick.Remove(port, action)",
+      "summary": "Removes the callback for a port and action.",
+      "description": "Removes the callback for a port and action.",
+      "parameters": [
+        {
+          "name": "port",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "action",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Input.Joystick.Remove(1, \"fire\")",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.Joystick.State",
+      "kind": "function",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.Joystick.State(port)",
+      "summary": "The current state of joystick `port`: a table with up, down, left, right and fire booleans (nil for an invalid port).",
+      "description": "The current state of joystick `port`: a table with up, down, left, right and fire booleans (nil for an invalid port).",
+      "parameters": [
+        {
+          "name": "port",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local j = Input.Joystick.State(1)\nif j.left then x = x - 1 end",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.Poll",
+      "kind": "function",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.Poll()",
+      "summary": "The next raw input event (a table with type, key, mods, pressed, ctrl, dirs), or nil when none is waiting.",
+      "description": "The next raw input event (a table with type, key, mods, pressed, ctrl, dirs), or nil when none is waiting.",
+      "parameters": [],
+      "returns": "",
+      "example": "local ev = Input.Poll()",
+      "seeAlso": []
+    },
+    {
+      "name": "Input.Keyboard.Name",
+      "kind": "function",
+      "group": "Input",
+      "framework": "input",
+      "signature": "Input.Keyboard.Name(key)",
+      "summary": "A readable name for a key code: \"RETURN\", \"F1\", \"a\" and so on.",
+      "description": "A readable name for a key code: \"RETURN\", \"F1\", \"a\" and so on.",
+      "parameters": [
+        {
+          "name": "key",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.OutLine(\"last key: \" .. Input.Keyboard.Name(key))",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Clear",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Clear()",
+      "summary": "Hides the whole overlay: every cell becomes transparent again.",
+      "description": "Hides the whole overlay: every cell becomes transparent again.",
+      "parameters": [],
+      "returns": "",
+      "example": "Overlay.Clear()",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Out",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Out(x, y, char [, attr])",
+      "summary": "Writes one character code at a cell of the overlay.",
+      "description": "Writes one character code at a cell of the overlay.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Out(0, 0, 16)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Attr",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Attr(x, y, attr)",
+      "summary": "Sets one overlay cell's attribute (bit 6 set hides the cell again).",
+      "description": "Sets one overlay cell's attribute (bit 6 set hides the cell again).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Attr(5, 3, 0x40) -- hide the cell again",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.OutText",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.OutText(x, y, text [, attr])",
+      "summary": "Writes a string on the overlay from (x, y), wrapping at the right edge.",
+      "description": "Writes a string on the overlay from (x, y), wrapping at the right edge.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.OutText(10, 11, \"Save file?\", Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.CenterText",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.CenterText(y, text [, attr])",
+      "summary": "Writes a string centred on row `y` of the overlay.",
+      "description": "Writes a string centred on row `y` of the overlay.",
+      "parameters": [
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.CenterText(14, \"PAUSED\", Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.RightText",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.RightText(y, text [, attr])",
+      "summary": "Writes a string ending at the right edge of row `y` of the overlay.",
+      "description": "Writes a string ending at the right edge of row `y` of the overlay.",
+      "parameters": [
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.RightText(0, \"1UP\")",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Printf",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Printf(x, y, format, ...)",
+      "summary": "string.format, written on the overlay at (x, y).",
+      "description": "string.format, written on the overlay at (x, y).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "format",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "...",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Printf(0, 0, \"%03d\", score)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.OutLine",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.OutLine(text [, attr])",
+      "summary": "Writes `text` on the overlay's cursor row (row 0 to start with) and moves to the next row; wraps to the top when it runs off the bottom.",
+      "description": "Writes `text` on the overlay's cursor row (row 0 to start with) and moves to the next row; wraps to the top when it runs off the bottom.",
+      "parameters": [
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.OutLine(\"debug: \" .. state)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Cursor",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Cursor(row)",
+      "summary": "Sets the row the next Overlay.OutLine writes on.",
+      "description": "Sets the row the next Overlay.OutLine writes on. Returns the row.",
+      "parameters": [
+        {
+          "name": "row",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Cursor(0)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Clean",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Clean(x1, y1, x2, y2)",
+      "summary": "Makes the cells between two corners transparent again.",
+      "description": "Makes the cells between two corners transparent again.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Clean(8, 9, 31, 16)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Fill",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Fill(x1, y1, x2, y2, char [, attr])",
+      "summary": "Fills the cells between two corners with a character and attribute.",
+      "description": "Fills the cells between two corners with a character and attribute.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Fill(8, 9, 31, 16, 32, Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.FillAttr",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.FillAttr(x1, y1, x2, y2, attr)",
+      "summary": "Sets the attribute of every overlay cell between two corners.",
+      "description": "Sets the attribute of every overlay cell between two corners.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.FillAttr(8, 9, 31, 9, 0x03)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.HLine",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.HLine(x1, x2, y [, char [, attr]])",
+      "summary": "A horizontal line on the overlay (default: the box-drawing horizontal).",
+      "description": "A horizontal line on the overlay (default: the box-drawing horizontal).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.HLine(8, 31, 12, 196, Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.VLine",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.VLine(x, y1, y2 [, char [, attr]])",
+      "summary": "A vertical line on the overlay (default: the box-drawing vertical).",
+      "description": "A vertical line on the overlay (default: the box-drawing vertical).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.VLine(20, 9, 16, 179, Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Box",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Box(x1, y1, x2, y2 [, style [, attr]])",
+      "summary": "A frame on the overlay between two corners: Overlay.SINGLE (default) or Overlay.DOUBLE.",
+      "description": "A frame on the overlay between two corners: Overlay.SINGLE (default) or Overlay.DOUBLE.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "style",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Box(8, 9, 31, 16, Overlay.DOUBLE, Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Window",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Window(x1, y1, x2, y2 [, title [, style [, attr]]])",
+      "summary": "A blank window on the overlay: inside cleared, frame, optional title.",
+      "description": "A blank window on the overlay: inside cleared, frame, optional title.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "title",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "style",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Window(8, 9, 31, 16, \"OPTIONS\", Overlay.DOUBLE, Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Dialog",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Dialog(title, lines [, attr [, style]])",
+      "summary": "A centred dialog: a window sized to fit `lines` (a string or an array of strings) with `title` on its frame.",
+      "description": "A centred dialog: a window sized to fit `lines` (a string or an array of strings) with `title` on its frame. Returns the window's corners (x1, y1, x2, y2) so buttons or a cursor can be placed inside it.",
+      "parameters": [
+        {
+          "name": "title",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "lines",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "style",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local x1, y1, x2, y2 = Overlay.Dialog(\"QUIT?\", { \"Leave the game?\", \"RETURN yes  ESC no\" })",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Copy",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Copy(x1, y1, x2, y2, x3, y3)",
+      "summary": "Copies an overlay block so its top-left lands at (x3, y3).",
+      "description": "Copies an overlay block so its top-left lands at (x3, y3).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x3",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y3",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Copy(8, 9, 31, 16, 0, 0)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Move",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Move(x1, y1, x2, y2, x3, y3)",
+      "summary": "Moves an overlay block so its top-left lands at (x3, y3); the cells it uncovers become transparent.",
+      "description": "Moves an overlay block so its top-left lands at (x3, y3); the cells it uncovers become transparent.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x3",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y3",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Move(8, 9, 31, 16, 9, 9)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Scroll",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Scroll(x1, y1, x2, y2, dx, dy [, char [, attr]])",
+      "summary": "Shifts an overlay region by (dx, dy) cells; uncovered cells get `char` and `attr` (default: transparent).",
+      "description": "Shifts an overlay region by (dx, dy) cells; uncovered cells get `char` and `attr` (default: transparent).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dx",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dy",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Scroll(8, 10, 31, 15, 0, -1)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.OutLines",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.OutLines(x, y, lines [, attr])",
+      "summary": "Writes an array of strings on consecutive overlay rows from (x, y).",
+      "description": "Writes an array of strings on consecutive overlay rows from (x, y). Returns the number of rows written.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "lines",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.OutLines(10, 11, { \"one\", \"two\" }, Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.OutWrapped",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.OutWrapped(x, y, width, text [, attr])",
+      "summary": "Word-wraps `text` to `width` cells on the overlay from (x, y).",
+      "description": "Word-wraps `text` to `width` cells on the overlay from (x, y). Returns the number of rows used.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.OutWrapped(10, 11, 20, message, Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Label",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Label(x, y, width, text, align [, attr])",
+      "summary": "Writes `text` in a `width`-cell field of the overlay, aligned \"left\", \"center\" or \"right\" (default left); longer text is cut.",
+      "description": "Writes `text` in a `width`-cell field of the overlay, aligned \"left\", \"center\" or \"right\" (default left); longer text is cut.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "align",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Label(10, 11, 20, \"OK\", \"center\", Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Progress",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Progress(x, y, width, fraction [, attr])",
+      "summary": "A progress bar on the overlay: solid blocks for `fraction` (0..1), light shade for the rest.",
+      "description": "A progress bar on the overlay: solid blocks for `fraction` (0..1), light shade for the rest.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fraction",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Progress(10, 14, 20, done / total, Overlay.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Rect",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Rect(x1, y1, x2, y2, char [, attr])",
+      "summary": "The outline of a rectangle on the overlay drawn with one character.",
+      "description": "The outline of a rectangle on the overlay drawn with one character.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Rect(8, 9, 31, 16, 219)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Line",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Line(x1, y1, x2, y2, char [, attr])",
+      "summary": "A straight line of `char` cells on the overlay (Bresenham).",
+      "description": "A straight line of `char` cells on the overlay (Bresenham).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Line(0, 0, 39, 29, 250)",
+      "seeAlso": []
+    },
+    {
+      "name": "Overlay.Shade",
+      "kind": "function",
+      "group": "Overlay",
+      "framework": "overlay",
+      "signature": "Overlay.Shade(x1, y1, x2, y2, level [, attr])",
+      "summary": "Fills an overlay region with a shade: level 0 (blank) to 4 (solid).",
+      "description": "Fills an overlay region with a shade: level 0 (blank) to 4 (solid).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "level",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Overlay.Shade(0, 0, 39, 29, 1) -- dim the screen behind a dialog",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Mode",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Mode(mode)",
+      "summary": "Selects a screen mode: 0 (40x30 B&W), 1 (40x30 colour), 10 (320x240 pixels).",
+      "description": "Selects a screen mode: 0 (40x30 B&W), 1 (40x30 colour), 10 (320x240 pixels). Switching clears the screen.",
+      "parameters": [
+        {
+          "name": "mode",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Mode(1)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Clear",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Clear([char])",
+      "summary": "Fills the whole base layer with `char` (default space) and attribute 0.",
+      "description": "Fills the whole base layer with `char` (default space) and attribute 0.",
+      "parameters": [
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Clear()",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Out",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Out(x, y, char [, attr])",
+      "summary": "Writes one character code at a cell.",
+      "description": "Writes one character code at a cell.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Out(0, 0, 65, Screen.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Attr",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Attr(x, y, attr)",
+      "summary": "Sets one cell's attribute, keeping its character.",
+      "description": "Sets one cell's attribute, keeping its character.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Attr(5, 3, Screen.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.OutText",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.OutText(x, y, text [, attr])",
+      "summary": "Writes a string from (x, y), wrapping at the right edge.",
+      "description": "Writes a string from (x, y), wrapping at the right edge. One display op however long the text.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.OutText(2, 5, \"Hello, world!\", 0x02)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.CenterText",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.CenterText(y, text [, attr])",
+      "summary": "Writes a string centred on row `y`.",
+      "description": "Writes a string centred on row `y`.",
+      "parameters": [
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.CenterText(2, \"GAME OVER\")",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.RightText",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.RightText(y, text [, attr])",
+      "summary": "Writes a string ending at the right edge of row `y`.",
+      "description": "Writes a string ending at the right edge of row `y`.",
+      "parameters": [
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.RightText(0, \"SCORE \" .. score)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Printf",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Printf(x, y, format, ...)",
+      "summary": "string.format, written at (x, y).",
+      "description": "string.format, written at (x, y).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "format",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "...",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Printf(0, 29, \"LIVES %d\", lives)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.OutLine",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.OutLine(text [, attr])",
+      "summary": "Console-style output: writes `text` on the cursor row (row 0 to start with), then moves the cursor to the next row, scrolling the whole screen up when it runs off the bottom.",
+      "description": "Console-style output: writes `text` on the cursor row (row 0 to start with), then moves the cursor to the next row, scrolling the whole screen up when it runs off the bottom. Long text wraps.",
+      "parameters": [
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.OutLine(\"loading level \" .. n)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Cursor",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Cursor(row)",
+      "summary": "Sets the row the next Screen.OutLine writes on.",
+      "description": "Sets the row the next Screen.OutLine writes on. Returns the row.",
+      "parameters": [
+        {
+          "name": "row",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Cursor(0)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Home",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Home()",
+      "summary": "Clears the screen and puts the OutLine cursor back on row 0.",
+      "description": "Clears the screen and puts the OutLine cursor back on row 0.",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.Home()",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Clean",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Clean(x1, y1, x2, y2 [, char [, attr]])",
+      "summary": "Blanks the cells between two corners (inclusive): `char` defaults to space and `attr` to 0.",
+      "description": "Blanks the cells between two corners (inclusive): `char` defaults to space and `attr` to 0.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Clean(0, 10, 39, 29)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Fill",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Fill(x1, y1, x2, y2, char [, attr])",
+      "summary": "Fills the cells between two corners with a character and attribute.",
+      "description": "Fills the cells between two corners with a character and attribute.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Fill(0, 0, 39, 0, 32, Screen.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.FillAttr",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.FillAttr(x1, y1, x2, y2, attr)",
+      "summary": "Sets the attribute of every cell between two corners; characters stay.",
+      "description": "Sets the attribute of every cell between two corners; characters stay.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.FillAttr(0, 10, 39, 10, 0x80)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.HLine",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.HLine(x1, x2, y [, char [, attr]])",
+      "summary": "A horizontal line of `char` (default: the box-drawing horizontal).",
+      "description": "A horizontal line of `char` (default: the box-drawing horizontal).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.HLine(0, 39, 15)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.VLine",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.VLine(x, y1, y2 [, char [, attr]])",
+      "summary": "A vertical line of `char` (default: the box-drawing vertical).",
+      "description": "A vertical line of `char` (default: the box-drawing vertical).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.VLine(20, 0, 29)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Box",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Box(x1, y1, x2, y2 [, style [, attr]])",
+      "summary": "A frame between two corners: style Screen.SINGLE (default) or Screen.DOUBLE.",
+      "description": "A frame between two corners: style Screen.SINGLE (default) or Screen.DOUBLE. The inside is left alone.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "style",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Box(2, 2, 37, 12, Screen.DOUBLE)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Window",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Window(x1, y1, x2, y2 [, title [, style [, attr]]])",
+      "summary": "A blank window: the inside cleared, a frame around it and an optional title on the top edge.",
+      "description": "A blank window: the inside cleared, a frame around it and an optional title on the top edge.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "title",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "style",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Window(4, 4, 35, 20, \"INVENTORY\", Screen.DOUBLE, Screen.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Copy",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Copy(x1, y1, x2, y2, x3, y3)",
+      "summary": "Copies the block between two corners so its top-left lands at (x3, y3).",
+      "description": "Copies the block between two corners so its top-left lands at (x3, y3).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x3",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y3",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Copy(0, 0, 9, 4, 20, 0)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Move",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Move(x1, y1, x2, y2, x3, y3 [, char [, attr]])",
+      "summary": "Moves the block between two corners so its top-left lands at (x3, y3), blanking what it uncovers with `char` (default space) and `attr`.",
+      "description": "Moves the block between two corners so its top-left lands at (x3, y3), blanking what it uncovers with `char` (default space) and `attr`.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x3",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y3",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Move(x, y, x + 3, y + 1, x + 1, y) -- slide a 4x2 block right",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Scroll",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Scroll(x1, y1, x2, y2, dx, dy [, char [, attr]])",
+      "summary": "Shifts the contents of a region by (dx, dy) cells; the cells it uncovers are filled with `char` (default space) and `attr`.",
+      "description": "Shifts the contents of a region by (dx, dy) cells; the cells it uncovers are filled with `char` (default space) and `attr`.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dx",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "dy",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Scroll(0, 1, 39, 28, 0, -1) -- scroll rows 1-28 up",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.ScrollUp",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.ScrollUp([lines [, char [, attr]]])",
+      "summary": "Scrolls the whole screen up by `lines` (default 1).",
+      "description": "Scrolls the whole screen up by `lines` (default 1).",
+      "parameters": [
+        {
+          "name": "lines",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.ScrollUp()",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.ScrollDown",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.ScrollDown([lines [, char [, attr]]])",
+      "summary": "Scrolls the whole screen down by `lines` (default 1).",
+      "description": "Scrolls the whole screen down by `lines` (default 1).",
+      "parameters": [
+        {
+          "name": "lines",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.ScrollDown(2)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.ScrollLeft",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.ScrollLeft([cols [, char [, attr]]])",
+      "summary": "Scrolls the whole screen left by `cols` (default 1).",
+      "description": "Scrolls the whole screen left by `cols` (default 1).",
+      "parameters": [
+        {
+          "name": "cols",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.ScrollLeft()",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.ScrollRight",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.ScrollRight([cols [, char [, attr]]])",
+      "summary": "Scrolls the whole screen right by `cols` (default 1).",
+      "description": "Scrolls the whole screen right by `cols` (default 1).",
+      "parameters": [
+        {
+          "name": "cols",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.ScrollRight()",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Map",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Map(chars [, attrs])",
+      "summary": "Replaces the whole character map from a 1200-byte string (row by row), and optionally the attribute map from a second one.",
+      "description": "Replaces the whole character map from a 1200-byte string (row by row), and optionally the attribute map from a second one.",
+      "parameters": [
+        {
+          "name": "chars",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attrs",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Map(level_chars, level_attrs)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Palette",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Palette(index, r, g, b)",
+      "summary": "Sets one palette entry (0 = background, 1 = default text colour).",
+      "description": "Sets one palette entry (0 = background, 1 = default text colour).",
+      "parameters": [
+        {
+          "name": "index",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "r",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "g",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "b",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Palette(0, 0, 0, 160)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.PaletteSet",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.PaletteSet(colours)",
+      "summary": "Sets palette entries from an array of {r, g, b} tables or 0xRRGGBB numbers.",
+      "description": "Sets palette entries from an array of {r, g, b} tables or 0xRRGGBB numbers.",
+      "parameters": [
+        {
+          "name": "colours",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.PaletteSet({ 0x000000, 0xFFFF00 })",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.DefineTile",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.DefineTile(index, rows)",
+      "summary": "Redefines a character's 8x8 tile from eight row bytes (table or string).",
+      "description": "Redefines a character's 8x8 tile from eight row bytes (table or string).",
+      "parameters": [
+        {
+          "name": "index",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "rows",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.DefineTile(128, {0x18,0x3C,0x7E,0xFF,0xFF,0x7E,0x3C,0x18})",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Plot",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Plot(x, y, colour)",
+      "summary": "Sets one pixel in mode 10.",
+      "description": "Sets one pixel in mode 10.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Plot(160, 120, 2)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.LoadImage",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.LoadImage(path, x, y [, w, h])",
+      "summary": "Draws an image file from the card at (x, y).",
+      "description": "Draws an image file from the card at (x, y). Reserved: the OS loader is not available yet, so this returns nil and a message for now.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.LoadImage(app.resources .. \"/logo.bmp\", 10, 10)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.OutLines",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.OutLines(x, y, lines [, attr])",
+      "summary": "Writes an array of strings on consecutive rows from (x, y).",
+      "description": "Writes an array of strings on consecutive rows from (x, y). Returns the number of rows written (rows below the screen are dropped).",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "lines",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.OutLines(2, 4, { \"line one\", \"line two\" })",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.OutWrapped",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.OutWrapped(x, y, width, text [, attr])",
+      "summary": "Word-wraps `text` to `width` cells and writes the lines from (x, y).",
+      "description": "Word-wraps `text` to `width` cells and writes the lines from (x, y). Returns the number of rows used.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local rows = Screen.OutWrapped(2, 4, 36, story)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Label",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Label(x, y, width, text, align [, attr])",
+      "summary": "Writes `text` inside a `width`-cell field, padded and aligned \"left\", \"center\" or \"right\" (default left); longer text is cut to the field.",
+      "description": "Writes `text` inside a `width`-cell field, padded and aligned \"left\", \"center\" or \"right\" (default left); longer text is cut to the field.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "align",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Label(0, 0, 40, \"SPACE RAIDERS\", \"center\", Screen.INVERT)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Progress",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Progress(x, y, width, fraction [, attr])",
+      "summary": "A progress bar `width` cells wide: solid blocks for `fraction` (0..1) of it, light shade for the rest.",
+      "description": "A progress bar `width` cells wide: solid blocks for `fraction` (0..1) of it, light shade for the rest.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fraction",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Progress(5, 15, 30, loaded / total)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Rect",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Rect(x1, y1, x2, y2, char [, attr])",
+      "summary": "The outline of a rectangle drawn with one character (Box draws frames with the box glyphs; this is for any character, e.g.",
+      "description": "The outline of a rectangle drawn with one character (Box draws frames with the box glyphs; this is for any character, e.g. a block).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Rect(0, 0, 39, 29, 219)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Line",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Line(x1, y1, x2, y2, char [, attr])",
+      "summary": "A straight line of `char` cells between two cells (Bresenham).",
+      "description": "A straight line of `char` cells between two cells (Bresenham).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "char",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Line(0, 0, 39, 29, 250)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.Shade",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.Shade(x1, y1, x2, y2, level [, attr])",
+      "summary": "Fills a region with a shade: level 0 (blank), 1 (light), 2 (medium), 3 (dark) or 4 (solid).",
+      "description": "Fills a region with a shade: level 0 (blank), 1 (light), 2 (medium), 3 (dark) or 4 (solid).",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "level",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "attr",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Shade(0, 0, 39, 29, 1) -- light shade backdrop",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.PixelLine",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.PixelLine(x1, y1, x2, y2, colour)",
+      "summary": "Mode 10: a straight line of pixels (Bresenham) in a palette colour.",
+      "description": "Mode 10: a straight line of pixels (Bresenham) in a palette colour.",
+      "parameters": [
+        {
+          "name": "x1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y1",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "x2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y2",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.PixelLine(0, 0, 319, 239, 3)",
+      "seeAlso": []
+    },
+    {
+      "name": "Screen.PixelRect",
+      "kind": "function",
+      "group": "Screen",
+      "framework": "screen",
+      "signature": "Screen.PixelRect(x, y, w, h, colour [, filled])",
+      "summary": "Mode 10: a rectangle outline (or filled when `filled` is true) of pixels in a palette colour.",
+      "description": "Mode 10: a rectangle outline (or filled when `filled` is true) of pixels in a palette colour.",
+      "parameters": [
+        {
+          "name": "x",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "y",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "w",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "h",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "colour",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "filled",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.PixelRect(10, 10, 100, 60, 4, true)",
+      "seeAlso": []
+    },
+    {
+      "name": "Sound.Tone",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Tone(hz, ms [, volume])",
+      "summary": "Plays a square-wave tone at (nearest note to) `hz` for `ms` milliseconds; `volume` 0..255 (default 255).",
+      "description": "Plays a square-wave tone at (nearest note to) `hz` for `ms` milliseconds; `volume` 0..255 (default 255). Returns the voice id.",
+      "parameters": [
+        {
+          "name": "hz",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "ms",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "volume",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Tone(440, 100)",
+      "seeAlso": []
+    },
+    {
+      "name": "Sound.Beep",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Beep([ms])",
+      "summary": "A short 880 Hz beep (default 80 ms).",
+      "description": "A short 880 Hz beep (default 80 ms).",
+      "parameters": [
+        {
+          "name": "ms",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Beep()",
+      "seeAlso": []
+    },
+    {
+      "name": "Sound.Noise",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Noise(ms [, volume])",
+      "summary": "A burst of noise for `ms` milliseconds (explosions, hits).",
+      "description": "A burst of noise for `ms` milliseconds (explosions, hits).",
+      "parameters": [
+        {
+          "name": "ms",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "volume",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Noise(300)",
+      "seeAlso": []
+    },
+    {
+      "name": "Sound.Define",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Define(id, spec)",
+      "summary": "Defines an instrument 0..29 (30 and 31 are used by Tone and Noise): spec = {wave=\"square\"|\"pulse\"|\"triangle\"|\"saw\"|\"sine\"|\"noise\", duty=1..15, attack=ms, decay=ms, sustain=0..255, release=ms, volume=0..255}.",
+      "description": "Defines an instrument 0..29 (30 and 31 are used by Tone and Noise): spec = {wave=\"square\"|\"pulse\"|\"triangle\"|\"saw\"|\"sine\"|\"noise\", duty=1..15, attack=ms, decay=ms, sustain=0..255, release=ms, volume=0..255}.",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "spec",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Define(1, { wave = \"triangle\", attack = 5, decay = 50, sustain = 150, release = 80 })",
+      "seeAlso": []
+    },
+    {
+      "name": "Sound.Load",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Load(path)",
+      "summary": "Loads a WAV file from the card into the sample pool; returns a sound id usable with Sound.Play and in scores.",
+      "description": "Loads a WAV file from the card into the sample pool; returns a sound id usable with Sound.Play and in scores.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local hit = Sound.Load(app.resources .. \"/hit.wav\")",
+      "seeAlso": []
+    },
+    {
+      "name": "Sound.Play",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Play(sound [, note [, ms [, volume [, pan]]]])",
+      "summary": "Plays an instrument or sample: `note` is a MIDI number or a name such as \"C4\"; `ms` 0 means the instrument's own envelope; pan -64..63.",
+      "description": "Plays an instrument or sample: `note` is a MIDI number or a name such as \"C4\"; `ms` 0 means the instrument's own envelope; pan -64..63.",
+      "parameters": [
+        {
+          "name": "sound",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "note",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "ms",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "volume",
+          "type": "",
+          "optional": true,
+          "description": ""
+        },
+        {
+          "name": "pan",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Play(1, \"C5\", 200)",
+      "seeAlso": []
+    },
+    {
+      "name": "Sound.Stop",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Stop([voice])",
+      "summary": "Stops one voice returned by a Play call, or every one-shot voice.",
+      "description": "Stops one voice returned by a Play call, or every one-shot voice.",
+      "parameters": [
+        {
+          "name": "voice",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Stop()",
+      "seeAlso": []
+    },
+    {
+      "name": "Sound.Volume",
+      "kind": "function",
+      "group": "Sound",
+      "framework": "sound",
+      "signature": "Sound.Volume(volume)",
+      "summary": "Sets the master volume 0..255.",
+      "description": "Sets the master volume 0..255.",
+      "parameters": [
+        {
+          "name": "volume",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Sound.Volume(128)",
+      "seeAlso": []
+    },
+    {
+      "name": "Music.Define",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.Define(name, spec)",
+      "summary": "Defines a score by name (see lua.md for the spec: channels of {time, sound, note, length, volume, pan} events, `loop`, `length`).",
+      "description": "Defines a score by name (see lua.md for the spec: channels of {time, sound, note, length, volume, pan} events, `loop`, `length`).",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "spec",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Music.Define(\"theme\", { loop = true, channels = { { {0, 1, \"C4\", 250}, {300, 1, \"E4\", 250} } } })",
+      "seeAlso": []
+    },
+    {
+      "name": "Music.Play",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.Play(name [, loop])",
+      "summary": "Starts a defined score; `loop` overrides the score's own loop flag.",
+      "description": "Starts a defined score; `loop` overrides the score's own loop flag.",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "loop",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Music.Play(\"theme\")",
+      "seeAlso": []
+    },
+    {
+      "name": "Music.Stop",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.Stop()",
+      "summary": "Stops the score that is playing.",
+      "description": "Stops the score that is playing.",
+      "parameters": [],
+      "returns": "",
+      "example": "Music.Stop()",
+      "seeAlso": []
+    },
+    {
+      "name": "Music.Playing",
+      "kind": "function",
+      "group": "Music",
+      "framework": "sound",
+      "signature": "Music.Playing()",
+      "summary": "True while a score is playing.",
+      "description": "True while a score is playing.",
+      "parameters": [],
+      "returns": "",
+      "example": "if not Music.Playing() then Music.Play(\"theme\") end",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Center",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Center(s, width [, fill])",
+      "summary": "`s` centred in `width` cells, padded with `fill` (default space); longer strings are returned unchanged.",
+      "description": "`s` centred in `width` cells, padded with `fill` (default space); longer strings are returned unchanged.",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fill",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.OutText(0, 0, Text.Center(\"TITLE\", 40))",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Left",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Left(s, width [, fill])",
+      "summary": "`s` padded on the right to `width` cells (left-aligned).",
+      "description": "`s` padded on the right to `width` cells (left-aligned).",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fill",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Text.Left(name, 12)",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Right",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Right(s, width [, fill])",
+      "summary": "`s` padded on the left to `width` cells (right-aligned).",
+      "description": "`s` padded on the left to `width` cells (right-aligned).",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fill",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Text.Right(score, 8, \"0\")",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Truncate",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Truncate(s, width [, ellipsis])",
+      "summary": "`s` cut to `width` cells, ending in `ellipsis` (default \"..\") when it had to be cut.",
+      "description": "`s` cut to `width` cells, ending in `ellipsis` (default \"..\") when it had to be cut.",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "ellipsis",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Text.Truncate(filename, 30)",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Wrap",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Wrap(s, width)",
+      "summary": "Word-wraps `s` to lines of at most `width` cells; words longer than the width are split.",
+      "description": "Word-wraps `s` to lines of at most `width` cells; words longer than the width are split. Newlines in `s` start new lines. Returns an array of lines.",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "for i, line in ipairs(Text.Wrap(story, 36)) do Screen.OutText(2, 4 + i, line) end",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Lines",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Lines(s)",
+      "summary": "Splits `s` on newlines into an array of lines.",
+      "description": "Splits `s` on newlines into an array of lines.",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local lines = Text.Lines(fs.readall(\"/data/notes.txt\"))",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Split",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Split(s [, sep])",
+      "summary": "Splits `s` on `sep` (a plain string, default: runs of whitespace).",
+      "description": "Splits `s` on `sep` (a plain string, default: runs of whitespace).",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "sep",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local fields = Text.Split(line, \",\")",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Join",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Join(list [, sep])",
+      "summary": "Joins an array of values into one string with `sep` (default \" \").",
+      "description": "Joins an array of values into one string with `sep` (default \" \").",
+      "parameters": [
+        {
+          "name": "list",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "sep",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Text.Join(args, \" \")",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Trim",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Trim(s)",
+      "summary": "`s` without leading and trailing whitespace.",
+      "description": "`s` without leading and trailing whitespace.",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local name = Text.Trim(input)",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.StartsWith",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.StartsWith(s, prefix)",
+      "summary": "True when `s` begins with `prefix`.",
+      "description": "True when `s` begins with `prefix`.",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "prefix",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "if Text.StartsWith(cmd, \"go \") then ... end",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.EndsWith",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.EndsWith(s, suffix)",
+      "summary": "True when `s` ends with `suffix`.",
+      "description": "True when `s` ends with `suffix`.",
+      "parameters": [
+        {
+          "name": "s",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "suffix",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "if Text.EndsWith(path, \".prg\") then ... end",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Zero",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Zero(n, width)",
+      "summary": "Integer `n` zero-padded to `width` digits: Text.Zero(7, 3) is \"007\".",
+      "description": "Integer `n` zero-padded to `width` digits: Text.Zero(7, 3) is \"007\".",
+      "parameters": [
+        {
+          "name": "n",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "width",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Text.Zero(level, 2) -- \"07\"",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Commas",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Commas(n)",
+      "summary": "Integer `n` with thousands separators: Text.Commas(1234567) is \"1,234,567\".",
+      "description": "Integer `n` with thousands separators: Text.Commas(1234567) is \"1,234,567\".",
+      "parameters": [
+        {
+          "name": "n",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.RightText(0, Text.Commas(score))",
+      "seeAlso": []
+    },
+    {
+      "name": "Text.Plural",
+      "kind": "function",
+      "group": "Text",
+      "framework": "text",
+      "signature": "Text.Plural(n, singular [, plural])",
+      "summary": "\"1 file\" / \"3 files\": the count and the right word.",
+      "description": "\"1 file\" / \"3 files\": the count and the right word.",
+      "parameters": [
+        {
+          "name": "n",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "singular",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "plural",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Text.Plural(#files, \"file\")",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Create",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Create(fn, ms [, oneshot])",
+      "summary": "A timer calling fn(timer) every `ms` milliseconds, or once when `oneshot` is true.",
+      "description": "A timer calling fn(timer) every `ms` milliseconds, or once when `oneshot` is true. Returns the timer object (its `id` field is the number Timer.Get and the other calls accept). Raises an error when the program's 8 OS timers are all in use.",
+      "parameters": [
+        {
+          "name": "fn",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "ms",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "oneshot",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local t = Timer.Create(function(t) spawn() end, 1000)",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.After",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.After(ms, fn)",
+      "summary": "Calls fn(timer) once, `ms` milliseconds from now.",
+      "description": "Calls fn(timer) once, `ms` milliseconds from now. Returns the timer.",
+      "parameters": [
+        {
+          "name": "ms",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fn",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Timer.After(2000, function() Screen.CenterText(14, \"GO!\") end)",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Every",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Every(ms, fn)",
+      "summary": "Calls fn(timer) every `ms` milliseconds until cancelled.",
+      "description": "Calls fn(timer) every `ms` milliseconds until cancelled. Returns the timer.",
+      "parameters": [
+        {
+          "name": "ms",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "fn",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local blink = Timer.Every(500, function() cursor_on = not cursor_on end)",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Cancel",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Cancel(timer)",
+      "summary": "Stops a timer for good (object or id).",
+      "description": "Stops a timer for good (object or id). Returns true if it was live.",
+      "parameters": [
+        {
+          "name": "timer",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "blink:Cancel()      -- or Timer.Cancel(blink), or Timer.Cancel(blink.id)",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Pause",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Pause(timer)",
+      "summary": "Stops the clock on a running timer, remembering how long was left until its next fire.",
+      "description": "Stops the clock on a running timer, remembering how long was left until its next fire. Returns true if it was running.",
+      "parameters": [
+        {
+          "name": "timer",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "spawner:Pause()   -- while the pause menu is open",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Resume",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Resume(timer)",
+      "summary": "Restarts a paused timer with the time that was left when it was paused.",
+      "description": "Restarts a paused timer with the time that was left when it was paused. Returns true if it was paused.",
+      "parameters": [
+        {
+          "name": "timer",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "spawner:Resume()  -- continues with the time that was left",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Restart",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Restart(timer [, ms])",
+      "summary": "Re-arms a timer from now with its interval (or a new one), whether it was running, paused or already fired.",
+      "description": "Re-arms a timer from now with its interval (or a new one), whether it was running, paused or already fired. Returns the timer.",
+      "parameters": [
+        {
+          "name": "timer",
+          "type": "",
+          "optional": false,
+          "description": ""
+        },
+        {
+          "name": "ms",
+          "type": "",
+          "optional": true,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "countdown:Restart(30000)",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Running",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Running(timer)",
+      "summary": "True while the timer is armed (not paused, cancelled or fired).",
+      "description": "True while the timer is armed (not paused, cancelled or fired).",
+      "parameters": [
+        {
+          "name": "timer",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "if not spawner:Running() then ... end",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Paused",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Paused(timer)",
+      "summary": "True while the timer is paused.",
+      "description": "True while the timer is paused.",
+      "parameters": [
+        {
+          "name": "timer",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "if spawner:Paused() then Overlay.CenterText(0, \"PAUSED\") end",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Remaining",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Remaining(timer)",
+      "summary": "Milliseconds until the next fire (frozen while paused), or nil when the timer is done.",
+      "description": "Milliseconds until the next fire (frozen while paused), or nil when the timer is done.",
+      "parameters": [
+        {
+          "name": "timer",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "Screen.Printf(0, 0, \"%d s\", (countdown:Remaining() or 0) // 1000)",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Get",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Get(id)",
+      "summary": "The live timer object with that id, or nil.",
+      "description": "The live timer object with that id, or nil.",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "",
+          "optional": false,
+          "description": ""
+        }
+      ],
+      "returns": "",
+      "example": "local t = Timer.Get(id)",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.CancelAll",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.CancelAll()",
+      "summary": "Cancels every live timer this framework created.",
+      "description": "Cancels every live timer this framework created. Returns how many.",
+      "parameters": [],
+      "returns": "",
+      "example": "Timer.CancelAll() -- e.g. in finish()",
+      "seeAlso": []
+    },
+    {
+      "name": "Timer.Count",
+      "kind": "function",
+      "group": "Timer",
+      "framework": "timer",
+      "signature": "Timer.Count()",
+      "summary": "How many timers are live (running or paused).",
+      "description": "How many timers are live (running or paused).",
+      "parameters": [],
+      "returns": "",
+      "example": "print(Timer.Count() .. \" timers live\")",
+      "seeAlso": []
+    }
+  ]
+}

@@ -1,0 +1,1541 @@
+{
+  "source": "lua",
+  "title": "Lua 5.5",
+  "entries": [
+    {
+      "name": "print",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "print(...)",
+      "summary": "Writes its arguments to the simulator console (not the screen).",
+      "description": "Separated by tabs, ending in a newline. On the device it goes to the USB console, which is not always available; draw on the screen with the Screen framework instead.",
+      "parameters": [],
+      "returns": "",
+      "example": "print(\"x =\", x)",
+      "seeAlso": [
+        "tostring",
+        "Screen.OutLine"
+      ]
+    },
+    {
+      "name": "type",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "type(v)",
+      "summary": "The type of a value as a string: \"nil\", \"boolean\", \"number\", \"string\", \"table\", \"function\", \"thread\" or \"userdata\".",
+      "description": "",
+      "parameters": [],
+      "returns": "string",
+      "example": "if type(v) == \"table\" then ... end",
+      "seeAlso": [
+        "math.type"
+      ]
+    },
+    {
+      "name": "tostring",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "tostring(v)",
+      "summary": "Converts any value to a string (using __tostring if the metatable has it).",
+      "description": "",
+      "parameters": [],
+      "returns": "string",
+      "example": "local s = \"score: \" .. tostring(score)",
+      "seeAlso": [
+        "tonumber",
+        "string.format"
+      ]
+    },
+    {
+      "name": "tonumber",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "tonumber(v [, base])",
+      "summary": "Converts a string (or number) to a number, or nil when it cannot.",
+      "description": "With base (2-36) the string is read as an integer in that base.",
+      "parameters": [],
+      "returns": "number or nil",
+      "example": "local n = tonumber(args[1]) or 0\nlocal bits = tonumber(\"1011\", 2)",
+      "seeAlso": [
+        "tostring"
+      ]
+    },
+    {
+      "name": "pairs",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "pairs(t)",
+      "summary": "Iterates every key/value pair of a table, in no particular order.",
+      "description": "",
+      "parameters": [],
+      "returns": "iterator for `for k, v in pairs(t)`",
+      "example": "for key, value in pairs(config) do print(key, value) end",
+      "seeAlso": [
+        "ipairs",
+        "next"
+      ]
+    },
+    {
+      "name": "ipairs",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "ipairs(t)",
+      "summary": "Iterates the array part of a table: t[1], t[2], ... up to the first nil.",
+      "description": "",
+      "parameters": [],
+      "returns": "iterator for `for i, v in ipairs(t)`",
+      "example": "for i, line in ipairs(lines) do Screen.OutText(0, i - 1, line) end",
+      "seeAlso": [
+        "pairs"
+      ]
+    },
+    {
+      "name": "next",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "next(t [, key])",
+      "summary": "The next key/value after `key` in a table (nil key starts). `next(t) == nil` tests for an empty table.",
+      "description": "",
+      "parameters": [],
+      "returns": "key, value or nil",
+      "example": "",
+      "seeAlso": [
+        "pairs"
+      ]
+    },
+    {
+      "name": "select",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "select(n, ...)",
+      "summary": "The arguments from the n-th onward; select(\"#\", ...) counts them.",
+      "description": "",
+      "parameters": [],
+      "returns": "values or count",
+      "example": "local count = select(\"#\", ...)",
+      "seeAlso": []
+    },
+    {
+      "name": "assert",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "assert(v [, message])",
+      "summary": "Raises an error with `message` when v is false or nil; otherwise returns its arguments.",
+      "description": "Handy with calls that return nil, err: assert(fs.writeall(path, data)).",
+      "parameters": [],
+      "returns": "",
+      "example": "local f = assert(fs.open(\"/data/save.txt\", \"w\"))",
+      "seeAlso": [
+        "error",
+        "pcall"
+      ]
+    },
+    {
+      "name": "error",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "error(message [, level])",
+      "summary": "Raises an error. level 1 (default) blames the caller of error, 2 the caller's caller.",
+      "description": "An uncaught error ends the program (finish() still runs) and is written to logs/errors on the card.",
+      "parameters": [],
+      "returns": "",
+      "example": "if not ok then error(\"cannot load level \" .. n) end",
+      "seeAlso": [
+        "pcall",
+        "assert"
+      ]
+    },
+    {
+      "name": "pcall",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "pcall(f, ...)",
+      "summary": "Calls f in protected mode: errors are caught instead of ending the program.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, results... or false, error message",
+      "example": "local ok, err = pcall(dofile, \"/data/plugin.lua\")\nif not ok then Screen.OutLine(\"plugin failed: \" .. err) end",
+      "seeAlso": [
+        "xpcall",
+        "error"
+      ]
+    },
+    {
+      "name": "xpcall",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "xpcall(f, msgh, ...)",
+      "summary": "Like pcall, but calls msgh(error) before unwinding, so it can add a traceback.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, results... or false, msgh's result",
+      "example": "",
+      "seeAlso": [
+        "pcall"
+      ]
+    },
+    {
+      "name": "setmetatable",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "setmetatable(t, mt)",
+      "summary": "Gives table t the metatable mt (nil removes it). Returns t.",
+      "description": "Metatables add behaviour: __index for defaults and methods, __tostring, __eq, arithmetic hooks. The Timer framework's objects use __index.",
+      "parameters": [],
+      "returns": "",
+      "example": "local Vec = {}\nVec.__index = Vec\nfunction Vec.new(x, y) return setmetatable({x = x, y = y}, Vec) end",
+      "seeAlso": [
+        "getmetatable",
+        "rawget"
+      ]
+    },
+    {
+      "name": "getmetatable",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "getmetatable(v)",
+      "summary": "The metatable of a value, or nil.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "setmetatable"
+      ]
+    },
+    {
+      "name": "rawget",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "rawget(t, k)",
+      "summary": "t[k] without invoking __index.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "rawset",
+        "setmetatable"
+      ]
+    },
+    {
+      "name": "rawset",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "rawset(t, k, v)",
+      "summary": "t[k] = v without invoking __newindex.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "rawequal",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "rawequal(a, b)",
+      "summary": "Equality without __eq.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "rawlen",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "rawlen(v)",
+      "summary": "The length of a table or string without __len.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "collectgarbage",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "collectgarbage([opt [, arg]])",
+      "summary": "Controls the garbage collector: \"collect\" runs a full cycle, \"count\" returns the heap in KB, \"step\", \"stop\", \"restart\", \"incremental\", \"generational\".",
+      "description": "Programs have a 96 KB heap cap; a full collect between levels keeps the collector from running mid-frame.",
+      "parameters": [],
+      "returns": "",
+      "example": "collectgarbage(\"collect\")\nlocal kb = collectgarbage(\"count\")",
+      "seeAlso": []
+    },
+    {
+      "name": "load",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "load(chunk [, name [, mode [, env]]])",
+      "summary": "Compiles a string (or reader function) of Lua code into a function without running it.",
+      "description": "",
+      "parameters": [],
+      "returns": "function, or nil, err",
+      "example": "local f = load(\"return \" .. expr)\nlocal value = f and f()",
+      "seeAlso": [
+        "dofile",
+        "loadfile"
+      ]
+    },
+    {
+      "name": "warn",
+      "kind": "function",
+      "group": "Lua: basics",
+      "signature": "warn(msg, ...)",
+      "summary": "Emits a warning to the console (off unless warn(\"@on\") was called).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "_G",
+      "kind": "constant",
+      "group": "Lua: basics",
+      "signature": "_G",
+      "summary": "The table of globals.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "_G[name] = value",
+      "seeAlso": []
+    },
+    {
+      "name": "_VERSION",
+      "kind": "constant",
+      "group": "Lua: basics",
+      "signature": "_VERSION",
+      "summary": "The Lua version string (\"Lua 5.5\").",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "local",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "local",
+      "summary": "Declares a variable in the current block (or a function). Locals are faster than globals and stay out of the program's global table.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local x, y = 0, 0\nlocal function step() end",
+      "seeAlso": []
+    },
+    {
+      "name": "function",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "function",
+      "summary": "Defines a function; `function name(...)`, `local function name(...)`, or an anonymous `function(...) end` value.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local function add(a, b)\n    return a + b\nend",
+      "seeAlso": []
+    },
+    {
+      "name": "if",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "if",
+      "summary": "Conditional: if ... then ... elseif ... then ... else ... end. Only nil and false are false.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "if score > best then\n    best = score\nelseif score == best then\n    tie = true\nelse\n    tie = false\nend",
+      "seeAlso": []
+    },
+    {
+      "name": "for",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "for",
+      "summary": "Numeric loop `for i = start, stop [, step] do` or generic loop `for k, v in pairs(t) do`. The loop variable is a fresh const local each iteration (Lua 5.5): assign to a copy if you need to change it.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "for i = 1, 10 do ... end\nfor i = 10, 1, -1 do ... end\nfor _, v in ipairs(list) do ... end",
+      "seeAlso": []
+    },
+    {
+      "name": "while",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "while",
+      "summary": "Loop while a condition holds: while cond do ... end.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "while n > 0 do n = n - 1 end",
+      "seeAlso": []
+    },
+    {
+      "name": "repeat",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "repeat",
+      "summary": "Loop that tests at the end: repeat ... until cond (the body's locals are visible in cond).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "repeat\n    local ev = InputPoll()\nuntil ev == nil",
+      "seeAlso": []
+    },
+    {
+      "name": "break",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "break",
+      "summary": "Leaves the innermost loop.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "for i, v in ipairs(t) do if v == target then found = i break end end",
+      "seeAlso": []
+    },
+    {
+      "name": "goto",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "goto",
+      "summary": "Jumps to a label `::name::` in the same function (useful for `continue`).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "for i = 1, 10 do\n    if skip(i) then goto continue end\n    work(i)\n    ::continue::\nend",
+      "seeAlso": []
+    },
+    {
+      "name": "return",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "return",
+      "summary": "Returns values from a function; must be the last statement of its block.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "return x, y",
+      "seeAlso": []
+    },
+    {
+      "name": "do",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "do",
+      "summary": "Opens a block: do ... end scopes locals.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "do\n    local tmp = compute()\n    use(tmp)\nend",
+      "seeAlso": []
+    },
+    {
+      "name": "and",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "and",
+      "summary": "Logical and: returns the first false/nil operand or the last one. Short-circuits.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local name = user and user.name",
+      "seeAlso": []
+    },
+    {
+      "name": "or",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "or",
+      "summary": "Logical or: returns the first true operand. The idiom for defaults: x = x or 0.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "attr = attr or 0",
+      "seeAlso": []
+    },
+    {
+      "name": "not",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "not",
+      "summary": "Logical not: true for nil and false, false otherwise.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "if not fs.exists(path) then ... end",
+      "seeAlso": []
+    },
+    {
+      "name": "nil",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "nil",
+      "summary": "The absence of a value; a table field set to nil is removed.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "t.key = nil",
+      "seeAlso": []
+    },
+    {
+      "name": "true",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "true",
+      "summary": "Boolean true.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "false",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "false",
+      "summary": "Boolean false (only nil and false are falsy; 0 and \"\" are true).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "end",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "end",
+      "summary": "Closes a block opened by function, if, for, while or do.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "then",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "then",
+      "summary": "Follows an if or elseif condition.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "else",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "else",
+      "summary": "The alternative branch of an if.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "elseif",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "elseif",
+      "summary": "Another condition in an if chain.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "in",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "in",
+      "summary": "Separates the variables from the iterator in a generic for.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "for k, v in pairs(t) do end",
+      "seeAlso": []
+    },
+    {
+      "name": "until",
+      "kind": "keyword",
+      "group": "Lua: keywords",
+      "signature": "until",
+      "summary": "Ends a repeat loop with its condition.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "string",
+      "kind": "module",
+      "group": "Lua: string",
+      "signature": "string",
+      "summary": "String functions; also available as methods on any string (s:upper()).",
+      "description": "Strings are immutable byte strings: # gives the byte length, indexes count from 1, negative indexes count from the end.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "string.format",
+        "string.sub",
+        "string.find"
+      ]
+    },
+    {
+      "name": "string.byte",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.byte(s [, i [, j]])",
+      "summary": "The byte codes of characters i..j (default the first).",
+      "description": "",
+      "parameters": [],
+      "returns": "numbers",
+      "example": "local code = s:byte(1)",
+      "seeAlso": [
+        "string.char"
+      ]
+    },
+    {
+      "name": "string.char",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.char(...)",
+      "summary": "A string from byte codes.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local s = string.char(72, 105)",
+      "seeAlso": [
+        "string.byte"
+      ]
+    },
+    {
+      "name": "string.find",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.find(s, pattern [, init [, plain]])",
+      "summary": "Finds pattern in s; plain = true searches for the literal text.",
+      "description": "",
+      "parameters": [],
+      "returns": "start, end (and captures) or nil",
+      "example": "local i, j = s:find(\"world\")\nlocal k = s:find(\".\", 1, true) -- a literal dot",
+      "seeAlso": [
+        "string.match",
+        "string.gmatch"
+      ]
+    },
+    {
+      "name": "string.format",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.format(fmt, ...)",
+      "summary": "C-style formatting: %d %5d %05d %x %f %.2f %s %-10s %q %%.",
+      "description": "",
+      "parameters": [],
+      "returns": "string",
+      "example": "Screen.OutText(0, 0, string.format(\"SCORE %06d  LIVES %d\", score, lives))",
+      "seeAlso": [
+        "tostring",
+        "Screen.Printf"
+      ]
+    },
+    {
+      "name": "string.gmatch",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.gmatch(s, pattern)",
+      "summary": "Iterates every match of pattern in s.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "for word in line:gmatch(\"%S+\") do table.insert(words, word) end",
+      "seeAlso": [
+        "string.find",
+        "string.gsub"
+      ]
+    },
+    {
+      "name": "string.gsub",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.gsub(s, pattern, repl [, n])",
+      "summary": "Replaces matches of pattern with repl (a string with %1 captures, a table or a function).",
+      "description": "",
+      "parameters": [],
+      "returns": "new string, count",
+      "example": "local clean = s:gsub(\"%s+$\", \"\")",
+      "seeAlso": [
+        "string.gmatch"
+      ]
+    },
+    {
+      "name": "string.len",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.len(s)",
+      "summary": "Byte length (same as #s).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "string.lower",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.lower(s)",
+      "summary": "Lower-case copy.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "string.upper"
+      ]
+    },
+    {
+      "name": "string.upper",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.upper(s)",
+      "summary": "Upper-case copy.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "Screen.CenterText(0, title:upper())",
+      "seeAlso": [
+        "string.lower"
+      ]
+    },
+    {
+      "name": "string.match",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.match(s, pattern [, init])",
+      "summary": "The captures of the first match of pattern (or the whole match).",
+      "description": "",
+      "parameters": [],
+      "returns": "strings or nil",
+      "example": "local name, ext = path:match(\"([^/]+)%.(%w+)$\")",
+      "seeAlso": [
+        "string.find"
+      ]
+    },
+    {
+      "name": "string.rep",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.rep(s, n [, sep])",
+      "summary": "s repeated n times.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local bar = string.rep(\"=\", 40)",
+      "seeAlso": []
+    },
+    {
+      "name": "string.reverse",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.reverse(s)",
+      "summary": "The bytes in reverse order.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "string.sub",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.sub(s, i [, j])",
+      "summary": "The substring from i to j (negative counts from the end).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local first = s:sub(1, 1)\nlocal last3 = s:sub(-3)",
+      "seeAlso": []
+    },
+    {
+      "name": "string.pack",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.pack(fmt, ...)",
+      "summary": "Packs values into a binary string (e.g. \"<I2\" a little-endian 16-bit).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "string.unpack"
+      ]
+    },
+    {
+      "name": "string.unpack",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.unpack(fmt, s [, pos])",
+      "summary": "Unpacks values from a binary string.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "string.pack"
+      ]
+    },
+    {
+      "name": "string.packsize",
+      "kind": "function",
+      "group": "Lua: string",
+      "signature": "string.packsize(fmt)",
+      "summary": "The size a pack format produces.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "table",
+      "kind": "module",
+      "group": "Lua: table",
+      "signature": "table",
+      "summary": "Table (array) helpers.",
+      "description": "Tables are the only data structure: arrays (1-based), records, and both at once.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "table.insert",
+        "table.remove",
+        "table.sort",
+        "table.concat"
+      ]
+    },
+    {
+      "name": "table.insert",
+      "kind": "function",
+      "group": "Lua: table",
+      "signature": "table.insert(t, [pos,] value)",
+      "summary": "Appends value (or inserts it at pos, shifting the rest).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "table.insert(list, \"item\")\ntable.insert(list, 1, \"first\")",
+      "seeAlso": [
+        "table.remove"
+      ]
+    },
+    {
+      "name": "table.remove",
+      "kind": "function",
+      "group": "Lua: table",
+      "signature": "table.remove(t [, pos])",
+      "summary": "Removes and returns the last element (or the one at pos).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local last = table.remove(stack)",
+      "seeAlso": [
+        "table.insert"
+      ]
+    },
+    {
+      "name": "table.concat",
+      "kind": "function",
+      "group": "Lua: table",
+      "signature": "table.concat(t [, sep [, i [, j]]])",
+      "summary": "Joins strings/numbers of an array into one string.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local line = table.concat(words, \" \")",
+      "seeAlso": [
+        "Text.Join"
+      ]
+    },
+    {
+      "name": "table.sort",
+      "kind": "function",
+      "group": "Lua: table",
+      "signature": "table.sort(t [, comp])",
+      "summary": "Sorts an array in place; comp(a, b) returns true when a should come first.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "table.sort(scores, function(a, b) return a.points > b.points end)",
+      "seeAlso": []
+    },
+    {
+      "name": "table.unpack",
+      "kind": "function",
+      "group": "Lua: table",
+      "signature": "table.unpack(t [, i [, j]])",
+      "summary": "The elements of an array as separate values.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "Execute(path, table.unpack(args))",
+      "seeAlso": [
+        "table.pack"
+      ]
+    },
+    {
+      "name": "table.pack",
+      "kind": "function",
+      "group": "Lua: table",
+      "signature": "table.pack(...)",
+      "summary": "A table of the arguments with field n = their count.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "table.unpack"
+      ]
+    },
+    {
+      "name": "table.move",
+      "kind": "function",
+      "group": "Lua: table",
+      "signature": "table.move(a1, f, e, t [, a2])",
+      "summary": "Copies elements a1[f..e] to a2[t..] (a2 defaults to a1).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "table.move(src, 1, #src, 1, dst)",
+      "seeAlso": []
+    },
+    {
+      "name": "math",
+      "kind": "module",
+      "group": "Lua: math",
+      "signature": "math",
+      "summary": "Mathematical functions and constants.",
+      "description": "Integers and floats are distinct subtypes; // is integer division, % is modulo, ^ is power (float). Hazard3 has no FPU, so integer arithmetic is much faster than float on the device.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "math.floor",
+        "math.random",
+        "math.min"
+      ]
+    },
+    {
+      "name": "math.floor",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.floor(x)",
+      "summary": "The largest integer <= x (returns an integer).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local cell = math.floor(px / 8)",
+      "seeAlso": [
+        "math.ceil",
+        "math.tointeger"
+      ]
+    },
+    {
+      "name": "math.ceil",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.ceil(x)",
+      "summary": "The smallest integer >= x.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "math.floor"
+      ]
+    },
+    {
+      "name": "math.abs",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.abs(x)",
+      "summary": "Absolute value.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.max",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.max(x, ...)",
+      "summary": "The largest argument.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "x = math.max(0, math.min(x, 39)) -- clamp to 0..39",
+      "seeAlso": [
+        "math.min"
+      ]
+    },
+    {
+      "name": "math.min",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.min(x, ...)",
+      "summary": "The smallest argument.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "math.max"
+      ]
+    },
+    {
+      "name": "math.random",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.random([m [, n]])",
+      "summary": "A random float in [0,1), integer in [1,m], or integer in [m,n].",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "local dir = math.random(1, 4)",
+      "seeAlso": [
+        "math.randomseed"
+      ]
+    },
+    {
+      "name": "math.randomseed",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.randomseed([x])",
+      "summary": "Seeds the generator (seed from TimeNow() for variety).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "math.randomseed(TimeNow())",
+      "seeAlso": []
+    },
+    {
+      "name": "math.sqrt",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.sqrt(x)",
+      "summary": "Square root.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.fmod",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.fmod(x, y)",
+      "summary": "Remainder of x / y with the sign of x.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.modf",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.modf(x)",
+      "summary": "Integral and fractional parts of x.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.tointeger",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.tointeger(x)",
+      "summary": "x as an integer when it has an exact integer value, else nil.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.type",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.type(x)",
+      "summary": "\"integer\", \"float\" or nil for non-numbers.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.ult",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.ult(m, n)",
+      "summary": "Unsigned less-than comparison of integers.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.huge",
+      "kind": "constant",
+      "group": "Lua: math",
+      "signature": "math.huge",
+      "summary": "Positive infinity.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.pi",
+      "kind": "constant",
+      "group": "Lua: math",
+      "signature": "math.pi",
+      "summary": "3.14159...",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.maxinteger",
+      "kind": "constant",
+      "group": "Lua: math",
+      "signature": "math.maxinteger",
+      "summary": "The largest integer (2^63-1, or 2^31-1 on a 32-bit build).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.mininteger",
+      "kind": "constant",
+      "group": "Lua: math",
+      "signature": "math.mininteger",
+      "summary": "The smallest integer.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.sin",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.sin(x)",
+      "summary": "Sine (radians).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.cos",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.cos(x)",
+      "summary": "Cosine (radians).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.tan",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.tan(x)",
+      "summary": "Tangent.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.asin",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.asin(x)",
+      "summary": "Arc sine.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.acos",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.acos(x)",
+      "summary": "Arc cosine.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.atan",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.atan(x [, y])",
+      "summary": "Arc tangent of y/x (two-argument form handles quadrants).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.exp",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.exp(x)",
+      "summary": "e^x.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.log",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.log(x [, base])",
+      "summary": "Natural logarithm, or in the given base.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.deg",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.deg(x)",
+      "summary": "Radians to degrees.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "math.rad",
+      "kind": "function",
+      "group": "Lua: math",
+      "signature": "math.rad(x)",
+      "summary": "Degrees to radians.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "coroutine",
+      "kind": "module",
+      "group": "Lua: coroutine",
+      "signature": "coroutine",
+      "summary": "Cooperative threads: functions that can pause (yield) and be resumed.",
+      "description": "Useful for scripted sequences inside tick(): resume the coroutine once per tick and yield between steps.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "coroutine.create",
+        "coroutine.resume",
+        "coroutine.yield",
+        "coroutine.wrap"
+      ]
+    },
+    {
+      "name": "coroutine.create",
+      "kind": "function",
+      "group": "Lua: coroutine",
+      "signature": "coroutine.create(f)",
+      "summary": "A new coroutine running f when first resumed.",
+      "description": "",
+      "parameters": [],
+      "returns": "thread",
+      "example": "local co = coroutine.create(function()\n    Screen.OutLine(\"step 1\") coroutine.yield()\n    Screen.OutLine(\"step 2\")\nend)",
+      "seeAlso": [
+        "coroutine.resume"
+      ]
+    },
+    {
+      "name": "coroutine.resume",
+      "kind": "function",
+      "group": "Lua: coroutine",
+      "signature": "coroutine.resume(co, ...)",
+      "summary": "Runs the coroutine until it yields or ends.",
+      "description": "",
+      "parameters": [],
+      "returns": "true, yielded values... or false, err",
+      "example": "function tick() if coroutine.status(co) ~= \"dead\" then coroutine.resume(co) end end",
+      "seeAlso": [
+        "coroutine.yield",
+        "coroutine.status"
+      ]
+    },
+    {
+      "name": "coroutine.yield",
+      "kind": "function",
+      "group": "Lua: coroutine",
+      "signature": "coroutine.yield(...)",
+      "summary": "Pauses the running coroutine, passing values back to resume.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "coroutine.resume"
+      ]
+    },
+    {
+      "name": "coroutine.status",
+      "kind": "function",
+      "group": "Lua: coroutine",
+      "signature": "coroutine.status(co)",
+      "summary": "\"running\", \"suspended\", \"normal\" or \"dead\".",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "coroutine.wrap",
+      "kind": "function",
+      "group": "Lua: coroutine",
+      "signature": "coroutine.wrap(f)",
+      "summary": "A function that resumes the coroutine each call (errors propagate).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "coroutine.create"
+      ]
+    },
+    {
+      "name": "coroutine.running",
+      "kind": "function",
+      "group": "Lua: coroutine",
+      "signature": "coroutine.running()",
+      "summary": "The running coroutine and whether it is the main one.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "coroutine.isyieldable",
+      "kind": "function",
+      "group": "Lua: coroutine",
+      "signature": "coroutine.isyieldable([co])",
+      "summary": "True when the coroutine can yield.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "coroutine.close",
+      "kind": "function",
+      "group": "Lua: coroutine",
+      "signature": "coroutine.close(co)",
+      "summary": "Closes a suspended coroutine.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "utf8",
+      "kind": "module",
+      "group": "Lua: utf8",
+      "signature": "utf8",
+      "summary": "UTF-8 helpers (the screen font is single-byte; these are for text data).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "utf8.len",
+        "utf8.char"
+      ]
+    },
+    {
+      "name": "utf8.char",
+      "kind": "function",
+      "group": "Lua: utf8",
+      "signature": "utf8.char(...)",
+      "summary": "A string from code points.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "utf8.codepoint",
+      "kind": "function",
+      "group": "Lua: utf8",
+      "signature": "utf8.codepoint(s [, i [, j]])",
+      "summary": "The code points of the characters at bytes i..j.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "utf8.codes",
+      "kind": "function",
+      "group": "Lua: utf8",
+      "signature": "utf8.codes(s)",
+      "summary": "Iterates (position, code point) pairs.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "utf8.len",
+      "kind": "function",
+      "group": "Lua: utf8",
+      "signature": "utf8.len(s [, i [, j]])",
+      "summary": "The number of characters (nil and the position on an invalid byte).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "utf8.offset",
+      "kind": "function",
+      "group": "Lua: utf8",
+      "signature": "utf8.offset(s, n [, i])",
+      "summary": "The byte position of the n-th character.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "utf8.charpattern",
+      "kind": "constant",
+      "group": "Lua: utf8",
+      "signature": "utf8.charpattern",
+      "summary": "A pattern matching one UTF-8 character.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    },
+    {
+      "name": "package",
+      "kind": "module",
+      "group": "Lua: package",
+      "signature": "package",
+      "summary": "The module system behind require().",
+      "description": "On the card, require's searcher looks for NAME.prg/.lua next to the program, at the root and in /lib. package.loaded caches loaded modules; package.preload can register modules from code.",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": [
+        "require",
+        "package.loaded",
+        "package.preload"
+      ]
+    },
+    {
+      "name": "package.loaded",
+      "kind": "constant",
+      "group": "Lua: package",
+      "signature": "package.loaded",
+      "summary": "Modules already loaded, by name (require returns these without reloading).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "package.loaded[\"vec2\"] = nil -- force a reload",
+      "seeAlso": []
+    },
+    {
+      "name": "package.preload",
+      "kind": "constant",
+      "group": "Lua: package",
+      "signature": "package.preload",
+      "summary": "Loader functions by module name, consulted by require before the card.",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "package.preload[\"util\"] = function() return { twice = function(n) return n * 2 end } end",
+      "seeAlso": []
+    },
+    {
+      "name": "package.path",
+      "kind": "constant",
+      "group": "Lua: package",
+      "signature": "package.path",
+      "summary": "Lua's search path string (unused on the card: the fs searcher is in charge).",
+      "description": "",
+      "parameters": [],
+      "returns": "",
+      "example": "",
+      "seeAlso": []
+    }
+  ]
+}

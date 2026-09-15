@@ -172,6 +172,24 @@ that format when editing a framework, and add a test in
 running it headless in the simulator with `--type 'k'` is the frameworks'
 integration test.
 
+## Help panel
+
+Right-click any name in the editor (`Screen.OutText`, `fs.open`,
+`f:read`, `string.format`, `for`) and choose **Help for …**: a panel on
+the right shows the signature, summary, parameters, return value, notes,
+an example and see-also links, and stays open while you type. The book
+button in the toolbar, or View ▸ Show Help Panel (⌘⇧H), toggles it; its
+search field looks up any name, and with no topic it lists every group.
+
+The content lives in `Sources/SPIIDECore/Resources/help/*.json`
+(`lua.json`, `os.json`, `sdk.json`; schema in that folder's README).
+**It is the documentation of record**: adding or changing an API call, a
+framework function or a Lua facility means updating the entry there in
+the same change. `HelpLibraryTests` fails when a completion-table name or
+a framework function has no entry, when a framework entry's signature
+drifts from the `---` line in the framework file, or when a see-also link
+points nowhere.
+
 ## Compile checking and editing
 
 Background checks never move you: the error line is marked in the gutter

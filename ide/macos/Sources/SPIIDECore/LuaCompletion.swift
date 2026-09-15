@@ -37,7 +37,7 @@ public enum LuaCompletion {
         "TimerCreate", "TimerStop",
         "InputPoll", "InputControl",
         // Display
-        "ScreenMode", "ScreenZOrder", "ScreenOut", "ScreenAttr", "ScreenDefineTile",
+        "ScreenMode", "ScreenOut", "ScreenAttr", "ScreenDefineTile",
         "ScreenPalette", "ScreenPaletteSet", "ScreenClear", "ScreenPlot",
         "ScreenBox", "ScreenFill", "ScreenFillAttr", "ScreenCopy", "ScreenMove",
         "ScreenScroll", "ScreenWrite", "ScreenWriteAttr", "ScreenLoadImage",

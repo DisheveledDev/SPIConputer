@@ -19,6 +19,8 @@ let package = Package(
                 // A minimal card image: core/boot and core/os, so an
                 // application can run under the OS out of the box.
                 .copy("Resources/sdcard"),
+                // The help documents (Lua, OS API, frameworks).
+                .copy("Resources/help"),
             ]
         ),
         .executableTarget(

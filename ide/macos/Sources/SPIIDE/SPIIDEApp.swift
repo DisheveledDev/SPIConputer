@@ -41,6 +41,12 @@ struct SPIIDEApp: App {
                 }
                 .keyboardShortcut(KeyEquivalent(" "), modifiers: .control)
             }
+            CommandGroup(after: .sidebar) {
+                Button(model.showingHelp ? "Hide Help Panel" : "Show Help Panel") {
+                    model.showingHelp.toggle()
+                }
+                .keyboardShortcut("h", modifiers: [.command, .shift])
+            }
             CommandMenu("Project") {
                 Button("Build") { model.build() }
                     .keyboardShortcut("b")

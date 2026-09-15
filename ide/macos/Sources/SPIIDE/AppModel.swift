@@ -79,6 +79,34 @@ final class AppModel {
         sdcardImageURL ?? BundledResources.cardImageURL
     }
 
+    // Help panel: the topic shown, the trail behind it, and visibility
+    // (remembered across launches).
+    var helpTopic: String?
+    var helpHistory: [String] = []
+    var showingHelp: Bool = UserDefaults.standard.bool(forKey: AppModel.showingHelpKey) {
+        didSet { UserDefaults.standard.set(showingHelp, forKey: Self.showingHelpKey) }
+    }
+    private static let showingHelpKey = "showingHelp"
+
+    /// Opens the panel on `name` (a function, method, namespace, module or
+    /// keyword as written in code). An unknown name still opens the panel,
+    /// which says so and offers search.
+    func showHelp(for name: String) {
+        let topic = name.trimmingCharacters(in: .whitespaces)
+        guard !topic.isEmpty else { return }
+        if let current = helpTopic, current != topic {
+            helpHistory.append(current)
+            if helpHistory.count > 50 { helpHistory.removeFirst() }
+        }
+        helpTopic = topic
+        showingHelp = true
+    }
+
+    func helpBack() {
+        guard let previous = helpHistory.popLast() else { return }
+        helpTopic = previous
+    }
+
     // Recently opened projects (welcome screen and File > Open Recent).
     private let recents = RecentProjectsStore()
     var recentProjects: [RecentProject] = []

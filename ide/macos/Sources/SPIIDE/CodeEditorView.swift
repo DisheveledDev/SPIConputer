@@ -9,6 +9,8 @@ extension Notification.Name {
     static let spiCompleteInEditor = Notification.Name("SPICompleteInEditor")
     /// userInfo["line"]: 1-based line to put the caret on (error banners).
     static let spiRevealLineInEditor = Notification.Name("SPIRevealLineInEditor")
+    /// userInfo["topic"]: a name to show help for (editor context menu).
+    static let spiHelpTopic = Notification.Name("SPIHelpTopic")
 }
 
 /// Monospaced code editor backed by NSTextView: line-number gutter,
@@ -437,6 +439,49 @@ struct CodeEditorView: NSViewRepresentable {
             isHighlighting = true
             CodeEditorFactory.applyDiagnostic(line: line, to: textView)
             isHighlighting = false
+        }
+
+        // MARK: Help
+
+        /// The editor's context menu gains "Help for <name>" for the
+        /// dotted name or method under the click (strings and comments
+        /// excluded), which opens the help panel on it.
+        func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
+            guard let name = Self.helpName(in: view.string, at: charIndex) else { return menu }
+            let item = NSMenuItem(title: "Help for \(name)", action: #selector(showHelp(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = name
+            menu.insertItem(item, at: 0)
+            menu.insertItem(NSMenuItem.separator(), at: 1)
+            return menu
+        }
+
+        @objc private func showHelp(_ sender: NSMenuItem) {
+            guard let name = sender.representedObject as? String else { return }
+            NotificationCenter.default.post(
+                name: .spiHelpTopic, object: nil, userInfo: ["topic": name])
+        }
+
+        /// The dotted name (`Screen.OutText`, `fs.open`) or method call
+        /// (`f:read`) around a character offset, or nil inside a string or
+        /// comment, or when there is no identifier there.
+        static func helpName(in text: String, at index: Int) -> String? {
+            let masked = LuaSignatureHelp.maskedText(text)
+            guard index >= 0, index <= masked.length else { return nil }
+            func isNameChar(_ c: unichar) -> Bool {
+                (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A) || (c >= 0x30 && c <= 0x39)
+                    || c == 0x5F || c == 0x2E || c == 0x3A
+            }
+            var start = min(index, masked.length)
+            while start > 0, isNameChar(masked.character(at: start - 1)) { start -= 1 }
+            var end = min(index, masked.length)
+            while end < masked.length, isNameChar(masked.character(at: end)) { end += 1 }
+            guard end > start else { return nil }
+            var name = masked.substring(with: NSRange(location: start, length: end - start))
+            name = name.trimmingCharacters(in: CharacterSet(charactersIn: ".:"))
+            guard !name.isEmpty, let first = name.unicodeScalars.first, !CharacterSet.decimalDigits.contains(first)
+            else { return nil }
+            return name
         }
 
         /// "Go to line" from an error banner: puts the caret at the start
