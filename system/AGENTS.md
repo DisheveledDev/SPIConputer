@@ -215,10 +215,14 @@ entry 0 (black); invert swaps them. The 4 spare bits stay reserved.
 - Block ops (`video.h` `VIDEO_OP_RECT/COPY/SCROLL/BOX/TEXT`): one op per
   rectangle, applied by core 0 in `video.c` (`ScreenFill/FillAttr/Copy/
   Move/Scroll/Box/Write/WriteAttr` and the Overlay twins). `TEXT` carries
-  its bytes through a two-slot staging buffer (`video_staging_acquire`,
-  `video_op_put_staged`): the producer reuses a slot only after the drain
-  has applied the op that referenced it, which is why the drain applies
-  an op *before* advancing the head. Frameworks (the IDE's SDKs) are
+  its bytes through a 4 KB staging byte ring (`video_staging_acquire`):
+  each write takes exactly its bytes and the op's `e` holds their
+  free-running end; core 0 releases them as it applies the op. Core 0
+  drains once a frame, so the ring bounds how much text core 1 can queue
+  per frame before waiting (the queue itself is lock-free SPSC and only
+  waits when 1024 ops are pending). The old two whole-screen slots made
+  the third text write of any frame wait for the next vblank — a
+  28-line editor redraw cost ~14 frames. Frameworks (the IDE's SDKs) are
   Lua over these calls; the input callbacks are looked up by name per
   event so a framework can install its dispatcher from `setup()`.
 - Mode 10 uses core 0's shared 320x240 pixel buffer; entering the mode

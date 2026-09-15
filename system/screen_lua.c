@@ -31,8 +31,8 @@
  *
  * The block calls (Box, Fill, FillAttr, Copy, Move, Scroll, Write) each
  * queue ONE op, whatever the rectangle's size: core 0 does the work at
- * the frame boundary (video.c). Write carries its bytes through a
- * staging slot. All clip to the screen.
+ * the frame boundary (video.c). Write carries its bytes through the
+ * staging ring. All clip to the screen.
  *
  * Screen* calls draw on the base layer; Overlay* calls draw on the
  * single overlay layer, whose untouched cells show the base. Mode table:
@@ -436,7 +436,7 @@ static int scroll_common(lua_State *L, bool overlay) {
 
 /* Write(x, y, text [, attr]): the bytes of `text` as consecutive cells
  * from (x, y), wrapping to the next row; with `attr` every cell gets
- * that attribute too. One op via a staging slot, however long the text
+ * that attribute too. One op via the staging ring, however long the text
  * (clipped at the end of the screen). */
 static int write_common(lua_State *L, bool overlay, bool attrs_only) {
     check_program(L);
@@ -458,8 +458,8 @@ static int write_common(lua_State *L, bool overlay, bool attrs_only) {
     if (len == 0 || s_muted) {
         return push_true(L);
     }
-    int slot;
-    uint8_t *dst = video_staging_acquire(&slot);
+    uint32_t end;
+    uint8_t *dst = video_staging_acquire((uint32_t)len, &end);
     memcpy(dst, text, len);
     uint32_t flags = (overlay ? VIDEO_BLK_OVERLAY : 0) |
                      (attrs_only ? VIDEO_BLK_BYTES_ATTR : 0) |
@@ -468,11 +468,11 @@ static int write_common(lua_State *L, bool overlay, bool attrs_only) {
         .op = VIDEO_OP_TEXT,
         .a = (uint8_t)x,
         .b = (uint8_t)y,
-        .c = (uint8_t)slot,
+        .c = 0,
         .d = (uint32_t)len | ((uint32_t)(attr & 0xff) << 16) | (flags << 24),
-        .e = 0,
+        .e = end,
     };
-    video_op_put_staged(&op);
+    video_op_put(&op);
     return push_true(L);
 }
 

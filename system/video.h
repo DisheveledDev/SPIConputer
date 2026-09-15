@@ -90,9 +90,10 @@ typedef enum {
     VIDEO_OP_SCROLL, /* a,b = x,y; c = w; d = h | (int8)dx<<8 | (int8)dy<<16 |
                         flags<<24; e = fill ch | fill attr<<8 */
     VIDEO_OP_BOX,    /* a,b = x,y; c = w; d = h | style<<8 | attr<<16 | flags<<24 */
-    VIDEO_OP_TEXT,   /* a,b = x,y; c = staging slot; d = len | attr<<16 |
-                        flags<<24: `len` bytes from the slot, written from
-                        (x,y) onwards, wrapping to the next row */
+    VIDEO_OP_TEXT,   /* a,b = x,y; d = len | attr<<16 | flags<<24; e = the
+                        free-running end of its staging bytes: `len` bytes
+                        ending there, written from (x,y) onwards, wrapping
+                        to the next row */
 } video_op_kind_t;
 
 /* Block op flags (the top byte of `d`). */
@@ -113,22 +114,24 @@ typedef struct {
  * core 0 drains it (bounded by one frame). */
 #define VIDEO_QUEUE_OPS 1024
 
-/* Staging for VIDEO_OP_TEXT: the bytes travel outside the 12-byte op.
- * Two slots of one full char map each; the producer acquires a slot
- * (waiting until the op that last used it has been applied), fills it
- * and queues the op with video_op_put_staged(). */
-#define VIDEO_STAGING_SLOTS 2
-#define VIDEO_STAGING_BYTES (VIDEO_COLS * VIDEO_ROWS)
+/* Staging for VIDEO_OP_TEXT: the bytes travel outside the 12-byte op,
+ * in a byte ring. The producer takes exactly the bytes a write needs,
+ * contiguous, fills them and queues the op with `e` = the end it was
+ * given; core 0 releases them as it applies the op. Core 0 drains once a
+ * frame, so the ring bounds how much text core 1 can queue per frame
+ * before it waits: 4 KB is over three full-screen writes, or hundreds of
+ * status-line strings. (Two whole-screen slots used to stall core 1 for
+ * a frame at the third write of any frame.) Must be a power of two. */
+#define VIDEO_STAGING_BYTES 4096u
 
 /* Append one op (core 1). */
 void video_op_put(const video_op_t *op);
 
-/* Take a staging slot (core 1): returns its buffer and sets *slot. Blocks
- * while core 0 has not yet applied the slot's previous op. */
-uint8_t *video_staging_acquire(int *slot);
-
-/* Append an op that references staging slot op->c (core 1). */
-void video_op_put_staged(const video_op_t *op);
+/* Take `len` (1..VIDEO_COLS*VIDEO_ROWS) contiguous staging bytes (core
+ * 1): returns where to write them and sets *end for the op's `e`. Blocks
+ * only while the ring is full of bytes core 0 has not applied yet. Every
+ * acquire must be followed by queuing its op. */
+uint8_t *video_staging_acquire(uint32_t len, uint32_t *end);
 
 /* Weak hook run while video_op_put waits on a full queue: a no-op on
  * the firmware, a drain in the single-threaded simulator. */

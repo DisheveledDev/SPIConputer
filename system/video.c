@@ -40,32 +40,33 @@ static volatile uint32_t s_overlay_out_count;
 /* Core-1-side shadow of the mode Lua last requested. */
 static uint8_t s_lua_mode;
 
-/* VIDEO_OP_TEXT staging (see video.h). `seq` is the queue index of the
- * op that last referenced a slot; the slot is free again once the
- * consumer's head has passed it. */
-static uint8_t s_staging[VIDEO_STAGING_SLOTS][VIDEO_STAGING_BYTES];
-static volatile uint32_t s_staging_seq[VIDEO_STAGING_SLOTS];
-static volatile bool s_staging_busy[VIDEO_STAGING_SLOTS];
-static int s_staging_next;
+/* VIDEO_OP_TEXT staging ring (see video.h). Positions are free-running
+ * byte counts: the producer hands out bytes up to s_staging_tail, the
+ * consumer has applied every op whose bytes end at or before
+ * s_staging_released. Ops are applied in queue order, so the released
+ * end only moves forward. */
+#define STAGING_MASK (VIDEO_STAGING_BYTES - 1u)
+static uint8_t s_staging[VIDEO_STAGING_BYTES];
+static uint32_t s_staging_tail;              /* producer: core 1 */
+static volatile uint32_t s_staging_released; /* consumer: core 0 */
 
-uint8_t *video_staging_acquire(int *slot) {
-    int s = s_staging_next;
-    s_staging_next = (s + 1) % VIDEO_STAGING_SLOTS;
-    while (s_staging_busy[s] && (int32_t)(s_head - s_staging_seq[s]) <= 0) {
+uint8_t *video_staging_acquire(uint32_t len, uint32_t *end) {
+    uint32_t start = s_staging_tail;
+    uint32_t offset = start & STAGING_MASK;
+    if (offset + len > VIDEO_STAGING_BYTES) {
+        /* Keep the bytes contiguous: skip the rest of the ring. */
+        start += VIDEO_STAGING_BYTES - offset;
+        offset = 0;
+    }
+    uint32_t stop = start + len;
+    /* Wait only while unapplied bytes would be overwritten. */
+    while ((uint32_t)(stop - s_staging_released) > VIDEO_STAGING_BYTES) {
         video_queue_full_hook();
         atomic_signal_fence(memory_order_seq_cst);
     }
-    s_staging_busy[s] = false;
-    *slot = s;
-    return s_staging[s];
-}
-
-void video_op_put_staged(const video_op_t *op) {
-    /* Record the index this op will take before it is published, so the
-     * slot cannot be reacquired until the drain has applied it. */
-    s_staging_seq[op->c] = s_tail;
-    s_staging_busy[op->c] = true;
-    video_op_put(op);
+    s_staging_tail = stop;
+    *end = stop;
+    return &s_staging[offset];
 }
 
 /* memset for the core 0 paths: the library's lives in flash. The
@@ -130,15 +131,12 @@ void video_screens_init(void) {
     s_screen_active = 0;
     s_head = 0;
     s_tail = 0;
+    s_staging_tail = 0;
+    s_staging_released = 0;
     s_drain_count = 0;
     s_base_out_count = 0;
     s_overlay_out_count = 0;
     s_lua_mode = VIDEO_MODE_TEXT40;
-    for (int i = 0; i < VIDEO_STAGING_SLOTS; i++) {
-        s_staging_busy[i] = false;
-        s_staging_seq[i] = 0;
-    }
-    s_staging_next = 0;
 }
 
 video_state_t *VIDEO_HOT(video_screen)(void) {
@@ -389,11 +387,12 @@ static void VIDEO_HOT(apply_text)(video_state_t *v, const video_op_t *op) {
     uint8_t flags = (uint8_t)(op->d >> 24);
     uint8_t attr = (uint8_t)(op->d >> 16);
     int len = (int)(op->d & 0xffff);
-    int slot = op->c;
-    if (slot >= VIDEO_STAGING_SLOTS || op->a >= VIDEO_COLS || op->b >= VIDEO_ROWS) {
+    uint32_t offset = (op->e - (uint32_t)len) & STAGING_MASK;
+    if (offset + (uint32_t)len > VIDEO_STAGING_BYTES || op->a >= VIDEO_COLS ||
+        op->b >= VIDEO_ROWS) {
         return;
     }
-    const uint8_t *src = s_staging[slot];
+    const uint8_t *src = &s_staging[offset];
     uint8_t *chars = layer_chars(v, flags);
     uint8_t *attrs = layer_attrs(v, flags);
     int idx = op->b * VIDEO_COLS + op->a;
@@ -485,6 +484,9 @@ static bool VIDEO_HOT(apply_op)(video_state_t *v, const video_op_t *op) {
             return false;
         case VIDEO_OP_TEXT:
             if (v->mode != VIDEO_MODE_PIXEL) apply_text(v, op);
+            /* The bytes are consumed: hand them back to the producer. */
+            atomic_signal_fence(memory_order_seq_cst);
+            s_staging_released = op->e;
             return false;
         default:
             return false; /* VIDEO_OP_SLOT is handled by the drain */
@@ -498,8 +500,8 @@ bool VIDEO_HOT(video_ops_drain)(void) {
 
     while (s_head != tail) {
         /* Copy the op, apply it, then publish the head: the producer
-         * may overwrite the queue slot (and a staging slot the op
-         * referenced) as soon as it sees the advance. */
+         * may overwrite the queue slot as soon as it sees the advance
+         * (a TEXT op releases its staging bytes inside apply_op). */
         video_op_t op = s_queue[s_head % VIDEO_QUEUE_OPS];
         if (op.op == VIDEO_OP_SLOT) {
             if (op.a < VIDEO_SLOTS) {

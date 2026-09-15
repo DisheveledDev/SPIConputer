@@ -27,7 +27,7 @@ extern void mock_set_file(const char *path, const char *content);
 extern const char *mock_get_file(const char *path);
 
 /* Like the simulator: the tests are single-threaded, so a full queue or
- * a busy staging slot is drained from inside the wait. */
+ * a full staging ring is drained from inside the wait. */
 void video_queue_full_hook(void) {
     video_ops_drain();
 }

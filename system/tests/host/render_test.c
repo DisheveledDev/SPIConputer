@@ -25,8 +25,12 @@
 extern void mock_set_file(const char *path, const char *content);
 
 /* Like the simulator: the tests are single-threaded, so a full queue or
- * a busy staging slot is drained from inside the wait. */
+ * a full staging ring is drained from inside the wait. Counted, so the
+ * tests can check that ordinary drawing never has to wait. */
+static int g_full_waits = 0;
+
 void video_queue_full_hook(void) {
+    g_full_waits++;
     video_ops_drain();
 }
 
@@ -392,7 +396,7 @@ static const char *BLOCK_LUA =
     "  assert(OverlayWrite(5, 5, 'OV', 0x80) == true)\n"
     "  assert(OverlayFill(0, 20, 40, 2, 35, 0x03) == true)\n"
     "  assert(OverlayScroll(0, 20, 40, 2, 3, 0, 32, 0x40) == true)\n"
-    /* Four writes in a row: more than the two staging slots. */
+    /* Four writes in a row (the old two-slot staging waited here). */
     "  for i = 1, 4 do assert(ScreenWrite(i - 1, 29, tostring(i)) == true) end\n"
     "  assert(ScreenCopy(0, 0, 5, 5, 40, 0) == nil)\n"
     "  assert(ScreenWrite(40, 0, 'x') == nil)\n"
@@ -443,8 +447,59 @@ static void test_block_ops(void) {
               v->overlay_char[CELL(0, 20)] == 32 && v->overlay_attr[CELL(0, 21)] == 0x40,
           "OverlayScroll fills uncovered cells with the given attr");
     CHECK(v->base_char[CELL(0, 29)] == '1' && v->base_char[CELL(3, 29)] == '4',
-          "staging slots are reused safely across more writes than slots");
+          "consecutive writes each keep their own staging bytes");
 #undef CELL
+    video_screens_init();
+}
+
+/* Text staging: a frame's worth of line writes queues without waiting for
+ * core 0, and a ring's worth more still lands intact after it wraps. */
+#define STAGING_LUA                                                         \
+    "function setup()\n"                                                   \
+    "  ScreenMode(1)\n"                                                    \
+    "  for y = 0, 29 do ScreenWrite(0, y, string.rep(string.char(65 + y % 26), 40)) end\n" \
+    "  ExitProgram()\n"                                                    \
+    "end\n"                                                                \
+    "function tick() end\n"
+
+#define STAGING_WRAP_LUA                                                    \
+    "function setup()\n"                                                   \
+    "  ScreenMode(1)\n"                                                    \
+    "  for pass = 1, 5 do\n"                                               \
+    "    ScreenWrite(0, 0, string.rep(string.char(96 + pass), 1200))\n"    \
+    "  end\n"                                                              \
+    "  for i = 0, 39 do ScreenWrite(i, 3, string.char(48 + i % 10)) end\n" \
+    "  ExitProgram()\n"                                                    \
+    "end\n"                                                                \
+    "function tick() end\n"
+
+static void test_text_staging(void) {
+    video_screens_init();
+    mock_set_file("stg.lua", STAGING_LUA);
+    g_full_waits = 0;
+    CHECK(program_boot("stg.lua", NULL), "staging program boots");
+    CHECK(g_full_waits == 0, "30 full-line writes in one frame never wait for core 0");
+    video_ops_drain();
+    const video_state_t *v = video_screen();
+    CHECK(v->base_char[0] == 'A' && v->base_char[39] == 'A' &&
+              v->base_char[29 * 40] == 'D' && v->base_char[29 * 40 + 39] == 'D',
+          "every line lands from the staging ring");
+
+    /* Five full screens (6000 bytes) wrap the 4 KB ring: the producer
+     * waits for the drain instead of overwriting unapplied text, and the
+     * short writes after the wrap are applied intact. */
+    video_screens_init();
+    mock_set_file("wrap.lua", STAGING_WRAP_LUA);
+    g_full_waits = 0;
+    CHECK(program_boot("wrap.lua", NULL), "wrapping program boots");
+    CHECK(g_full_waits > 0, "a full ring waits for core 0");
+    video_ops_drain();
+    v = video_screen();
+    CHECK(v->base_char[0] == 'e' && v->base_char[1199] == 'e',
+          "the last full-screen write wins after the ring wraps");
+    CHECK(v->base_char[3 * 40] == '0' && v->base_char[3 * 40 + 9] == '9' &&
+              v->base_char[3 * 40 + 39] == '9',
+          "short writes after the wrap keep their bytes");
     video_screens_init();
 }
 
@@ -464,6 +519,7 @@ int main(void) {
     test_render_rom_font();
     test_box_fill();
     test_block_ops();
+    test_text_staging();
     test_render_mode10();
     test_screen_module();
     test_overlay_module();
