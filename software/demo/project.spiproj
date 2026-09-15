@@ -1,23 +1,23 @@
 {
-  "components" : [
+  "components": [
     {
-      "file" : "components/00-header.lua",
-      "id" : "6E1F5D84-D071-4C96-8FBE-4B5C9DAEBFC0",
-      "kind" : "snippet",
-      "name" : "header"
+      "file": "components/00-header.lua",
+      "id": "6E1F5D84-D071-4C96-8FBE-4B5C9DAEBFC0",
+      "kind": "snippet",
+      "name": "header"
     },
     {
-      "file" : "components/10-main.lua",
-      "id" : "7F2A6E95-E182-4DA7-9ACF-5C6DAEBFC0D1",
-      "kind" : "lua",
-      "name" : "main"
+      "file": "components/10-main.lua",
+      "id": "7F2A6E95-E182-4DA7-9ACF-5C6DAEBFC0D1",
+      "kind": "lua",
+      "name": "main"
     }
   ],
-  "description" : "Framework showcase and self-test",
-  "format_version" : 1,
-  "name" : "demo",
-  "output_directory" : "../apps",
-  "sdks" : [
+  "description": "Framework showcase and self-test",
+  "format_version": 2,
+  "kind": "application",
+  "name": "demo",
+  "sdks": [
     "screen",
     "overlay",
     "sound",

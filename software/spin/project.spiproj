@@ -1,0 +1,15 @@
+{
+  "components" : [
+    {
+      "file" : "components/10-main.lua",
+      "id" : "AC5D9E28-B4C5-4ADA-8EF2-8F90C1D2E3F4",
+      "kind" : "lua",
+      "name" : "main"
+    }
+  ],
+  "description" : "Example game: owns the machine, restarts the OS on exit",
+  "format_version" : 2,
+  "kind" : "game",
+  "name" : "spin",
+  "sdks" : [ "screen", "input" ]
+}

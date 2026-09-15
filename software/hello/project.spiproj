@@ -1,0 +1,15 @@
+{
+  "components" : [
+    {
+      "file" : "components/10-main.lua",
+      "id" : "9B4C8D17-A3B4-4FC9-BDE1-7E8FB0C1D2E3",
+      "kind" : "lua",
+      "name" : "main"
+    }
+  ],
+  "description" : "Example utility: echoes its arguments",
+  "format_version" : 2,
+  "kind" : "utility",
+  "name" : "hello",
+  "sdks" : [ ]
+}
